@@ -134,7 +134,7 @@ private extension MetricKitCrashReporter {
     /// Archives crash report data for later analysis
     func archiveCrashReport(_ diagnostic: MXCrashDiagnostic) {
         // Convert diagnostic to dictionary for storage
-        let crashData = diagnostic.dictionaryRepresentation()
+        let _ = diagnostic.dictionaryRepresentation()
         
         // You can implement custom storage logic here (e.g., save to Core Data, send to analytics)
         // For now, we'll just log that the crash has been archived

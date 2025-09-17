@@ -25,7 +25,7 @@ public extension LogTag {
     
     /// Core system logging namespace
     struct System {
-        public static let internal: LogTag = .internal
+        public static let `internal`: LogTag = .internal
         public static let crash: LogTag = .crash
         public static let performance: LogTag = .performance
         public static let memory: LogTag = .memory
