@@ -228,8 +228,13 @@ jobs:
           echo "No baseline branch/tag found, skipping API breaking changes check"
         fi
         
-        swift package compute-checksum
+        # Validate package structure
         swift package dump-package
+        echo "✅ Package structure validation completed"
+        
+        # Additional package validation
+        swift package show-dependencies
+        echo "✅ Dependencies validation completed"
         
     - name: Check Package Manifest
       run: |
