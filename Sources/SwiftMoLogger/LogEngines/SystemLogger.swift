@@ -3,7 +3,6 @@ import Foundation
 /// Default system logger that outputs to the console with emoji indicators
 final class SystemLogger: LogEngine {
     static let main: SystemLogger = .init()
-    
     private init() {}
 
     func info(message: String) {

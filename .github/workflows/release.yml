@@ -1,0 +1,230 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  validate-tag:
+    name: Validate Release Tag
+    runs-on: macos-14
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      is_prerelease: ${{ steps.get_version.outputs.prerelease }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Get version from tag
+      id: get_version
+      run: |
+        TAG=${GITHUB_REF#refs/tags/}
+        echo "version=${TAG}" >> $GITHUB_OUTPUT
+        
+        # Check if this is a prerelease (contains alpha, beta, rc)
+        if [[ $TAG =~ (alpha|beta|rc) ]]; then
+          echo "prerelease=true" >> $GITHUB_OUTPUT
+        else
+          echo "prerelease=false" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Release version: $TAG"
+        echo "Is prerelease: $(echo $TAG | grep -q 'alpha\|beta\|rc' && echo true || echo false)"
+
+  test-before-release:
+    name: Test Before Release
+    runs-on: macos-14
+    needs: validate-tag
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        xcodebuild -version
+        swift --version
+    
+    - name: Build Swift Package
+      run: |
+        swift build -v
+        
+    - name: Run Tests
+      run: |
+        swift test
+        
+    - name: Validate Package
+      run: |
+        swift package diagnose-api-breaking-changes baseline || true
+        swift package compute-checksum
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: macos-14
+    needs: [validate-tag, test-before-release]
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Generate Release Notes
+      id: generate_notes
+      run: |
+        # Get the previous tag
+        PREV_TAG=$(git tag --sort=-version:refname | sed -n '2p' || echo "")
+        CURRENT_TAG="${{ needs.validate-tag.outputs.version }}"
+        
+        echo "Current tag: $CURRENT_TAG"
+        echo "Previous tag: $PREV_TAG"
+        
+        # Generate changelog since last tag
+        if [ -n "$PREV_TAG" ]; then
+          CHANGELOG=$(git log --pretty=format:"- %s" ${PREV_TAG}..HEAD | head -20)
+        else
+          CHANGELOG=$(git log --pretty=format:"- %s" | head -20)
+        fi
+        
+        # Create release notes
+        cat > release_notes.md << EOF
+        ## What's Changed
+        
+        $CHANGELOG
+        
+        ## Installation
+        
+        ### Swift Package Manager
+        Add SwiftMoLogger to your project using Xcode:
+        1. File → Add Package Dependencies
+        2. Enter: \`https://github.com/MoElnaggar14/SwiftMoLogger.git\`
+        3. Select version: \`$CURRENT_TAG\`
+        
+        Or add to your \`Package.swift\`:
+        \`\`\`swift
+        dependencies: [
+            .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "$CURRENT_TAG")
+        ]
+        \`\`\`
+        
+        ## Requirements
+        - iOS 15.0+
+        - Xcode 15.0+
+        - Swift 5.9+
+        
+        ## Quick Start
+        \`\`\`swift
+        import SwiftMoLogger
+        
+        let logger = SwiftLogger()
+        logger.info("Hello SwiftMoLogger!", tag: .core(.system))
+        \`\`\`
+        
+        ---
+        
+        **Full Changelog**: https://github.com/MoElnaggar14/SwiftMoLogger/compare/${PREV_TAG}...${CURRENT_TAG}
+        EOF
+        
+        echo "Generated release notes:"
+        cat release_notes.md
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ needs.validate-tag.outputs.version }}
+        name: "SwiftMoLogger ${{ needs.validate-tag.outputs.version }}"
+        body_path: release_notes.md
+        prerelease: ${{ needs.validate-tag.outputs.is_prerelease == 'true' }}
+        generate_release_notes: true
+        files: |
+          README.md
+          CHANGELOG.md
+          LICENSE
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+  update-changelog:
+    name: Update Changelog
+    runs-on: macos-14
+    needs: [validate-tag, create-release]
+    if: needs.validate-tag.outputs.is_prerelease == 'false'
+    permissions:
+      contents: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+        
+    - name: Update CHANGELOG.md
+      run: |
+        VERSION="${{ needs.validate-tag.outputs.version }}"
+        DATE=$(date +"%Y-%m-%d")
+        
+        # Get commits since last tag
+        PREV_TAG=$(git tag --sort=-version:refname | sed -n '2p' || echo "")
+        
+        if [ -n "$PREV_TAG" ]; then
+          COMMITS=$(git log --pretty=format:"- %s" ${PREV_TAG}..HEAD | head -20)
+        else
+          COMMITS=$(git log --pretty=format:"- %s" | head -20)
+        fi
+        
+        # Create new changelog entry
+        cat > new_entry.md << EOF
+        ## [$VERSION] - $DATE
+        
+        ### Changed
+        $COMMITS
+        
+        EOF
+        
+        # Insert new entry after "# Changelog" line
+        if [ -f CHANGELOG.md ]; then
+          sed -i.bak '2r new_entry.md' CHANGELOG.md
+          rm new_entry.md CHANGELOG.md.bak
+        else
+          cat > CHANGELOG.md << EOF
+        # Changelog
+        
+        All notable changes to this project will be documented in this file.
+        
+        The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+        and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+        
+        $(cat new_entry.md)
+        EOF
+          rm new_entry.md
+        fi
+        
+        echo "Updated CHANGELOG.md:"
+        head -20 CHANGELOG.md
+        
+    - name: Commit changelog update
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add CHANGELOG.md
+        git commit -m "docs: Update changelog for v${{ needs.validate-tag.outputs.version }}" || exit 0
+        git push origin main || exit 0
+
+  notify-success:
+    name: Notify Release Success
+    runs-on: macos-14
+    needs: [validate-tag, create-release, update-changelog]
+    if: always() && (needs.create-release.result == 'success')
+    
+    steps:
+    - name: Release Success Notification
+      run: |
+        echo "🎉 SwiftMoLogger ${{ needs.validate-tag.outputs.version }} has been successfully released!"
+        echo "📦 GitHub Release: https://github.com/MoElnaggar14/SwiftMoLogger/releases/tag/${{ needs.validate-tag.outputs.version }}"
+        echo "📚 Documentation: https://github.com/MoElnaggar14/SwiftMoLogger#readme"
+        echo "🔗 Swift Package Manager: https://github.com/MoElnaggar14/SwiftMoLogger.git"

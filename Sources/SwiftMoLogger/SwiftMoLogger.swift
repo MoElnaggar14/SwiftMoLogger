@@ -49,7 +49,6 @@ public enum SwiftMoLogger {
     public static func error(message: String) {
         engines.forEach { $0.error(message: message) }
     }
-    
     /// Logs an informational message with the specified tag
     /// - Parameters:
     ///   - message: The message to log
@@ -57,7 +56,6 @@ public enum SwiftMoLogger {
     public static func info(message: String, tag: LogTag) {
         info(message: message.tagWith(tag))
     }
-    
     /// Logs a warning message with the specified tag
     /// - Parameters:
     ///   - message: The message to log
@@ -65,7 +63,6 @@ public enum SwiftMoLogger {
     public static func warn(message: String, tag: LogTag) {
         warn(message: message.tagWith(tag))
     }
-    
     /// Logs an error message with the specified tag
     /// - Parameters:
     ///   - message: The message to log
@@ -73,7 +70,6 @@ public enum SwiftMoLogger {
     public static func error(message: String, tag: LogTag) {
         error(message: message.tagWith(tag))
     }
-    
     /// Logs a debug message (only in DEBUG builds) with the specified tag
     /// - Parameters:
     ///   - message: The message to log
@@ -83,7 +79,6 @@ public enum SwiftMoLogger {
         info(message: message.tagWith(tag))
         #endif
     }
-    
     /// Logs a crash-related message with error level
     /// - Parameter message: The crash-related message to log
     public static func crash(message: String) {

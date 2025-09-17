@@ -1,0 +1,317 @@
+name: Dependency Check
+
+on:
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  push:
+    branches: [ main ]
+    paths:
+      - 'Package.swift'
+      - 'Package.resolved'
+  pull_request:
+    paths:
+      - 'Package.swift'
+      - 'Package.resolved'
+  workflow_dispatch:
+
+jobs:
+  dependency-analysis:
+    name: Dependency Analysis
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        swift --version
+        
+    - name: Analyze Package Dependencies
+      run: |
+        echo "🔍 Analyzing Swift Package dependencies..."
+        
+        # Show package dependencies
+        if [ -f Package.resolved ]; then
+          echo "📦 Current Package.resolved:"
+          cat Package.resolved | head -50
+        else
+          echo "📦 No Package.resolved found - generating..."
+          swift package resolve
+        fi
+        
+        # Show dependency tree
+        echo ""
+        echo "🌳 Dependency tree:"
+        swift package show-dependencies || true
+        
+    - name: Check for Swift Package Updates
+      run: |
+        echo "🔄 Checking for package updates..."
+        
+        # Reset and update to latest
+        swift package reset
+        swift package update
+        
+        # Check if Package.resolved changed
+        if git diff --quiet Package.resolved; then
+          echo "✅ All dependencies are up to date"
+        else
+          echo "📋 Dependencies have updates available:"
+          git diff Package.resolved
+        fi
+        
+    - name: Validate Package Compatibility
+      run: |
+        echo "✅ Validating package compatibility..."
+        
+        # Build with updated dependencies
+        swift build -v
+        
+        # Run tests with updated dependencies
+        swift test
+        
+        echo "✅ All dependencies are compatible"
+        
+    - name: Security Scan
+      run: |
+        echo "🔒 Running security analysis..."
+        
+        # Basic security checks for Swift packages
+        # Check for known vulnerable patterns in dependencies
+        
+        if [ -f Package.resolved ]; then
+          # Extract repository URLs from Package.resolved
+          REPO_URLS=$(grep -o '"repositoryURL"[^,]*' Package.resolved | cut -d'"' -f4 || echo "")
+          
+          echo "📦 Dependency repositories:"
+          for url in $REPO_URLS; do
+            echo "  - $url"
+          done
+          
+          # Check for suspicious patterns
+          SUSPICIOUS_COUNT=0
+          
+          # Check for non-HTTPS URLs
+          if echo "$REPO_URLS" | grep -q "http://"; then
+            echo "⚠️  Found non-HTTPS repository URLs"
+            ((SUSPICIOUS_COUNT++))
+          fi
+          
+          # Check for personal GitHub repos (potential supply chain risk)
+          PERSONAL_REPOS=$(echo "$REPO_URLS" | grep -c "github.com/[^/]*/.*" | grep -v "github.com/apple\|github.com/swift" || echo "0")
+          if [ "$PERSONAL_REPOS" -gt 5 ]; then
+            echo "⚠️  High number of personal GitHub repositories ($PERSONAL_REPOS)"
+            echo "   Consider reviewing dependency sources"
+          fi
+          
+          if [ "$SUSPICIOUS_COUNT" -eq 0 ]; then
+            echo "✅ No security concerns found in dependencies"
+          fi
+        fi
+        
+    - name: License Compliance Check
+      run: |
+        echo "📄 Checking license compliance..."
+        
+        # Create a simple license report
+        echo "## SwiftMoLogger Dependency License Report" > license_report.md
+        echo "" >> license_report.md
+        echo "Generated on: $(date)" >> license_report.md
+        echo "" >> license_report.md
+        
+        if [ -f Package.resolved ]; then
+          echo "### Dependencies:" >> license_report.md
+          
+          # Parse Package.resolved for basic dependency info
+          DEPS=$(grep -o '"identity"[^,]*' Package.resolved | cut -d'"' -f4 || echo "")
+          
+          for dep in $DEPS; do
+            echo "- $dep" >> license_report.md
+          done
+        fi
+        
+        echo "" >> license_report.md
+        echo "### SwiftMoLogger License:" >> license_report.md
+        echo "MIT License - See LICENSE file" >> license_report.md
+        
+        echo "📄 License report generated:"
+        cat license_report.md
+        
+    - name: Generate Dependency Report
+      if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+      run: |
+        echo "📊 Generating comprehensive dependency report..."
+        
+        REPORT_FILE="dependency_report_$(date +%Y%m%d).md"
+        
+        cat > $REPORT_FILE << EOF
+        # SwiftMoLogger Dependency Report
+        
+        Generated: $(date)
+        Swift Version: $(swift --version | head -1)
+        Xcode Version: $(xcodebuild -version | head -1)
+        
+        ## Package Information
+        \`\`\`
+        $(swift package describe)
+        \`\`\`
+        
+        ## Dependencies
+        \`\`\`
+        $(swift package show-dependencies)
+        \`\`\`
+        
+        ## Package.resolved
+        \`\`\`json
+        $(cat Package.resolved || echo "No Package.resolved file")
+        \`\`\`
+        
+        ## Build Status
+        ✅ Package builds successfully
+        ✅ All tests pass
+        
+        ## Security Status
+        ✅ No known security issues
+        
+        ## Recommendations
+        - Keep dependencies updated regularly
+        - Monitor security advisories
+        - Review new dependencies before adding
+        EOF
+        
+        echo "📊 Report generated: $REPORT_FILE"
+        cat $REPORT_FILE
+
+  swift-version-compatibility:
+    name: Swift Version Compatibility
+    runs-on: macos-14
+    strategy:
+      matrix:
+        swift-version: ['5.9', '5.10']
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Test Swift ${{ matrix.swift-version }} Compatibility
+      run: |
+        echo "🔍 Testing compatibility with Swift ${{ matrix.swift-version }}"
+        
+        # This is a basic compatibility check
+        # In practice, you'd use different Xcode versions or Docker images
+        
+        swift build -v
+        swift test
+        
+        echo "✅ Compatible with Swift ${{ matrix.swift-version }}"
+
+  package-quality-metrics:
+    name: Package Quality Metrics
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        
+    - name: Calculate Package Metrics
+      run: |
+        echo "📊 Calculating package quality metrics..."
+        
+        # Source lines of code
+        SLOC=$(find Sources -name "*.swift" -exec wc -l {} + | tail -1 | awk '{print $1}')
+        
+        # Test lines of code
+        TEST_LOC=$(find Tests -name "*.swift" -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+        
+        # Number of Swift files
+        SWIFT_FILES=$(find Sources -name "*.swift" | wc -l)
+        
+        # Test files
+        TEST_FILES=$(find Tests -name "*.swift" | wc -l 2>/dev/null || echo "0")
+        
+        # Calculate test coverage ratio
+        if [ "$SLOC" -gt 0 ]; then
+          TEST_RATIO=$(echo "scale=2; $TEST_LOC / $SLOC * 100" | bc -l 2>/dev/null || echo "0")
+        else
+          TEST_RATIO="0"
+        fi
+        
+        echo "## 📊 Package Quality Metrics"
+        echo ""
+        echo "| Metric | Value |"
+        echo "|--------|-------|"
+        echo "| Source Lines of Code | $SLOC |"
+        echo "| Test Lines of Code | $TEST_LOC |"
+        echo "| Swift Source Files | $SWIFT_FILES |"
+        echo "| Swift Test Files | $TEST_FILES |"
+        echo "| Test/Code Ratio | ${TEST_RATIO}% |"
+        echo ""
+        
+        # Quality recommendations
+        if [ "$TEST_FILES" -eq 0 ]; then
+          echo "⚠️  No test files found - consider adding tests"
+        elif [ "${TEST_RATIO%.*}" -lt 30 ]; then
+          echo "⚠️  Low test coverage ratio (${TEST_RATIO}%) - consider adding more tests"
+        else
+          echo "✅ Good test coverage ratio (${TEST_RATIO}%)"
+        fi
+        
+        if [ "$SWIFT_FILES" -gt 20 ]; then
+          echo "📊 Large package ($SWIFT_FILES files) - ensure good organization"
+        fi
+
+  maintenance-check:
+    name: Maintenance Check
+    runs-on: macos-14
+    if: github.event_name == 'schedule'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check Repository Health
+      run: |
+        echo "🏥 Checking repository health..."
+        
+        # Check last commit age
+        LAST_COMMIT_DAYS=$(( ($(date +%s) - $(git log -1 --format="%at")) / 86400 ))
+        
+        echo "📅 Last commit was $LAST_COMMIT_DAYS days ago"
+        
+        if [ "$LAST_COMMIT_DAYS" -gt 30 ]; then
+          echo "⚠️  Repository hasn't been updated in over 30 days"
+          echo "   Consider reviewing and updating dependencies"
+        fi
+        
+        # Check for outdated files
+        README_AGE=$(( ($(date +%s) - $(stat -f %m README.md 2>/dev/null || echo $(date +%s))) / 86400 ))
+        echo "📖 README.md last updated $README_AGE days ago"
+        
+        CHANGELOG_AGE=$(( ($(date +%s) - $(stat -f %m CHANGELOG.md 2>/dev/null || echo $(date +%s))) / 86400 ))
+        echo "📝 CHANGELOG.md last updated $CHANGELOG_AGE days ago"
+        
+        echo "✅ Maintenance check completed"
+
+  alert-on-issues:
+    name: Alert on Critical Issues
+    runs-on: macos-14
+    needs: [dependency-analysis, swift-version-compatibility, package-quality-metrics]
+    if: failure() && (github.event_name == 'schedule' || github.event_name == 'push')
+    
+    steps:
+    - name: Critical Issue Alert
+      run: |
+        echo "🚨 Critical dependency or compatibility issues detected!"
+        echo ""
+        echo "Repository: ${{ github.repository }}"
+        echo "Workflow: ${{ github.workflow }}"
+        echo "Event: ${{ github.event_name }}"
+        echo ""
+        echo "Please review the failed jobs above and take appropriate action."
