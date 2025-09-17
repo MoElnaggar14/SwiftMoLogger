@@ -1,30 +1,30 @@
 import XCTest
-@testable import SwiftLogger
+@testable import SwiftMoLogger
 
-final class SwiftLoggerTests: XCTestCase {
+final class SwiftMoLoggerTests: XCTestCase {
     
     func testBasicLogging() {
         // Test that basic logging methods don't crash
-        SwiftLogger.info(message: "Test info message")
-        SwiftLogger.warn(message: "Test warning message")
-        SwiftLogger.error(message: "Test error message")
+        SwiftMoLogger.info(message: "Test info message")
+        SwiftMoLogger.warn(message: "Test warning message")
+        SwiftMoLogger.error(message: "Test error message")
     }
     
     func testTaggedLogging() {
         // Test that tagged logging methods work
-        SwiftLogger.info(message: "Test network message", tag: LogTag.Network.api)
-        SwiftLogger.warn(message: "Test UI message", tag: LogTag.UI.layout)
-        SwiftLogger.error(message: "Test database message", tag: LogTag.Data.database)
+        SwiftMoLogger.info(message: "Test network message", tag: LogTag.Network.api)
+        SwiftMoLogger.warn(message: "Test UI message", tag: LogTag.UI.layout)
+        SwiftMoLogger.error(message: "Test database message", tag: LogTag.Data.database)
     }
     
     func testCrashLogging() {
         // Test crash-specific logging
-        SwiftLogger.crash(message: "Test crash message")
+        SwiftMoLogger.crash(message: "Test crash message")
     }
     
     func testDebugLogging() {
         // Test debug logging (should only work in DEBUG builds)
-        SwiftLogger.debug(message: "Test debug message")
+        SwiftMoLogger.debug(message: "Test debug message")
     }
     
     func testLogTagNamespaces() {

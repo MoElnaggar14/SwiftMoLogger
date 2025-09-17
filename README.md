@@ -1,6 +1,8 @@
-# SwiftLogger 📱🪵
+# SwiftMoLogger 📱🪵
 
 A comprehensive, scalable logging framework for iOS applications with built-in crash reporting using Apple's MetricKit.
+
+**Created by Mohammed Elnaggar (@MoElnaggar14)**
 
 [![Swift Version](https://img.shields.io/badge/swift-5.7+-orange.svg)](https://swift.org)
 [![Platform](https://img.shields.io/badge/platform-iOS%2015.0%2B%20|%20macOS%2012.0%2B%20|%20tvOS%2015.0%2B%20|%20watchOS%208.0%2B-lightgrey.svg)](https://developer.apple.com)
@@ -21,36 +23,36 @@ A comprehensive, scalable logging framework for iOS applications with built-in c
 
 ### Installation
 
-Add SwiftLogger to your Swift Package Manager dependencies:
+Add SwiftMoLogger to your Swift Package Manager dependencies:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/MoElnaggar14/SwiftLogger.git", from: "1.0.0")
+    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "1.0.0")
 ]
 ```
 
 ### Basic Usage
 
 ```swift
-import SwiftLogger
+import SwiftMoLogger
 
 // Basic logging
-SwiftLogger.info(message: "App started successfully")
-SwiftLogger.warn(message: "Low memory warning")
-SwiftLogger.error(message: "Failed to load data")
+SwiftMoLogger.info(message: "App started successfully")
+SwiftMoLogger.warn(message: "Low memory warning")
+SwiftMoLogger.error(message: "Failed to load data")
 
 // Tagged logging (traditional approach)
-SwiftLogger.info(message: "Request started", tag: .network)
-SwiftLogger.error(message: "Cache miss", tag: .cache)
+SwiftMoLogger.info(message: "Request started", tag: .network)
+SwiftMoLogger.error(message: "Cache miss", tag: .cache)
 
-// Namespace approach (recommended)
-SwiftLogger.info(message: "API request started", tag: LogTag.Network.api)
-SwiftLogger.warn(message: "View layout issue", tag: LogTag.UI.layout)
-SwiftLogger.error(message: "Database error", tag: LogTag.Data.database)
-SwiftLogger.debug(message: "Debug info", tag: LogTag.Development.debug)
+// Convenient tagged methods (recommended approach)
+SwiftMoLogger.info(message: "API request started", tag: LogTag.Network.api)
+SwiftMoLogger.warn(message: "View layout issue", tag: LogTag.UI.layout)
+SwiftMoLogger.error(message: "Database error", tag: LogTag.Data.database)
+SwiftMoLogger.debug(message: "Debug info", tag: LogTag.Development.debug)
 
 // Crash-specific logging
-SwiftLogger.crash(message: "Critical operation starting")
+SwiftMoLogger.crash(message: "Critical operation starting")
 ```
 
 ### Object-Based Logging with LogTagged
@@ -82,7 +84,7 @@ struct DatabaseService: LogTagged {
 ### MetricKit Crash Reporting
 
 ```swift
-import SwiftLogger
+import SwiftMoLogger
 
 @main
 struct YourApp: App {
@@ -104,7 +106,7 @@ struct YourApp: App {
 
 ## 📋 Available Log Tags
 
-SwiftLogger provides comprehensive tagging organized in namespaces for better discoverability:
+SwiftMoLogger provides comprehensive tagging organized in namespaces for better discoverability:
 
 ### Core System
 - `LogTag.System.internal` - Internal framework operations
@@ -168,7 +170,7 @@ SwiftLogger provides comprehensive tagging organized in namespaces for better di
 
 ## 🔥 MetricKit Crash Reporting
 
-SwiftLogger includes comprehensive crash reporting using Apple's MetricKit framework. This provides:
+SwiftMoLogger includes comprehensive crash reporting using Apple's MetricKit framework. This provides:
 
 - **System-level crash collection** - Works outside your app's process
 - **Detailed crash analysis** - Signal interpretation and pattern detection
@@ -195,7 +197,7 @@ SwiftLogger includes comprehensive crash reporting using Apple's MetricKit frame
 
 ## 🏗️ Scalable Architecture
 
-SwiftLogger avoids API bloat through smart design choices:
+SwiftMoLogger avoids API bloat through smart design choices:
 
 ### ✅ Scalable Approach
 - **Namespace organization** - `LogTag.Network.api` instead of individual methods
@@ -251,7 +253,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-SwiftLogger is available under the MIT license. See the LICENSE file for more info.
+SwiftMoLogger is available under the MIT license. See the LICENSE file for more info.
 
 ## 👨‍💻 Author
 

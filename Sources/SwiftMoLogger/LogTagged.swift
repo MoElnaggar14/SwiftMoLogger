@@ -114,24 +114,24 @@ public extension LogTagged {
     /// Log an info message with the object's tag
     /// - Parameter message: The message to log
     func logInfo(_ message: String) {
-        SwiftLogger.info(message: message, tag: logTag)
+        SwiftMoLogger.info(message: message, tag: logTag)
     }
     
     /// Log a warning message with the object's tag
     /// - Parameter message: The message to log
     func logWarn(_ message: String) {
-        SwiftLogger.warn(message: message, tag: logTag)
+        SwiftMoLogger.warn(message: message, tag: logTag)
     }
     
     /// Log an error message with the object's tag
     /// - Parameter message: The message to log
     func logError(_ message: String) {
-        SwiftLogger.error(message: message, tag: logTag)
+        SwiftMoLogger.error(message: message, tag: logTag)
     }
     
     /// Log a debug message with the object's tag
     /// - Parameter message: The message to log
     func logDebug(_ message: String) {
-        SwiftLogger.debug(message: message, tag: logTag)
+        SwiftMoLogger.debug(message: message, tag: logTag)
     }
 }

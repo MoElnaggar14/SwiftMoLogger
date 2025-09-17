@@ -1,22 +1,22 @@
 import Foundation
 
-/// SwiftLogger - A comprehensive logging framework for iOS applications
+/// SwiftMoLogger - A comprehensive logging framework for iOS applications by Mohammed Elnaggar
 /// 
-/// SwiftLogger provides a scalable, tagged logging system with MetricKit crash reporting integration.
+/// SwiftMoLogger provides a scalable, tagged logging system with MetricKit crash reporting integration.
 /// Designed for modern iOS development with support for structured logging and automatic context management.
 ///
 /// ## Quick Start
 /// ```swift
-/// import SwiftLogger
+/// import SwiftMoLogger
 /// 
 /// // Basic logging
-/// SwiftLogger.info(message: "App started")
-/// SwiftLogger.warn(message: "Low memory warning")
-/// SwiftLogger.error(message: "Failed to load data")
+/// SwiftMoLogger.info(message: "App started")
+/// SwiftMoLogger.warn(message: "Low memory warning")
+/// SwiftMoLogger.error(message: "Failed to load data")
 /// 
 /// // Tagged logging
-/// SwiftLogger.info(message: "API request started", tag: LogTag.Network.api)
-/// SwiftLogger.error(message: "Database error", tag: LogTag.Data.database)
+/// SwiftMoLogger.info(message: "API request started", tag: LogTag.Network.api)
+/// SwiftMoLogger.error(message: "Database error", tag: LogTag.Data.database)
 /// ```
 ///
 /// ## Features
@@ -26,7 +26,8 @@ import Foundation
 /// - Protocol-based automatic context logging
 /// - Extensible architecture with pluggable engines
 /// - iOS 15+ with modern async/await support
-public enum SwiftLogger {
+/// - Created by Mohammed Elnaggar (@MoElnaggar14)
+public enum SwiftMoLogger {
     private static var engines: [LogEngine] {
         .all
     }

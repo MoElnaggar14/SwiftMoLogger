@@ -11,7 +11,7 @@ import MetricKit
 /// ## Usage
 /// Create an instance and retain it for the lifetime of your app:
 /// ```swift
-/// import SwiftLogger
+/// import SwiftMoLogger
 /// 
 /// @main
 /// struct YourApp: App {
@@ -38,26 +38,26 @@ public final class MetricKitCrashReporter: NSObject {
     /// Call this early in your app's lifecycle (AppDelegate or App struct)
     public func startMonitoring() {
         guard !isMonitoring else {
-            SwiftLogger.warn(message: "MetricKit crash monitoring already started", tag: LogTag.System.crash)
+        SwiftMoLogger.warn(message: "MetricKit crash monitoring already started", tag: LogTag.System.crash)
             return
         }
         
         MXMetricManager.shared.add(self)
         isMonitoring = true
-        SwiftLogger.info(message: "MetricKit crash monitoring started", tag: LogTag.System.crash)
+        SwiftMoLogger.info(message: "MetricKit crash monitoring started", tag: LogTag.System.crash)
     }
     
     /// Stop monitoring for crash diagnostics
     /// Call this when your app terminates
     public func stopMonitoring() {
         guard isMonitoring else {
-            SwiftLogger.warn(message: "MetricKit crash monitoring not active", tag: LogTag.System.crash)
+        SwiftMoLogger.warn(message: "MetricKit crash monitoring not active", tag: LogTag.System.crash)
             return
         }
         
         MXMetricManager.shared.remove(self)
         isMonitoring = false
-        SwiftLogger.info(message: "MetricKit crash monitoring stopped", tag: LogTag.System.crash)
+        SwiftMoLogger.info(message: "MetricKit crash monitoring stopped", tag: LogTag.System.crash)
     }
 }
 
@@ -88,7 +88,7 @@ private extension MetricKitCrashReporter {
     
     /// Logs a concise summary of the crash for quick inspection
     func logCrashSummary(_ diagnostic: MXCrashDiagnostic) {
-        SwiftLogger.error(message: "🚨 CRASH DETECTED 🚨", tag: LogTag.System.crash)
+        SwiftMoLogger.error(message: "🚨 CRASH DETECTED 🚨", tag: LogTag.System.crash)
         
         let crashDictionary = diagnostic.dictionaryRepresentation()
         let crashTimestamp = crashDictionary["timestamp"] ?? Date().description
@@ -100,20 +100,20 @@ private extension MetricKitCrashReporter {
         Device type: \(diagnostic.metaData.deviceType)
         """
         
-        SwiftLogger.error(message: summary, tag: LogTag.System.crash)
+        SwiftMoLogger.error(message: summary, tag: LogTag.System.crash)
         
         if let exceptionType = diagnostic.exceptionType {
-            SwiftLogger.error(message: "Exception type: \(exceptionType)", tag: LogTag.System.crash)
+            SwiftMoLogger.error(message: "Exception type: \(exceptionType)", tag: LogTag.System.crash)
         }
         
         if let exceptionCode = diagnostic.exceptionCode {
-            SwiftLogger.error(message: "Exception code: \(exceptionCode)", tag: LogTag.System.crash)
+            SwiftMoLogger.error(message: "Exception code: \(exceptionCode)", tag: LogTag.System.crash)
         }
         
         if let signal = diagnostic.signal {
             let codeString = diagnostic.exceptionCode?.stringValue
             let signalDescription = describeCrashSignal(signal, code: codeString)
-            SwiftLogger.error(message: signalDescription, tag: LogTag.System.crash)
+            SwiftMoLogger.error(message: signalDescription, tag: LogTag.System.crash)
         }
     }
     
@@ -122,11 +122,11 @@ private extension MetricKitCrashReporter {
         let callStackData = callStackTree.jsonRepresentation()
         
         guard let jsonString = String(data: callStackData, encoding: .utf8) else {
-            SwiftLogger.error(message: "Unable to decode call stack JSON.", tag: LogTag.System.crash)
+            SwiftMoLogger.error(message: "Unable to decode call stack JSON.", tag: LogTag.System.crash)
             return
         }
         
-        SwiftLogger.info(message: "🔍 Call Stack Analysis:", tag: LogTag.System.crash)
+        SwiftMoLogger.info(message: "🔍 Call Stack Analysis:", tag: LogTag.System.crash)
         printCrashPatternHints(in: jsonString)
         printUserBinaries(in: jsonString)
     }
@@ -138,7 +138,7 @@ private extension MetricKitCrashReporter {
         
         // You can implement custom storage logic here (e.g., save to Core Data, send to analytics)
         // For now, we'll just log that the crash has been archived
-        SwiftLogger.info(message: "Crash report archived for further analysis", tag: LogTag.System.crash)
+        SwiftMoLogger.info(message: "Crash report archived for further analysis", tag: LogTag.System.crash)
         
         // Optional: Send to crash reporting service
         // sendCrashReportToService(crashData)
@@ -195,11 +195,11 @@ private extension MetricKitCrashReporter {
     /// Prints hints if common crash patterns are detected in the call stack
     func printCrashPatternHints(in callStackJSON: String) {
         if callStackJSON.contains("EXC_BAD_ACCESS") {
-            SwiftLogger.warn(message: "Memory access issue detected - likely accessing deallocated memory", tag: LogTag.System.crash)
+            SwiftMoLogger.warn(message: "Memory access issue detected - likely accessing deallocated memory", tag: LogTag.System.crash)
         } else if callStackJSON.contains("EXC_BREAKPOINT") {
-            SwiftLogger.warn(message: "Exception breakpoint - possibly an unhandled Swift error or assertion", tag: LogTag.System.crash)
+            SwiftMoLogger.warn(message: "Exception breakpoint - possibly an unhandled Swift error or assertion", tag: LogTag.System.crash)
         } else if callStackJSON.contains("EXC_CRASH") {
-            SwiftLogger.warn(message: "Kernel terminated process - often due to memory pressure or watchdog timeout", tag: LogTag.System.crash)
+            SwiftMoLogger.warn(message: "Kernel terminated process - often due to memory pressure or watchdog timeout", tag: LogTag.System.crash)
         }
     }
     
@@ -208,7 +208,7 @@ private extension MetricKitCrashReporter {
         guard let data = callStackJSON.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let callStacks = json["callStacks"] as? [[String: Any]] else {
-            SwiftLogger.error(message: "Could not parse call stack JSON", tag: LogTag.System.crash)
+            SwiftMoLogger.error(message: "Could not parse call stack JSON", tag: LogTag.System.crash)
             return
         }
         
@@ -232,7 +232,7 @@ private extension MetricKitCrashReporter {
         
         if !userBinaries.isEmpty {
             let binariesList = userBinaries.joined(separator: ", ")
-            SwiftLogger.info(message: "User/Third-party binaries in crash: \(binariesList)", tag: LogTag.System.crash)
+            SwiftMoLogger.info(message: "User/Third-party binaries in crash: \(binariesList)", tag: LogTag.System.crash)
         }
     }
 }
@@ -244,10 +244,10 @@ public extension MetricKitCrashReporter {
     /// ⚠️ WARNING: This will actually crash the app! Use only for testing.
     func triggerTestCrash() {
         #if DEBUG
-        SwiftLogger.warn(message: "Triggering test crash for MetricKit validation", tag: LogTag.System.crash)
+        SwiftMoLogger.warn(message: "Triggering test crash for MetricKit validation", tag: LogTag.System.crash)
         fatalError("Test crash for MetricKit validation")
         #else
-        SwiftLogger.warn(message: "Test crash is only available in DEBUG builds", tag: LogTag.System.crash)
+        SwiftMoLogger.warn(message: "Test crash is only available in DEBUG builds", tag: LogTag.System.crash)
         #endif
     }
 }

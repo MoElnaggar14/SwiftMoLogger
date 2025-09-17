@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to SwiftLogger will be documented in this file.
+All notable changes to SwiftMoLogger will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2025-01-17
 
 ### Added
-- 🎉 **Initial public release of SwiftLogger**
+- 🎉 **Initial public release of SwiftMoLogger**
 - 🪵 **Multi-level logging** with info, warn, error levels
 - 🏷️ **Comprehensive tag system** with 40+ organized tags by domain
 - 🔍 **MetricKit crash reporting** with system-level crash debugging
@@ -46,4 +46,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Swift 5.7+
 - Xcode 14.0+
 
-[1.0.0]: https://github.com/MoElnaggar14/SwiftLogger/releases/tag/1.0.0
+[1.0.0]: https://github.com/MoElnaggar14/SwiftMoLogger/releases/tag/1.0.0
