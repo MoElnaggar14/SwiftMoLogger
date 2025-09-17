@@ -15,7 +15,6 @@ public enum LogTag: String, CaseIterable {
     case performance = "[Performance]"
     case memory = "[Memory]"
     case lifecycle = "[Lifecycle]"
-    
     // Network & Data
     case network = "[Network]"
     case download = "[Download]"
@@ -24,7 +23,6 @@ public enum LogTag: String, CaseIterable {
     case serialization = "[Serialization]"
     case api = "[API]"
     case websocket = "[WebSocket]"
-    
     // Storage & Cache
     case cache = "[Cache]"
     case database = "[Database]"
@@ -32,45 +30,38 @@ public enum LogTag: String, CaseIterable {
     case userdefaults = "[UserDefaults]"
     case keychain = "[Keychain]"
     case filesystem = "[FileSystem]"
-    
     // UI & UX
     case ui = "[UI]"
     case animation = "[Animation]"
     case navigation = "[Navigation]"
     case accessibility = "[Accessibility]"
     case layout = "[Layout]"
-    
     // Authentication & Security
     case authentication = "[Authentication]"
     case authorization = "[Authorization]"
     case biometrics = "[Biometrics]"
     case encryption = "[Encryption]"
     case security = "[Security]"
-    
     // Third-party Services
     case firebase = "[Firebase]"
     case google = "[Google]"
     case analytics = "[Analytics]"
     case crashlytics = "[Crashlytics]"
     case notifications = "[Notifications]"
-    
     // Business Logic
     case business = "[Business]"
     case validation = "[Validation]"
     case calculation = "[Calculation]"
     case workflow = "[Workflow]"
-    
     // Development & Debug
     case debug = "[Debug]"
     case testing = "[Testing]"
     case mock = "[Mock]"
     case configuration = "[Configuration]"
-    
     // External Integration
     case thirdparty = "[ThirdParty]"
     case webhook = "[Webhook]"
     case sync = "[Sync]"
-    
     // Media & Assets
     case image = "[Image]"
     case video = "[Video]"

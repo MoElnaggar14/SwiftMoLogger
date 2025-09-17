@@ -22,7 +22,6 @@ public protocol LogTagged {
 
 /// Extension providing namespace-style logging for better organization and IDE autocompletion
 public extension LogTag {
-    
     /// Core system logging namespace
     struct System {
         public static let `internal`: LogTag = .internal
@@ -31,7 +30,6 @@ public extension LogTag {
         public static let memory: LogTag = .memory
         public static let lifecycle: LogTag = .lifecycle
     }
-    
     /// Network and API logging namespace
     struct Network {
         public static let network: LogTag = .network
@@ -40,16 +38,14 @@ public extension LogTag {
         public static let upload: LogTag = .upload
         public static let websocket: LogTag = .websocket
     }
-    
     /// UI and UX logging namespace
-    struct UI {
+    struct UserInterface {
         public static let ui: LogTag = .ui
         public static let navigation: LogTag = .navigation
         public static let animation: LogTag = .animation
         public static let accessibility: LogTag = .accessibility
         public static let layout: LogTag = .layout
     }
-    
     /// Data and storage logging namespace
     struct Data {
         public static let cache: LogTag = .cache
@@ -61,7 +57,6 @@ public extension LogTag {
         public static let parsing: LogTag = .parsing
         public static let serialization: LogTag = .serialization
     }
-    
     /// Security and authentication logging namespace
     struct Security {
         public static let authentication: LogTag = .authentication
@@ -70,7 +65,6 @@ public extension LogTag {
         public static let encryption: LogTag = .encryption
         public static let security: LogTag = .security
     }
-    
     /// Third-party services logging namespace
     struct ThirdParty {
         public static let firebase: LogTag = .firebase
@@ -82,7 +76,6 @@ public extension LogTag {
         public static let webhook: LogTag = .webhook
         public static let sync: LogTag = .sync
     }
-    
     /// Business logic logging namespace
     struct Business {
         public static let business: LogTag = .business
@@ -90,7 +83,6 @@ public extension LogTag {
         public static let calculation: LogTag = .calculation
         public static let workflow: LogTag = .workflow
     }
-    
     /// Development and testing logging namespace
     struct Development {
         public static let debug: LogTag = .debug
@@ -98,7 +90,6 @@ public extension LogTag {
         public static let mock: LogTag = .mock
         public static let configuration: LogTag = .configuration
     }
-    
     /// Media and assets logging namespace
     struct Media {
         public static let image: LogTag = .image
@@ -110,25 +101,21 @@ public extension LogTag {
 
 /// Extension for LogTagged objects to automatically provide logging context
 public extension LogTagged {
-    
     /// Log an info message with the object's tag
     /// - Parameter message: The message to log
     func logInfo(_ message: String) {
         SwiftMoLogger.info(message: message, tag: logTag)
     }
-    
     /// Log a warning message with the object's tag
     /// - Parameter message: The message to log
     func logWarn(_ message: String) {
         SwiftMoLogger.warn(message: message, tag: logTag)
     }
-    
     /// Log an error message with the object's tag
     /// - Parameter message: The message to log
     func logError(_ message: String) {
         SwiftMoLogger.error(message: message, tag: logTag)
     }
-    
     /// Log a debug message with the object's tag
     /// - Parameter message: The message to log
     func logDebug(_ message: String) {
