@@ -1,0 +1,187 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+
+jobs:
+  test:
+    name: Test Swift Package
+    runs-on: macos-14
+    strategy:
+      matrix:
+        xcode: ['15.4', '15.3']
+        ios: ['17.5', '16.4', '15.6']
+        include:
+          - xcode: '15.4'
+            ios: '17.5'
+            upload-coverage: true
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode ${{ matrix.xcode }}
+      run: |
+        sudo xcode-select -s /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+        xcodebuild -version
+        swift --version
+    
+    - name: Cache Swift Package Manager
+      uses: actions/cache@v4
+      with:
+        path: |
+          .build
+          ~/.cache/org.swift.swiftpm
+        key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-
+    
+    - name: Build Swift Package
+      run: |
+        swift build -v
+        
+    - name: Run Tests
+      run: |
+        swift test --enable-code-coverage
+        
+    - name: Generate Coverage Report
+      if: matrix.upload-coverage
+      run: |
+        xcrun llvm-cov export -format="lcov" \
+          .build/debug/SwiftMoLoggerPackageTests.xctest/Contents/MacOS/SwiftMoLoggerPackageTests \
+          -instr-profile .build/debug/codecov/default.profdata > coverage.lcov
+          
+    - name: Upload Coverage to Codecov
+      if: matrix.upload-coverage
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.lcov
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
+        
+    - name: Test iOS Simulator ${{ matrix.ios }}
+      run: |
+        # Get available simulators
+        xcrun simctl list devices available
+        
+        # Find iOS simulator
+        SIMULATOR_ID=$(xcrun simctl list devices available | grep "iOS ${{ matrix.ios }}" | head -1 | grep -o "[0-9A-F-]\{36\}")
+        
+        if [ -z "$SIMULATOR_ID" ]; then
+          echo "No iOS ${{ matrix.ios }} simulator found, using latest available"
+          SIMULATOR_ID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -o "[0-9A-F-]\{36\}")
+        fi
+        
+        echo "Using simulator: $SIMULATOR_ID"
+        
+        # Boot simulator
+        xcrun simctl boot $SIMULATOR_ID || true
+        
+        # Test on iOS
+        xcodebuild test \
+          -scheme SwiftMoLogger \
+          -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+          -enableCodeCoverage YES \
+          | xcpretty
+          
+  lint:
+    name: SwiftLint
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install SwiftLint
+      run: |
+        brew install swiftlint
+        
+    - name: Run SwiftLint
+      run: |
+        swiftlint lint --reporter github-actions-logging
+        
+  security:
+    name: Security Scan
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Security Scan
+      run: |
+        # Check for common security issues in Swift code
+        grep -r "NSLog\|print(" Sources/ || echo "No print statements found"
+        grep -r "fatalError\|preconditionFailure" Sources/ || echo "No fatal errors found"
+        
+        # Check for sensitive data patterns
+        if grep -r "password\|secret\|api_key\|token" Sources/ --include="*.swift"; then
+          echo "⚠️  Potential sensitive data found in source code"
+          exit 1
+        fi
+        
+  documentation:
+    name: Documentation
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        
+    - name: Build Documentation
+      run: |
+        swift package generate-documentation --target SwiftMoLogger
+        
+    - name: Check Documentation Coverage
+      run: |
+        # Basic documentation coverage check
+        UNDOCUMENTED=$(swift package generate-documentation --target SwiftMoLogger 2>&1 | grep -c "undocumented" || echo "0")
+        echo "Undocumented symbols: $UNDOCUMENTED"
+        
+        if [ "$UNDOCUMENTED" -gt 10 ]; then
+          echo "⚠️  Too many undocumented symbols ($UNDOCUMENTED)"
+          exit 1
+        fi
+        
+  validate-package:
+    name: Validate Swift Package
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        
+    - name: Validate Package
+      run: |
+        swift package diagnose-api-breaking-changes baseline
+        swift package compute-checksum
+        swift package dump-package
+        
+    - name: Check Package Manifest
+      run: |
+        # Validate Package.swift structure
+        if ! grep -q "iOS(.v15)" Package.swift; then
+          echo "❌ iOS 15 minimum deployment target not found"
+          exit 1
+        fi
+        
+        if ! grep -q 'name: "SwiftMoLogger"' Package.swift; then
+          echo "❌ Package name not correctly set"
+          exit 1
+        fi
+        
+        echo "✅ Package manifest validation passed"

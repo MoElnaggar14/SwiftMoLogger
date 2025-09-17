@@ -1,0 +1,307 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-info:
+    name: PR Information
+    runs-on: macos-14
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: PR Info
+      run: |
+        echo "🔍 Validating PR #${{ github.event.number }}"
+        echo "📝 Title: ${{ github.event.pull_request.title }}"
+        echo "👤 Author: ${{ github.event.pull_request.user.login }}"
+        echo "🎯 Target: ${{ github.event.pull_request.base.ref }}"
+        echo "🌿 Source: ${{ github.event.pull_request.head.ref }}"
+        echo "📊 Files changed: ${{ github.event.pull_request.changed_files }}"
+        echo "➕ Additions: ${{ github.event.pull_request.additions }}"
+        echo "➖ Deletions: ${{ github.event.pull_request.deletions }}"
+
+  title-validation:
+    name: Validate PR Title
+    runs-on: macos-14
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Check PR Title Format
+      run: |
+        TITLE="${{ github.event.pull_request.title }}"
+        echo "Checking title: $TITLE"
+        
+        # Check for conventional commit format
+        if [[ $TITLE =~ ^(feat|fix|docs|style|refactor|test|chore|perf|ci|build)(\(.+\))?!?:.+ ]]; then
+          echo "✅ PR title follows conventional commit format"
+        else
+          echo "❌ PR title should follow conventional commit format:"
+          echo "   feat: add new feature"
+          echo "   fix: fix bug"
+          echo "   docs: update documentation"
+          echo "   style: formatting changes"
+          echo "   refactor: code refactoring"
+          echo "   test: add or update tests"
+          echo "   chore: maintenance tasks"
+          echo "   perf: performance improvements"
+          echo "   ci: CI/CD changes"
+          echo "   build: build system changes"
+          exit 1
+        fi
+
+  swift-validation:
+    name: Swift Package Validation
+    runs-on: macos-14
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout PR code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        
+    - name: Setup Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        xcodebuild -version
+        swift --version
+    
+    - name: Cache Swift Package Manager
+      uses: actions/cache@v4
+      with:
+        path: |
+          .build
+          ~/.cache/org.swift.swiftpm
+        key: ${{ runner.os }}-spm-pr-${{ hashFiles('Package.swift') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-pr-
+          ${{ runner.os }}-spm-
+    
+    - name: Swift Package Build
+      run: |
+        swift build -v
+        
+    - name: Swift Package Test
+      run: |
+        swift test --enable-code-coverage
+        
+    - name: Package Validation
+      run: |
+        # Check package structure
+        if [ ! -f Package.swift ]; then
+          echo "❌ Package.swift not found"
+          exit 1
+        fi
+        
+        # Validate iOS deployment target
+        if ! grep -q "iOS(.v15)" Package.swift; then
+          echo "❌ iOS 15 minimum deployment target requirement not met"
+          exit 1
+        fi
+        
+        # Check for proper package naming
+        if ! grep -q 'name: "SwiftMoLogger"' Package.swift; then
+          echo "❌ Package name should be 'SwiftMoLogger'"
+          exit 1
+        fi
+        
+        echo "✅ Package validation passed"
+
+  code-quality:
+    name: Code Quality Checks
+    runs-on: macos-14
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout PR code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        
+    - name: Install SwiftLint
+      run: |
+        brew install swiftlint
+        
+    - name: Run SwiftLint
+      run: |
+        swiftlint lint --reporter github-actions-logging
+        
+    - name: Check for TODO/FIXME
+      run: |
+        TODO_COUNT=$(grep -r "TODO\|FIXME" Sources/ Tests/ --include="*.swift" | wc -l || echo "0")
+        echo "Found $TODO_COUNT TODO/FIXME comments"
+        
+        if [ "$TODO_COUNT" -gt 5 ]; then
+          echo "⚠️  High number of TODO/FIXME comments ($TODO_COUNT)"
+          echo "Consider addressing some before merging"
+        fi
+        
+    - name: Check Code Documentation
+      run: |
+        # Check for basic documentation patterns
+        UNDOCUMENTED=$(grep -r "public\|open" Sources/ --include="*.swift" | grep -v "///" | wc -l || echo "0")
+        echo "Potentially undocumented public APIs: $UNDOCUMENTED"
+        
+        if [ "$UNDOCUMENTED" -gt 5 ]; then
+          echo "⚠️  Consider adding documentation for public APIs"
+        fi
+
+  security-scan:
+    name: Security Scan
+    runs-on: macos-14
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout PR code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        
+    - name: Security Checks
+      run: |
+        echo "🔒 Running security checks..."
+        
+        # Check for print statements in production code
+        PRINT_COUNT=$(grep -r "print(" Sources/ --include="*.swift" | wc -l || echo "0")
+        if [ "$PRINT_COUNT" -gt 0 ]; then
+          echo "⚠️  Found $PRINT_COUNT print statements in Sources/"
+          grep -r "print(" Sources/ --include="*.swift" || true
+          echo "Consider using the logging framework instead"
+        fi
+        
+        # Check for NSLog usage
+        NSLOG_COUNT=$(grep -r "NSLog" Sources/ --include="*.swift" | wc -l || echo "0")
+        if [ "$NSLOG_COUNT" -gt 0 ]; then
+          echo "⚠️  Found $NSLOG_COUNT NSLog statements in Sources/"
+          echo "Consider using the logging framework instead"
+        fi
+        
+        # Check for sensitive data patterns
+        SENSITIVE_PATTERNS="password|secret|api_key|token|credential"
+        if grep -ri "$SENSITIVE_PATTERNS" Sources/ --include="*.swift"; then
+          echo "❌ Potential sensitive data found in source code"
+          exit 1
+        fi
+        
+        # Check for force unwrapping
+        FORCE_UNWRAP=$(grep -r "!" Sources/ --include="*.swift" | grep -v "fatalError\|precondition" | wc -l || echo "0")
+        if [ "$FORCE_UNWRAP" -gt 10 ]; then
+          echo "⚠️  High usage of force unwrapping ($FORCE_UNWRAP instances)"
+          echo "Consider using optional binding or nil-coalescing"
+        fi
+        
+        echo "✅ Security scan completed"
+
+  ios-compatibility:
+    name: iOS Compatibility Check
+    runs-on: macos-14
+    if: github.event.pull_request.draft == false
+    strategy:
+      matrix:
+        ios: ['17.5', '16.4', '15.6']
+    
+    steps:
+    - name: Checkout PR code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        
+    - name: Setup Xcode
+      run: |
+        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        
+    - name: Test iOS ${{ matrix.ios }} Compatibility
+      run: |
+        # Find available simulator
+        SIMULATOR_ID=$(xcrun simctl list devices available | grep "iOS ${{ matrix.ios }}" | head -1 | grep -o "[0-9A-F-]\{36\}" || echo "")
+        
+        if [ -z "$SIMULATOR_ID" ]; then
+          echo "No iOS ${{ matrix.ios }} simulator found, using latest available"
+          SIMULATOR_ID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -o "[0-9A-F-]\{36\}")
+        fi
+        
+        echo "Testing on iOS ${{ matrix.ios }} with simulator: $SIMULATOR_ID"
+        
+        # Boot simulator
+        xcrun simctl boot $SIMULATOR_ID || true
+        
+        # Build and test
+        xcodebuild build-for-testing \
+          -scheme SwiftMoLogger \
+          -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+          | xcpretty
+
+  pr-size-check:
+    name: PR Size Check
+    runs-on: macos-14
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Check PR Size
+      run: |
+        FILES_CHANGED=${{ github.event.pull_request.changed_files }}
+        ADDITIONS=${{ github.event.pull_request.additions }}
+        DELETIONS=${{ github.event.pull_request.deletions }}
+        TOTAL_CHANGES=$((ADDITIONS + DELETIONS))
+        
+        echo "📊 PR Size Analysis:"
+        echo "   Files changed: $FILES_CHANGED"
+        echo "   Lines added: $ADDITIONS"
+        echo "   Lines deleted: $DELETIONS"
+        echo "   Total changes: $TOTAL_CHANGES"
+        
+        # Size recommendations
+        if [ "$TOTAL_CHANGES" -gt 1000 ]; then
+          echo "🟡 Large PR detected ($TOTAL_CHANGES changes)"
+          echo "   Consider breaking this into smaller PRs for easier review"
+        elif [ "$TOTAL_CHANGES" -gt 500 ]; then
+          echo "🟠 Medium-sized PR ($TOTAL_CHANGES changes)"
+          echo "   Ensure comprehensive testing and documentation"
+        else
+          echo "🟢 Good PR size ($TOTAL_CHANGES changes)"
+        fi
+        
+        if [ "$FILES_CHANGED" -gt 20 ]; then
+          echo "🟡 Many files changed ($FILES_CHANGED)"
+          echo "   Consider if this could be split into focused PRs"
+        fi
+
+  validation-summary:
+    name: Validation Summary
+    runs-on: macos-14
+    needs: [title-validation, swift-validation, code-quality, security-scan, ios-compatibility, pr-size-check]
+    if: always() && github.event.pull_request.draft == false
+    
+    steps:
+    - name: Validation Results
+      run: |
+        echo "## 🎯 PR Validation Summary"
+        echo ""
+        echo "| Check | Status |"
+        echo "|-------|--------|"
+        echo "| Title Format | ${{ needs.title-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |"
+        echo "| Swift Package | ${{ needs.swift-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |"
+        echo "| Code Quality | ${{ needs.code-quality.result == 'success' && '✅ Passed' || '❌ Failed' }} |"
+        echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |"
+        echo "| iOS Compatibility | ${{ needs.ios-compatibility.result == 'success' && '✅ Passed' || '❌ Failed' }} |"
+        echo "| PR Size Check | ${{ needs.pr-size-check.result == 'success' && '✅ Passed' || '❌ Failed' }} |"
+        echo ""
+        
+        # Overall status
+        if [ "${{ needs.title-validation.result }}" == "success" ] && \
+           [ "${{ needs.swift-validation.result }}" == "success" ] && \
+           [ "${{ needs.code-quality.result }}" == "success" ] && \
+           [ "${{ needs.security-scan.result }}" == "success" ] && \
+           [ "${{ needs.ios-compatibility.result }}" == "success" ]; then
+          echo "🎉 **All validations passed!** This PR is ready for review."
+        else
+          echo "❌ **Some validations failed.** Please address the issues above."
+          exit 1
+        fi
