@@ -8,10 +8,10 @@ let package = Package(
     defaultLocalization: .init("en"),
     platforms: [.iOS(.v15), .macOS(.v12), .tvOS(.v15), .watchOS(.v8)],
     products: [
-        // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
             name: "SwiftMoLogger",
-            targets: ["SwiftMoLogger"]),
+            targets: ["SwiftMoLogger"]
+        ),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -21,9 +21,11 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
             name: "SwiftMoLogger",
-            dependencies: []),
+            dependencies: []
+        ),
         .testTarget(
             name: "SwiftMoLoggerTests",
-            dependencies: ["SwiftMoLogger"]),
+            dependencies: ["SwiftMoLogger"]
+        ),
     ]
 )

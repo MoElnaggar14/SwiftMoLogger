@@ -7,122 +7,113 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A1B2C3D4E5F6789A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F67891 /* AppDelegate.swift */; };
-		A1B2C3D4E5F6789B /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F67892 /* MainViewController.swift */; };
-		A1B2C3D4E5F6789C /* NetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F67893 /* NetworkManager.swift */; };
-		A1B2C3D4E5F6789D /* Managers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F67894 /* Managers.swift */; };
-		A1B2C3D4E5F6789F /* CrashReportsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F67895 /* CrashReportsUI.swift */; };
-		A1B2C3D4E5F678A0 /* EnhancedMetricKitReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F67896 /* EnhancedMetricKitReporter.swift */; };
-		A1B2C3D4E5F678A1 /* CrashReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678A2 /* CrashReport.swift */; };
-		A1B2C3D4E5F678A3 /* CrashReportCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678A4 /* CrashReportCache.swift */; };
-		A1B2C3D4E5F678A5 /* CrashReportsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678A6 /* CrashReportsViewController.swift */; };
-		A1B2C3D4E5F678A7 /* CrashReportTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678A8 /* CrashReportTableViewCell.swift */; };
-		A1B2C3D4E5F678A9 /* CrashReportDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F678AA /* CrashReportDetailViewController.swift */; };
-		A53A39462E7C2732008318BB /* SwiftMoLogger in Frameworks */ = {isa = PBXBuildFile; productRef = A53A39452E7C2732008318BB /* SwiftMoLogger */; };
+		A53A39492E7CBE46008318BB /* SwiftMoLogger in Frameworks */ = {isa = PBXBuildFile; productRef = A53A39482E7CBE46008318BB /* SwiftMoLogger */; };
+		E501A1001A2B3C4D5E6F78901 /* SwiftMoLoggerExampleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78902 /* SwiftMoLoggerExampleApp.swift */; };
+		E501A1001A2B3C4D5E6F78903 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78904 /* ContentView.swift */; };
+		E501A1001A2B3C4D5E6F78905 /* LoggingDemoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78906 /* LoggingDemoViewModel.swift */; };
+		E501A1001A2B3C4D5E6F78907 /* SupportingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78908 /* SupportingViews.swift */; };
+		E501A1001A2B3C4D5E6F78909 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78910 /* Assets.xcassets */; };
+		E501A1001A2B3C4D5E6F78911 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78912 /* Preview Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A1B2C3D4E5F67888 /* SwiftMoLoggerExampleApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftMoLoggerExampleApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1B2C3D4E5F67891 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F67892 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F67893 /* NetworkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkManager.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F67894 /* Managers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Managers.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F67895 /* CrashReportsUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReportsUI.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F67896 /* EnhancedMetricKitReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedMetricKitReporter.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F678A2 /* CrashReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReport.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F678A4 /* CrashReportCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReportCache.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F678A6 /* CrashReportsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReportsViewController.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F678A8 /* CrashReportTableViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReportTableViewCell.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F678AA /* CrashReportDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReportDetailViewController.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F67897 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Info.plist; sourceTree = "<group>"; };
+		E501A1001A2B3C4D5E6F78900 /* SwiftMoLoggerExample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftMoLoggerExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E501A1001A2B3C4D5E6F78902 /* SwiftMoLoggerExampleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftMoLoggerExampleApp.swift; sourceTree = "<group>"; };
+		E501A1001A2B3C4D5E6F78904 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		E501A1001A2B3C4D5E6F78906 /* LoggingDemoViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggingDemoViewModel.swift; sourceTree = "<group>"; };
+		E501A1001A2B3C4D5E6F78908 /* SupportingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportingViews.swift; sourceTree = "<group>"; };
+		E501A1001A2B3C4D5E6F78910 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E501A1001A2B3C4D5E6F78912 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		A1B2C3D4E5F67885 /* Frameworks */ = {
+		E501A1001A2B3C4D5E6F78915 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A53A39462E7C2732008318BB /* SwiftMoLogger in Frameworks */,
+				A53A39492E7CBE46008318BB /* SwiftMoLogger in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A1B2C3D4E5F6787E = {
+		E501A1001A2B3C4D5E6F78916 = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F67890 /* SwiftMoLoggerExampleApp */,
-				A1B2C3D4E5F6787F /* Products */,
+				E501A1001A2B3C4D5E6F78917 /* SwiftMoLoggerExample */,
+				E501A1001A2B3C4D5E6F78918 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		A1B2C3D4E5F6787F /* Products */ = {
+		E501A1001A2B3C4D5E6F78917 /* SwiftMoLoggerExample */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F67888 /* SwiftMoLoggerExampleApp.app */,
+				E501A1001A2B3C4D5E6F78902 /* SwiftMoLoggerExampleApp.swift */,
+				E501A1001A2B3C4D5E6F78904 /* ContentView.swift */,
+				E501A1001A2B3C4D5E6F78906 /* LoggingDemoViewModel.swift */,
+				E501A1001A2B3C4D5E6F78908 /* SupportingViews.swift */,
+				E501A1001A2B3C4D5E6F78910 /* Assets.xcassets */,
+				E501A1001A2B3C4D5E6F78919 /* Preview Content */,
+			);
+			path = SwiftMoLoggerExample;
+			sourceTree = "<group>";
+		};
+		E501A1001A2B3C4D5E6F78918 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E501A1001A2B3C4D5E6F78900 /* SwiftMoLoggerExample.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		A1B2C3D4E5F67890 /* SwiftMoLoggerExampleApp */ = {
+		E501A1001A2B3C4D5E6F78919 /* Preview Content */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F67891 /* AppDelegate.swift */,
-				A1B2C3D4E5F67892 /* MainViewController.swift */,
-				A1B2C3D4E5F67893 /* NetworkManager.swift */,
-				A1B2C3D4E5F67894 /* Managers.swift */,
-				A1B2C3D4E5F67895 /* CrashReportsUI.swift */,
-				A1B2C3D4E5F67896 /* EnhancedMetricKitReporter.swift */,
-				A1B2C3D4E5F678A2 /* CrashReport.swift */,
-				A1B2C3D4E5F678A4 /* CrashReportCache.swift */,
-				A1B2C3D4E5F678A6 /* CrashReportsViewController.swift */,
-				A1B2C3D4E5F678A8 /* CrashReportTableViewCell.swift */,
-				A1B2C3D4E5F678AA /* CrashReportDetailViewController.swift */,
-				A1B2C3D4E5F67897 /* Info.plist */,
+				E501A1001A2B3C4D5E6F78912 /* Preview Assets.xcassets */,
 			);
-			path = SwiftMoLoggerExampleApp;
+			path = "Preview Content";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A1B2C3D4E5F67887 /* SwiftMoLoggerExampleApp */ = {
+		E501A1001A2B3C4D5E6F78920 /* SwiftMoLoggerExample */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A1B2C3D4E5F67899 /* Build configuration list for PBXNativeTarget "SwiftMoLoggerExampleApp" */;
+			buildConfigurationList = E501A1001A2B3C4D5E6F78921 /* Build configuration list for PBXNativeTarget "SwiftMoLoggerExample" */;
 			buildPhases = (
-				A1B2C3D4E5F67884 /* Sources */,
-				A1B2C3D4E5F67885 /* Frameworks */,
-				A1B2C3D4E5F67886 /* Resources */,
+				E501A1001A2B3C4D5E6F78922 /* Sources */,
+				E501A1001A2B3C4D5E6F78915 /* Frameworks */,
+				E501A1001A2B3C4D5E6F78923 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = SwiftMoLoggerExampleApp;
+			name = SwiftMoLoggerExample;
 			packageProductDependencies = (
-				A53A39452E7C2732008318BB /* SwiftMoLogger */,
+				A53A39482E7CBE46008318BB /* SwiftMoLogger */,
 			);
-			productName = SwiftMoLoggerExampleApp;
-			productReference = A1B2C3D4E5F67888 /* SwiftMoLoggerExampleApp.app */;
+			productName = SwiftMoLoggerExample;
+			productReference = E501A1001A2B3C4D5E6F78900 /* SwiftMoLoggerExample.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		A1B2C3D4E5F67880 /* Project object */ = {
+		E501A1001A2B3C4D5E6F78924 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
-					A1B2C3D4E5F67887 = {
+					E501A1001A2B3C4D5E6F78920 = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
-			buildConfigurationList = A1B2C3D4E5F67883 /* Build configuration list for PBXProject "SwiftMoLoggerExampleApp" */;
+			buildConfigurationList = E501A1001A2B3C4D5E6F78925 /* Build configuration list for PBXProject "SwiftMoLoggerExample" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -130,52 +121,47 @@
 				en,
 				Base,
 			);
-			mainGroup = A1B2C3D4E5F6787E;
+			mainGroup = E501A1001A2B3C4D5E6F78916;
 			packageReferences = (
-				A53A39442E7C2732008318BB /* XCLocalSwiftPackageReference "../" */,
+				A53A39472E7CBE46008318BB /* XCLocalSwiftPackageReference "../../SwiftMoLogger" */,
 			);
-			productRefGroup = A1B2C3D4E5F6787F /* Products */;
+			productRefGroup = E501A1001A2B3C4D5E6F78918 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A1B2C3D4E5F67887 /* SwiftMoLoggerExampleApp */,
+				E501A1001A2B3C4D5E6F78920 /* SwiftMoLoggerExample */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A1B2C3D4E5F67886 /* Resources */ = {
+		E501A1001A2B3C4D5E6F78923 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E501A1001A2B3C4D5E6F78911 /* Preview Assets.xcassets in Resources */,
+				E501A1001A2B3C4D5E6F78909 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A1B2C3D4E5F67884 /* Sources */ = {
+		E501A1001A2B3C4D5E6F78922 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1B2C3D4E5F6789A /* AppDelegate.swift in Sources */,
-				A1B2C3D4E5F6789B /* MainViewController.swift in Sources */,
-				A1B2C3D4E5F6789C /* NetworkManager.swift in Sources */,
-				A1B2C3D4E5F6789D /* Managers.swift in Sources */,
-				A1B2C3D4E5F6789F /* CrashReportsUI.swift in Sources */,
-				A1B2C3D4E5F678A0 /* EnhancedMetricKitReporter.swift in Sources */,
-				A1B2C3D4E5F678A1 /* CrashReport.swift in Sources */,
-				A1B2C3D4E5F678A3 /* CrashReportCache.swift in Sources */,
-				A1B2C3D4E5F678A5 /* CrashReportsViewController.swift in Sources */,
-				A1B2C3D4E5F678A7 /* CrashReportTableViewCell.swift in Sources */,
-				A1B2C3D4E5F678A9 /* CrashReportDetailViewController.swift in Sources */,
+				E501A1001A2B3C4D5E6F78903 /* ContentView.swift in Sources */,
+				E501A1001A2B3C4D5E6F78905 /* LoggingDemoViewModel.swift in Sources */,
+				E501A1001A2B3C4D5E6F78907 /* SupportingViews.swift in Sources */,
+				E501A1001A2B3C4D5E6F78901 /* SwiftMoLoggerExampleApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		A1B2C3D4E5F67881 /* Debug */ = {
+		E501A1001A2B3C4D5E6F78927 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -238,7 +224,7 @@
 			};
 			name = Debug;
 		};
-		A1B2C3D4E5F67882 /* Release */ = {
+		E501A1001A2B3C4D5E6F78928 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -294,64 +280,60 @@
 			};
 			name = Release;
 		};
-		A1B2C3D4E5F67898 /* Debug */ = {
+		E501A1001A2B3C4D5E6F78929 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"SwiftMoLoggerExample/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = SwiftMoLoggerExampleApp/Info.plist;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.moelnaggar.SwiftMoLoggerExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.moelnaggar.SwiftMoLoggerExample;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
-		A1B2C3D4E5F67900 /* Release */ = {
+		E501A1001A2B3C4D5E6F78930 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"SwiftMoLoggerExample/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = SwiftMoLoggerExampleApp/Info.plist;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.moelnaggar.SwiftMoLoggerExampleApp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.moelnaggar.SwiftMoLoggerExample;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -361,20 +343,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1B2C3D4E5F67883 /* Build configuration list for PBXProject "SwiftMoLoggerExampleApp" */ = {
+		E501A1001A2B3C4D5E6F78921 /* Build configuration list for PBXNativeTarget "SwiftMoLoggerExample" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1B2C3D4E5F67881 /* Debug */,
-				A1B2C3D4E5F67882 /* Release */,
+				E501A1001A2B3C4D5E6F78929 /* Debug */,
+				E501A1001A2B3C4D5E6F78930 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A1B2C3D4E5F67899 /* Build configuration list for PBXNativeTarget "SwiftMoLoggerExampleApp" */ = {
+		E501A1001A2B3C4D5E6F78925 /* Build configuration list for PBXProject "SwiftMoLoggerExample" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1B2C3D4E5F67898 /* Debug */,
-				A1B2C3D4E5F67900 /* Release */,
+				E501A1001A2B3C4D5E6F78927 /* Debug */,
+				E501A1001A2B3C4D5E6F78928 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -382,19 +364,18 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A53A39442E7C2732008318BB /* XCLocalSwiftPackageReference "../" */ = {
+		A53A39472E7CBE46008318BB /* XCLocalSwiftPackageReference "../../SwiftMoLogger" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../;
+			relativePath = ../../SwiftMoLogger;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		A53A39452E7C2732008318BB /* SwiftMoLogger */ = {
+		A53A39482E7CBE46008318BB /* SwiftMoLogger */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A53A39442E7C2732008318BB /* XCLocalSwiftPackageReference "../" */;
 			productName = SwiftMoLogger;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = A1B2C3D4E5F67880 /* Project object */;
+	rootObject = E501A1001A2B3C4D5E6F78924 /* Project object */;
 }

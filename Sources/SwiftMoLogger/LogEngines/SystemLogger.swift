@@ -1,25 +1,39 @@
 import Foundation
+import os.log
 
-/// Default system logger that outputs to the console with emoji indicators
-final class SystemLogger: LogEngine {
-    static let main: SystemLogger = .init()
-    private init() {}
+// MARK: - System Logger
 
-    func info(message: String) {
+/// High-performance system logger using os.log (iOS 14+) with console fallback
+public final class SystemLogger: LogEngine {
+    private let osLog = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "SwiftMoLogger", category: "General")
+
+    public init() {}
+
+    public func info(message: String) {
         #if DEBUG
-            debugPrint(message.withPrefix("ℹ️ "))
+        if #available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *) {
+            os_log(.info, log: osLog, "%{public}@", "ℹ️ \(message)")
+        } else {
+            print("ℹ️ \(message)")
+        }
         #endif
     }
 
-    func warn(message: String) {
+    public func warn(message: String) {
         #if DEBUG
-        debugPrint(message.withPrefix("⚠️ "))
+        if #available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *) {
+            os_log(.default, log: osLog, "%{public}@", "⚠️ \(message)")
+        } else {
+            print("⚠️ \(message)")
+        }
         #endif
     }
 
-    func error(message: String) {
-        #if DEBUG
-        debugPrint(message.withPrefix("🚨 "))
-        #endif
+    public func error(message: String) {
+        if #available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *) {
+            os_log(.error, log: osLog, "%{public}@", "🚨 \(message)")
+        } else {
+            print("🚨 \(message)")
+        }
     }
 }
