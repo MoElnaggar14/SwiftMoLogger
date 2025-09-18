@@ -120,29 +120,46 @@ SwiftMoLogger.addEngine(DebugLogEngine())
 ```
 **Features:** DEBUG-only compilation, enhanced console output, stack traces, thread indicators
 
-## 🎯 Live Demo - See It In Action!
+## 📱 **iOS SwiftUI Example App - Production Ready!**
+
+**NEW**: Complete iOS application demonstrating SwiftMoLogger in a real app context!
+
+```
+📁 ExampleApp/
+├── SwiftMoLoggerExampleApp.swift  # Main app with multi-engine setup
+├── ContentView.swift              # Dashboard with real-time stats
+├── LoggingDemoViewModel.swift     # Business logic and state management
+├── SupportingViews.swift          # Log viewer and settings
+└── README.md                      # Detailed setup instructions
+```
+
+### **🎯 What You Get:**
+- **📱 Beautiful SwiftUI Interface**: Dashboard, log viewer, settings panels
+- **🏗️ Multi-Engine Architecture**: All 5 advanced engines working simultaneously  
+- **🎮 Interactive Demo**: Tap buttons to generate realistic logging scenarios
+- **📊 Real-Time Analytics**: Live engine status, error counts, performance metrics
+- **🔍 Advanced Log Viewer**: Filter, search, and inspect logs with beautiful UI
+- **⚙️ Production Patterns**: DEBUG vs RELEASE engine configurations
+
+### **🚀 Quick Start:**
+1. Copy `ExampleApp/` files into a new iOS project
+2. Add SwiftMoLogger as Swift Package dependency  
+3. Build and run - see multi-engine logging in action!
+
+---
+
+## 🎯 **Command-Line Demo (Alternative)**
 
 ```bash
-# Run the comprehensive demo to see all features
+# Run the terminal demo to see core features
 swift Demo.swift
 ```
 
-**Demo showcases:**
-- 📊 **Multi-engine logging** across 6 different destinations
-- 🧵 **Thread-safe concurrent operations** with background tasks  
-- 📈 **Real-time metrics** from memory and analytics engines
-- 💾 **Structured JSON file logging** with timestamps
-- 📤 **Network batching** simulation for remote log aggregation
-- 🔍 **Enhanced debugging** with stack traces and thread indicators
-
-**Sample demo output:**
-```
-📊 After adding 5 custom engines: 6 total
-📝 Memory Engine Summary: Total error count: 2, Total logs stored: 6
-📊 Analytics Engine Metrics: errors: 2, warnings: 2
-💾 File Engine: JSON logs with timestamps and thread tracking
-📤 Network Engine: Batched 6 logs for remote transmission (967 bytes)
-```
+**Command-line demo shows:**
+- Multi-engine logging across 6 destinations
+- Thread-safe concurrent operations
+- JSON file logging and network batching
+- Memory circular buffer with analytics
 
 ## 📋 Available Log Tags
 
