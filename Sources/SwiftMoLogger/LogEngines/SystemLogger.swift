@@ -6,9 +6,9 @@ import os.log
 /// High-performance system logger using os.log (iOS 14+) with console fallback
 public final class SystemLogger: LogEngine {
     private let osLog = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "SwiftMoLogger", category: "General")
-    
+
     public init() {}
-    
+
     public func info(message: String) {
         #if DEBUG
         if #available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *) {
@@ -18,7 +18,7 @@ public final class SystemLogger: LogEngine {
         }
         #endif
     }
-    
+
     public func warn(message: String) {
         #if DEBUG
         if #available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *) {
@@ -28,7 +28,7 @@ public final class SystemLogger: LogEngine {
         }
         #endif
     }
-    
+
     public func error(message: String) {
         if #available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *) {
             os_log(.error, log: osLog, "%{public}@", "🚨 \(message)")
