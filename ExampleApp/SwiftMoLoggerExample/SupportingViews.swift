@@ -352,16 +352,86 @@ struct StatisticRow: View {
 
 // MARK: - Document Viewer
 
-struct DocumentViewer: UIViewControllerRepresentable {
+struct DocumentViewer: View {
     let url: URL
+    @State private var fileContent: String = ""
+    @State private var isLoading: Bool = true
+    @Environment(\.dismiss) private var dismiss
     
-    func makeUIViewController(context: Context) -> UIDocumentInteractionController {
-        let controller = UIDocumentInteractionController(url: url)
-        return controller
+    var body: some View {
+        NavigationView {
+            Group {
+                if isLoading {
+                    ProgressView("Loading log file...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        Text(fileContent)
+                            .font(.system(.caption, design: .monospaced))
+                            .padding()
+                    }
+                }
+            }
+            .navigationTitle("Log File")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if #available(iOS 16.0, *) {
+                        ShareLink(item: url) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    } else {
+                        Button(action: {
+                            // Fallback for iOS 15 - show activity view
+                            showShareSheet(for: url)
+                        }) {
+                            Image(systemName: "square.and.arrow.up")
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear {
+            loadFileContent()
+        }
     }
     
-    func updateUIViewController(_ uiViewController: UIDocumentInteractionController, context: Context) {
-        // No updates needed
+    private func showShareSheet(for url: URL) {
+        let activityViewController = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first {
+            window.rootViewController?.present(activityViewController, animated: true)
+        }
+    }
+    
+    private func loadFileContent() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let content = try String(contentsOf: url, encoding: .utf8)
+                let lines = content.components(separatedBy: .newlines)
+                
+                // Show last 100 lines to avoid memory issues with large files
+                let displayLines = Array(lines.suffix(100))
+                let displayContent = displayLines.joined(separator: "\n")
+                
+                DispatchQueue.main.async {
+                    self.fileContent = displayContent.isEmpty ? "No log entries found" : displayContent
+                    self.isLoading = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.fileContent = "Error loading log file: \(error.localizedDescription)"
+                    self.isLoading = false
+                }
+            }
+        }
     }
 }
 

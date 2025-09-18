@@ -18,7 +18,9 @@ class LoggingDemoViewModel: ObservableObject {
     
     init() {
         findEngines()
-        updateStats()
+        Task { @MainActor in
+            self.updateStats()
+        }
     }
     
     // MARK: - Public Methods
@@ -137,12 +139,12 @@ class LoggingDemoViewModel: ObservableObject {
         }
     }
     
-    func clearMemoryLogs() {
+    @MainActor func clearMemoryLogs() {
         memoryEngine?.clear()
         updateStats()
     }
     
-    func resetAnalytics() {
+    @MainActor func resetAnalytics() {
         analyticsEngine?.reset()
         updateStats()
     }

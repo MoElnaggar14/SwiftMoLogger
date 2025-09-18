@@ -3,17 +3,17 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A53A39492E7CBE46008318BB /* SwiftMoLogger in Frameworks */ = {isa = PBXBuildFile; productRef = A53A39482E7CBE46008318BB /* SwiftMoLogger */; };
 		E501A1001A2B3C4D5E6F78901 /* SwiftMoLoggerExampleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78902 /* SwiftMoLoggerExampleApp.swift */; };
 		E501A1001A2B3C4D5E6F78903 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78904 /* ContentView.swift */; };
 		E501A1001A2B3C4D5E6F78905 /* LoggingDemoViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78906 /* LoggingDemoViewModel.swift */; };
 		E501A1001A2B3C4D5E6F78907 /* SupportingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78908 /* SupportingViews.swift */; };
 		E501A1001A2B3C4D5E6F78909 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78910 /* Assets.xcassets */; };
 		E501A1001A2B3C4D5E6F78911 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E501A1001A2B3C4D5E6F78912 /* Preview Assets.xcassets */; };
-		E501A1001A2B3C4D5E6F78913 /* SwiftMoLogger in Frameworks */ = {isa = PBXBuildFile; productRef = E501A1001A2B3C4D5E6F78914 /* SwiftMoLogger */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,7 +31,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E501A1001A2B3C4D5E6F78913 /* SwiftMoLogger in Frameworks */,
+				A53A39492E7CBE46008318BB /* SwiftMoLogger in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -92,7 +92,7 @@
 			);
 			name = SwiftMoLoggerExample;
 			packageProductDependencies = (
-				E501A1001A2B3C4D5E6F78914 /* SwiftMoLogger */,
+				A53A39482E7CBE46008318BB /* SwiftMoLogger */,
 			);
 			productName = SwiftMoLoggerExample;
 			productReference = E501A1001A2B3C4D5E6F78900 /* SwiftMoLoggerExample.app */;
@@ -123,7 +123,7 @@
 			);
 			mainGroup = E501A1001A2B3C4D5E6F78916;
 			packageReferences = (
-				E501A1001A2B3C4D5E6F78926 /* XCRemoteSwiftPackageReference "SwiftMoLogger" */,
+				A53A39472E7CBE46008318BB /* XCLocalSwiftPackageReference "../../SwiftMoLogger" */,
 			);
 			productRefGroup = E501A1001A2B3C4D5E6F78918 /* Products */;
 			projectDirPath = "";
@@ -363,21 +363,16 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		E501A1001A2B3C4D5E6F78926 /* XCRemoteSwiftPackageReference "SwiftMoLogger" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/MoElnaggar14/SwiftMoLogger.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
-			};
+/* Begin XCLocalSwiftPackageReference section */
+		A53A39472E7CBE46008318BB /* XCLocalSwiftPackageReference "../../SwiftMoLogger" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../SwiftMoLogger;
 		};
-/* End XCRemoteSwiftPackageReference section */
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		E501A1001A2B3C4D5E6F78914 /* SwiftMoLogger */ = {
+		A53A39482E7CBE46008318BB /* SwiftMoLogger */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E501A1001A2B3C4D5E6F78926 /* XCRemoteSwiftPackageReference "SwiftMoLogger" */;
 			productName = SwiftMoLogger;
 		};
 /* End XCSwiftPackageProductDependency section */
