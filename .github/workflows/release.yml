@@ -58,8 +58,16 @@ jobs:
         
     - name: Validate Package
       run: |
-        swift package diagnose-api-breaking-changes baseline || true
-        swift package compute-checksum
+        # Run API breaking-changes diagnosis only when a `baseline` ref
+        # actually exists in this repo; otherwise skip cleanly.
+        if git rev-parse --verify baseline >/dev/null 2>&1; then
+          swift package diagnose-api-breaking-changes baseline || true
+        else
+          echo "No baseline ref found, skipping API diagnosis"
+        fi
+        # `swift package compute-checksum` needs a binary artifact path
+        # (used for .binaryTarget zips); this package has none, so skip it.
+        swift package describe --type json > /dev/null
 
   create-release:
     name: Create GitHub Release
