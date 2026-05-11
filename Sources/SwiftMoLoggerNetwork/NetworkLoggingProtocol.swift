@@ -54,6 +54,12 @@ public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
         }
         URLProtocol.setProperty(true, forKey: NetworkLoggingProtocol.propertyKey, in: mutable)
 
+        // Propagate W3C traceparent if a TraceContext is active.
+        if mutable.value(forHTTPHeaderField: "traceparent") == nil,
+           let context = CurrentTrace.current {
+            mutable.setValue(context.childSpan().traceparent, forHTTPHeaderField: "traceparent")
+        }
+
         logRequest(mutable as URLRequest)
         SwiftMoLogger.breadcrumb(
             "→ \(mutable.httpMethod ?? "?") \(mutable.url?.absoluteString ?? "?")",
