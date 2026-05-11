@@ -60,7 +60,11 @@ public final class FlightRecorder: @unchecked Sendable {
     /// captures everything passing through the registry.
     public func start() {
         guard timer == nil else { return }
-        if !SwiftMoLogger.allEngines().contains(where: { $0.engineID == memory.engineID }) {
+        // Always register *this* recorder's private memory engine. Earlier
+        // versions skipped registration whenever any MemoryLogEngine was
+        // already present, which silently broke recording when adopters
+        // wired their own MemoryLogEngine into the registry first.
+        if !SwiftMoLogger.allEngines().contains(where: { ($0 as? MemoryLogEngine) === memory }) {
             SwiftMoLogger.addEngine(memory)
         }
         markSessionAlive(true)
@@ -103,7 +107,7 @@ public final class FlightRecorder: @unchecked Sendable {
 
     // MARK: - Private
 
-    static let defaultFileURL: URL = {
+    public static let defaultFileURL: URL = {
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("SwiftMoLogger", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

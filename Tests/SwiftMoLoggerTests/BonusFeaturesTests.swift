@@ -94,6 +94,15 @@ final class ErrorGroupingEngineTests: XCTestCase {
 
 final class FlightRecorderTests: XCTestCase {
 
+    override func setUp() {
+        super.setUp()
+        // Reset the global registry so other suites' leftover engines or
+        // raised `minimumLevel` don't suppress the entries this recorder
+        // is supposed to capture.
+        SwiftMoLogger.reset()
+        SwiftMoLogger.minimumLevel = .trace
+    }
+
     func testFlushWritesJSONFile() {
         let tmpURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("fr-\(UUID().uuidString).json")

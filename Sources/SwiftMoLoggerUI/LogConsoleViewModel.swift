@@ -14,7 +14,7 @@ import Combine
 /// never sees a synchronous write storm.
 @MainActor
 public final class LogConsoleViewModel: ObservableObject {
-    @Published public private(set) var entries: [LogEntry] = []
+    @Published public internal(set) var entries: [LogEntry] = []
     @Published public var filterText: String = ""
     @Published public var minimumLevel: LogLevel = .trace
     @Published public var isPaused: Bool = false

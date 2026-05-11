@@ -138,7 +138,7 @@ private extension MetricKitCrashReporter {
             SwiftMoLogger.warn(
                 "🐌 HANG detected",
                 tag: .performance,
-                metadata: ["hang_duration_ms": .double(Double(truncating: diagnostic.hangDuration as NSNumber) * 1000)]
+                metadata: ["hang_duration_ms": .double(diagnostic.hangDuration.converted(to: .milliseconds).value)]
             )
             let hangData = diagnostic.dictionaryRepresentation()
             let stringKeyHangData: [String: Any] = Dictionary(uniqueKeysWithValues:
