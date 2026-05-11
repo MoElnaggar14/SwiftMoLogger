@@ -24,6 +24,8 @@ public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
     private var dataTask: URLSessionDataTask?
     private var receivedData = Data()
     private var startTime: DispatchTime = .now()
+    private var startDate: Date = Date()
+    private var requestBodyBytes: Int64 = 0
     private static let childSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = []
@@ -44,6 +46,8 @@ public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
 
     public override func startLoading() {
         startTime = DispatchTime.now()
+        startDate = Date()
+        requestBodyBytes = Int64(request.httpBody?.count ?? 0)
         guard let mutable = (request as NSURLRequest).mutableCopy() as? NSMutableURLRequest else {
             client?.urlProtocol(self, didFailWithError: URLError(.unknown))
             return
@@ -115,6 +119,15 @@ public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
             "← \(status) \(response?.url?.lastPathComponent ?? "?") (\(Int(elapsedMS))ms)",
             category: .network
         )
+        NetworkEventStore.shared.record(NetworkEvent(
+            startedAt: startDate,
+            endedAt: Date(),
+            method: request.httpMethod ?? "?",
+            url: response?.url ?? request.url ?? URL(fileURLWithPath: "/"),
+            statusCode: status,
+            responseBytes: Int64(data?.count ?? 0),
+            requestBytes: requestBodyBytes
+        ))
     }
 
     private func logFailure(error: Error, elapsedMS: Double) {
@@ -127,6 +140,16 @@ public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
             "✗ \(request.url?.host ?? "?"): \(error.localizedDescription)",
             category: .network
         )
+        NetworkEventStore.shared.record(NetworkEvent(
+            startedAt: startDate,
+            endedAt: Date(),
+            method: request.httpMethod ?? "?",
+            url: request.url ?? URL(fileURLWithPath: "/"),
+            statusCode: 0,
+            responseBytes: 0,
+            requestBytes: requestBodyBytes,
+            errorDescription: String(describing: error)
+        ))
     }
 
     private static func sanitiseHeaders(_ headers: [String: String]) -> String {

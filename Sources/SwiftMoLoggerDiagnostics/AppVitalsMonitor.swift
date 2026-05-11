@@ -92,13 +92,22 @@ public final class AppVitalsMonitor: @unchecked Sendable {
         _lastSample = sample
         os_unfair_lock_unlock(&lock)
 
+        let memoryMB = Double(sample.memoryUsedBytes) / 1_048_576
         SwiftMoLogger.notice("vitals", tag: .performance, metadata: [
-            "memory_mb": .double(Double(sample.memoryUsedBytes) / 1_048_576),
+            "memory_mb": .double(memoryMB),
             "cpu_pct": .double(sample.cpuUsagePercent),
             "fps": .double(sample.fps),
             "thermal": .string(sample.thermalState),
             "battery": .double(sample.batteryLevel)
         ])
+        VitalsHistoryStore.shared.record(VitalsTick(
+            timestamp: sample.timestamp,
+            memoryMB: memoryMB,
+            cpuPercent: sample.cpuUsagePercent,
+            fps: sample.fps,
+            thermalState: sample.thermalState,
+            batteryLevel: sample.batteryLevel
+        ))
     }
 
     private func currentMemoryFootprint() -> UInt64 {

@@ -27,6 +27,7 @@ public enum LogSignpost {
     ) rethrows -> T {
         let signpostID = OSSignpostID(log: signpostLog)
         let start = DispatchTime.now()
+        let startDate = Date()
         os_signpost(.begin, log: signpostLog, name: name, signpostID: signpostID)
         defer {
             let elapsedNS = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
@@ -38,6 +39,12 @@ public enum LogSignpost {
                 tag: tag ?? .performance,
                 metadata: ["elapsed_ms": .double(elapsedMS), "signpost": .string("\(name)")]
             )
+            SignpostEventStore.shared.record(SignpostEvent(
+                name: "\(name)",
+                startedAt: startDate,
+                endedAt: Date(),
+                tagDomain: (tag ?? .performance).domain
+            ))
         }
         return try block()
     }
@@ -52,6 +59,7 @@ public enum LogSignpost {
     ) async rethrows -> T {
         let signpostID = OSSignpostID(log: signpostLog)
         let start = DispatchTime.now()
+        let startDate = Date()
         os_signpost(.begin, log: signpostLog, name: name, signpostID: signpostID)
         defer {
             let elapsedNS = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
@@ -63,6 +71,12 @@ public enum LogSignpost {
                 tag: tag ?? .performance,
                 metadata: ["elapsed_ms": .double(elapsedMS), "signpost": .string("\(name)")]
             )
+            SignpostEventStore.shared.record(SignpostEvent(
+                name: "\(name)",
+                startedAt: startDate,
+                endedAt: Date(),
+                tagDomain: (tag ?? .performance).domain
+            ))
         }
         return try await block()
     }
@@ -74,6 +88,7 @@ public enum LogSignpost {
         private let tag: LogTag?
         private let signpostID: OSSignpostID
         private let start: DispatchTime
+        private let startDate: Date
         private var ended = false
 
         public init(name: StaticString, tag: LogTag? = nil) {
@@ -81,6 +96,7 @@ public enum LogSignpost {
             self.tag = tag
             self.signpostID = OSSignpostID(log: LogSignpost.signpostLog)
             self.start = DispatchTime.now()
+            self.startDate = Date()
             os_signpost(.begin, log: LogSignpost.signpostLog, name: name, signpostID: signpostID)
         }
 
@@ -96,6 +112,12 @@ public enum LogSignpost {
                 tag: tag ?? .performance,
                 metadata: ["elapsed_ms": .double(elapsedMS), "signpost": .string("\(name)")]
             )
+            SignpostEventStore.shared.record(SignpostEvent(
+                name: "\(name)",
+                startedAt: startDate,
+                endedAt: Date(),
+                tagDomain: (tag ?? .performance).domain
+            ))
         }
 
         deinit { end() }
