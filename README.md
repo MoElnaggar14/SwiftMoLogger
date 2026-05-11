@@ -58,12 +58,17 @@ That's it. No `configure(…)`, no singletons to wire, no protocol gymnastics.
   - [Remote shipping](#remote-shipping-sentry--datadog--loki)
   - [Auto network logging](#auto-network-logging)
   - [Privacy manifest](#privacy-manifest)
+- [Distributed tracing](#distributed-tracing-w3c)
+- [Flight recorder](#flight-recorder--black-box-for-crashes)
+- [Error grouping](#error-grouping)
 - [Swift Concurrency](#swift-concurrency)
 - [Performance](#performance)
 - [Testing](#testing)
 - [Comparison](#comparison)
 - [Migration from v2](#migration-from-v2)
 - [Development model (GitFlow)](#development-model-gitflow)
+- [📚 Article series](#-article-series)
+- [Xcode code snippets](#xcode-code-snippets)
 - [License](#license)
 
 ---
@@ -78,6 +83,9 @@ That's it. No `configure(…)`, no singletons to wire, no protocol gymnastics.
 | 🛡 | **Production-safe by default.** Built-in PII / token / credit-card redaction. Rate limiting. Sampling. Privacy manifest. |
 | 🔭 | **Self-hosted observability.** `DiagnosticsHubView()` is Instruments + Charles + Console inside your app. No cable, no Mac required. |
 | 📡 | **Zero-config live tail.** Bonjour-advertised devices, terminal CLI on your Mac auto-discovers them all. |
+| 🛰 | **W3C distributed tracing.** Stamp every `URLSession` request with `traceparent` so iOS spans show up next to your backend trace. |
+| 📼 | **Flight recorder.** Rolling 2-minute black box persisted to disk; replay the seconds before a crash on next launch. |
+| 🪞 | **Smart error grouping.** Spammy retries collapse into one card with a count, not 1 000 noise lines. |
 | 🧪 | **First-class testing.** Drop-in XCTest assertions over what was logged. |
 | 🪶 | **Opt-in everything.** 7 separate library products. Pay only for what you import. |
 
@@ -400,6 +408,71 @@ App Store submissions pass without further work.
 
 ---
 
+## Distributed tracing (W3C)
+
+Stamp every log entry and every outbound `URLSession` request with a W3C `traceparent` header. Tie the iOS-side operation directly to the downstream backend trace in Datadog, Honeycomb, OpenTelemetry, etc.
+
+```swift
+SwiftMoLogger.withTrace {
+    SwiftMoLogger.info("starting checkout")
+    try await api.charge(order)   // outgoing request gets traceparent: 00-<traceID>-<spanID>-01
+    try await api.confirm(order)  // same trace, new child span
+}
+```
+
+`TraceContext` is a value type — generate fresh roots, spawn child spans, parse inbound headers:
+
+```swift
+let ctx = TraceContext.generate()
+let parsed = TraceContext.parse(traceparent: incomingHeader)
+let child = ctx.childSpan()
+```
+
+Backed by `@TaskLocal`, so concurrent tasks see their own trace.
+
+---
+
+## Flight recorder — black box for crashes
+
+```swift
+let recorder = FlightRecorder(window: 120, flushInterval: 2)
+recorder.start()
+```
+
+Persists a rolling 2-minute window of every signal (logs, breadcrumbs, network, signposts, vitals) to disk every 2 seconds. On next launch:
+
+```swift
+if let session = FlightRecorder.recoverLastSession() {
+    SwiftMoLogger.warn("Recovered crashed session: \(session.entries.count) entries")
+    uploader.attach(session)
+}
+```
+
+Returns non-nil **only** when the previous run never had a clean `stop()` — almost always a crash, OOM, or watchdog kill. The exact signals you wish you'd had, after the fact.
+
+---
+
+## Error grouping
+
+A `1000`-occurrence retry-spam logged once with `count = 1000`:
+
+```swift
+SwiftMoLogger.addEngine(ErrorGroupingEngine(
+    wrapping: sentryShipper,
+    fingerprintMinLevel: .warning,
+    emitThreshold: 1   // emit first occurrence per fingerprint
+))
+```
+
+Fingerprints by normalising the message (UUIDs → `<uuid>`, hex blobs → `<hex>`, digit runs → `#`, quoted strings → `"…"`), then SHA-256 of the result. Different shapes stay distinct; identical-shape noise collapses.
+
+```swift
+let groups = grouper.snapshot()
+// → ErrorGroup(count: 1024, exemplar: "User # timed out", firstSeen: …, lastSeen: …)
+```
+
+---
+
 ## Swift Concurrency
 
 ### Task-local ambient context
@@ -512,6 +585,10 @@ final class CheckoutTests: XCTestCase {
 | `XCTAssertLogged` | ✅ | ❌ | ❌ | ❌ |
 | Privacy manifest | ✅ | n/a | ❌ | ❌ |
 | Task-local context | ✅ | ❌ | ❌ | ❌ |
+| W3C `traceparent` propagation | ✅ | ❌ | ❌ | ❌ |
+| Flight recorder | ✅ | ❌ | ❌ | ❌ |
+| Smart error grouping | ✅ | ❌ | ❌ | ❌ |
+| Xcode code snippets bundled | ✅ | ❌ | ❌ | ❌ |
 | Hot path (no engines) | **~140 ns** | ~120 ns | ~3 µs | ~2 µs |
 
 ---
@@ -544,6 +621,44 @@ final class CheckoutTests: XCTestCase {
 | `hotfix/*` | emergency from main | merge both |
 
 Branch policy is enforced by `.github/workflows/gitflow.yml`. Full procedure → [GITFLOW.md](GITFLOW.md).
+
+---
+
+## 📚 Article series
+
+A 5-part deep-dive on the rewrite, the design choices, and the production playbook. Read in order or jump to whichever is on fire for you today.
+
+| # | Title | What you'll learn |
+|---|---|---|
+| 1 | [Why I rewrote iOS logging from scratch](Articles/01-why-rewrite.md) | The shortcomings of `print` / `os.Logger` / SwiftyBeaver, and the design principles behind v3 |
+| 2 | [Sub-µs logging: the performance design](Articles/02-performance.md) | Why the hot path is ~140 ns — locking choices, autoclosure tricks, allocation budgets |
+| 3 | [Instruments in your app: building Diagnostics Hub](Articles/03-diagnostics-hub.md) | How the timeline + waterfall + flame graph + vitals charts compose |
+| 4 | [Zero-config debugging with Bonjour and Swift Macros](Articles/04-bonjour-and-macros.md) | The Mac CLI live tail, the macros target, and the dev-experience wins |
+| 5 | [The production playbook: tracing, redaction, flight recorder](Articles/05-production-playbook.md) | The features that save you on the 3 AM call |
+
+Series index: [Articles/README.md](Articles/README.md).
+
+---
+
+## Xcode code snippets
+
+Five `.codesnippet` files in [`Extras/Snippets/`](Extras/Snippets) for the calls you'll type most often:
+
+| Prefix | Expands to |
+|---|---|
+| `smlinfo` | `SwiftMoLogger.info(…, tag:, metadata:)` |
+| `smlerror` | `SwiftMoLogger.error(error:, tag:, metadata:)` |
+| `smlmeasure` | `LogSignpost.measure("name", tag: .performance) { … }` |
+| `smlcontext` | `SwiftMoLogger.withContext(…) { … }` |
+| `smlcrumb` | `SwiftMoLogger.breadcrumb(…, category: .userAction)` |
+
+Install:
+
+```bash
+cp Extras/Snippets/*.codesnippet ~/Library/Developer/Xcode/UserData/CodeSnippets/
+```
+
+Restart Xcode. The snippets show up in the Snippets Library (`⌘⇧L`) and autocomplete by prefix.
 
 ---
 
