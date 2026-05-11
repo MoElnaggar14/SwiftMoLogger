@@ -1,472 +1,673 @@
-# SwiftMoLogger 🚀
+# SwiftMoLogger
 
-**Production-ready, thread-safe logging framework for iOS applications with advanced multi-engine architecture**
+> **The logging package iOS teams wish they'd written.**
+> Structured, multi-engine, Swift-Concurrency-native — with an in-app Instruments dashboard, zero-config live tail to your Mac, automatic PII redaction, Sentry/Datadog/Loki shippers, and Swift Macros. All in one package, all opt-in.
 
-*Created by Mohammed Elnaggar (@MoElnaggar14)*
-
-[![Swift Version](https://img.shields.io/badge/swift-5.7+-orange.svg)](https://swift.org)
-[![Platform](https://img.shields.io/badge/platform-iOS%2015.0%2B%20|%20macOS%2012.0%2B%20|%20tvOS%2015.0%2B%20|%20watchOS%208.0%2B-lightgrey.svg)](https://developer.apple.com)
+[![Swift](https://img.shields.io/badge/Swift-5.9+-orange.svg)](https://swift.org)
+[![Platforms](https://img.shields.io/badge/iOS_15_•_macOS_12_•_tvOS_15_•_watchOS_8-lightgrey.svg)](https://developer.apple.com)
+[![SPM](https://img.shields.io/badge/SPM-supported-brightgreen.svg)](https://swift.org/package-manager/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## 🎯 Overview
+*by Mohammed Elnaggar ([@MoElnaggar14](https://github.com/MoElnaggar14))*
 
-SwiftMoLogger is a clean, thread-safe, and highly extensible logging framework designed for production iOS applications. It features a unique multi-engine architecture that automatically distributes logs across multiple destinations while maintaining optimal performance and developer experience.
+---
 
-## 🆕 What's New in Version 2.0
-
-**🎉 Major Release - Complete iOS Integration & Advanced Features**
-
-- **📱 Ready-to-Run iOS App**: Complete SwiftUI example app with Xcode project
-- **🏗️ Advanced Multi-Engine Demo**: See all 6 engines working together in real-time
-- **📄 Native Document Viewer**: iOS-optimized log file viewer with share functionality
-- **🔧 Production Patterns**: Proper DEBUG/RELEASE configurations demonstrated
-- **🎨 Professional UI**: Modern SwiftUI interface with interactive logging demos
-- **📊 Real-Time Analytics**: Live engine statistics and logging metrics
-- **🛠️ Developer Tools**: Helper scripts and comprehensive documentation
-
-## ✨ Key Features
-
-- **🏗️ Multi-Engine Architecture**: Distribute logs to console, files, network, analytics, and custom destinations
-- **🔒 Thread-Safe**: Concurrent queue with barrier writes - no race conditions or bottlenecks
-- **⚡ High Performance**: Background processing, circular buffers, and optimized memory usage
-- **🎯 Production-Ready**: JSON logging, automatic rotation, intelligent batching, error tracking
-- **🧩 Clean API**: Simple, intuitive interface with powerful extensibility
-- **📱 Modern Swift**: iOS 15+, built for scalability and maintainability
-
-## 🚀 Quick Start
-
-### Installation
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "2.0.0")
-]
-```
-
-### Basic Logging - Works Out of the Box
+## 30-second pitch
 
 ```swift
 import SwiftMoLogger
 
-// Start logging immediately - SystemLogger included by default
-SwiftMoLogger.info("🚀 Application started successfully")
-SwiftMoLogger.warn("⚠️ Low memory warning detected")
-SwiftMoLogger.error("❌ Network connection failed")
-
-// Tagged logging for better organization
-SwiftMoLogger.info("API request completed", tag: .network)
-SwiftMoLogger.error("Database query timeout", tag: .database)
-SwiftMoLogger.debug("Debug information", tag: .debug) // DEBUG builds only
+// Day 1: it just works.
+SwiftMoLogger.info("App started")
+SwiftMoLogger.error("Payment failed", tag: .api, metadata: [
+    "order_id": "ord_4291",
+    "amount": 49.99
+])
 ```
-
-### Multi-Engine Setup - Production Power
 
 ```swift
-// Add advanced engines for production logging
-SwiftMoLogger.addEngine(FileLogEngine())          // JSON file logging
-SwiftMoLogger.addEngine(NetworkLogEngine())       // Remote log aggregation
-SwiftMoLogger.addEngine(AnalyticsLogEngine())     // Error & performance tracking
+import SwiftMoLoggerUI
 
-#if DEBUG
-SwiftMoLogger.addEngine(DebugLogEngine())         // Enhanced debugging
-SwiftMoLogger.addEngine(MemoryLogEngine())        // In-memory log inspection
-#endif
-
-// Now all logs are automatically distributed to every engine
-SwiftMoLogger.error("💥 Payment processing failed") 
-// → Console + File + Network + Analytics + Debug + Memory
-
-print("Active engines: \(SwiftMoLogger.engineCount)") // 6 engines
+// Day 2: drop one view, get Instruments inside your app.
+DiagnosticsHubView()
 ```
 
-## 📦 Advanced Engine Features
-
-SwiftMoLogger includes production-ready engines with sophisticated capabilities:
-
-### 📝 MemoryLogEngine - High-Performance In-Memory Logging
-```swift
-let memoryEngine = MemoryLogEngine(maxEntries: 1000)
-SwiftMoLogger.addEngine(memoryEngine)
-
-// Later - inspect logs with built-in filtering
-let recentLogs = memoryEngine.getRecentLogs(count: 10)
-let errorCount = memoryEngine.getErrorCount()
-let allLogs = memoryEngine.getAllLogs() // Thread-safe access
-```
-**Features:** Circular buffer, thread-safe concurrent access, built-in metrics, zero I/O overhead
-
-### 💾 FileLogEngine - Production File Logging
-```swift
-SwiftMoLogger.addEngine(FileLogEngine()) // Writes to /tmp/swiftmologger_demo.log
-
-// Produces structured JSON logs:
-// {"timestamp":"2025-01-15 10:30:45.123","level":"ERROR","message":"Payment failed","thread":"background"}
-```
-**Features:** JSON formatting, automatic rotation (1MB), background processing, structured data for analysis
-
-### 🌐 NetworkLogEngine - Batched Remote Logging
-```swift
-SwiftMoLogger.addEngine(NetworkLogEngine())
-// Automatically batches and sends logs to remote endpoints
-// Includes app metadata: version, platform, timestamps
-```
-**Features:** Intelligent batching (10 logs/request), background transmission, structured payloads, cleanup on exit
-
-### 📊 AnalyticsLogEngine - Error & Performance Tracking
-```swift
-let analyticsEngine = AnalyticsLogEngine()
-SwiftMoLogger.addEngine(analyticsEngine)
-
-// Get real-time metrics
-let metrics = analyticsEngine.getMetrics() // ["errors": 5, "warnings": 12]
-```
-**Features:** Selective logging (errors + performance), real-time metrics, noise reduction, event tracking
-
-### 🔍 DebugLogEngine - Enhanced Development Logging
-```swift
-#if DEBUG
-SwiftMoLogger.addEngine(DebugLogEngine())
-// Output: 🔵 [14:30:15.123] ℹ️ User logged in
-//         🟠 [14:30:15.456] 🚨 Network error + stack trace
-#endif
-```
-**Features:** DEBUG-only compilation, enhanced console output, stack traces, thread indicators
-
-## 📱 **iOS SwiftUI Example App - Production Ready!**
-
-**🎉 NEW**: Complete, ready-to-run iOS application showcasing SwiftMoLogger's advanced features!
-
-```
-📁 ExampleApp/
-├── 📱 SwiftMoLoggerExample.xcodeproj/          # Complete Xcode project
-│   ├── project.pbxproj                        # Pre-configured with SwiftMoLogger
-│   └── project.xcworkspace/
-├── 📂 SwiftMoLoggerExample/                    # Source code folder
-│   ├── SwiftMoLoggerExampleApp.swift          # App entry point with multi-engine setup
-│   ├── ContentView.swift                      # Main dashboard with interactive buttons
-│   ├── LoggingDemoViewModel.swift             # State management and business logic
-│   ├── SupportingViews/
-│   │   ├── LogViewerSheet.swift               # Native log file viewer
-│   │   ├── SettingsSheet.swift                # Engine management and settings
-│   │   └── DocumentViewer.swift               # iOS-native document viewer (iOS 15+)
-│   └── Assets.xcassets/                       # App icons and colors
-├── 🛠️ open_project.sh                        # Helper script for easy opening
-└── 📖 README.md                               # Detailed setup and usage guide
-```
-
-### **🎯 What You Get:**
-- **📱 Native iOS SwiftUI App**: Complete Xcode project ready to build and run
-- **🏗️ Advanced Multi-Engine Demo**: All 6 engines working simultaneously (Console, File, Network, Analytics, Debug, Memory)
-- **🎮 Interactive Testing Interface**: Buttons to generate different log scenarios and test cases
-- **📊 Real-Time Dashboard**: Live engine statistics, error counts, and logging metrics
-- **🔍 Advanced Log Viewer**: Native SwiftUI log file viewer with share functionality
-- **⚙️ Production Configuration**: Proper DEBUG/RELEASE engine setup patterns
-- **📱 iOS 15+ Compatible**: Uses ShareLink for iOS 16+ with UIActivityViewController fallback
-- **🎨 Professional UI**: Modern SwiftUI design with proper navigation and state management
-
-### **🚀 Quick Start (Ready-to-Run!):**
 ```bash
-# Clone the repository
-git clone https://github.com/MoElnaggar14/SwiftMoLogger.git
-cd SwiftMoLogger
-
-# Open the ready-made Xcode project
-open ExampleApp/SwiftMoLoggerExample.xcodeproj
-
-# Or use the helper script
-./ExampleApp/open_project.sh
+# Day 3: tail every device on your Wi-Fi from the terminal.
+swift run swiftmologger-inspector
 ```
 
-**That's it!** The project is pre-configured with:
-- ✅ SwiftMoLogger package dependency already added
-- ✅ iOS 15.0 minimum deployment target
-- ✅ All source files properly organized
-- ✅ Asset catalogs and app icons configured
-- ✅ Ready to build and run on device or simulator
-
-### **🧪 Demo Features:**
-- **Log Generation**: Test different log levels (Info, Warning, Error) with realistic scenarios
-- **Engine Statistics**: View real-time stats for all active logging engines
-- **File Viewer**: Browse and share log files with native iOS document viewer
-- **Settings Panel**: Manage engines, clear logs, and configure app settings
-- **Multi-Engine Architecture**: See logs flowing to Console, File, Network, Analytics, Debug, and Memory engines
-- **Production Patterns**: Examples of proper engine setup for different build configurations
+That's it. No `configure(…)`, no singletons to wire, no protocol gymnastics.
 
 ---
 
-## 🎯 **Command-Line Demo (Alternative)**
+## Table of contents
 
-```bash
-# Run the terminal demo to see core features
-swift Demo.swift
-```
-
-**Command-line demo shows:**
-- Multi-engine logging across 6 destinations
-- Thread-safe concurrent operations
-- JSON file logging and network batching
-- Memory circular buffer with analytics
-
-## 📋 Available Log Tags
-
-SwiftMoLogger provides comprehensive tagging organized in namespaces for better discoverability:
-
-### Core System
-- `LogTag.System.internal` - Internal framework operations
-- `LogTag.System.crash` - Crash-related logging
-- `LogTag.System.performance` - Performance monitoring
-- `LogTag.System.memory` - Memory usage and warnings
-- `LogTag.System.lifecycle` - App lifecycle events
-
-### Network & Data
-- `LogTag.Network.network` - Network requests
-- `LogTag.Network.api` - API communications
-- `LogTag.Network.download` / `.upload` - File transfers
-- `LogTag.Network.websocket` - WebSocket connections
-- `LogTag.Data.parsing` - Data parsing operations
-- `LogTag.Data.serialization` - Data serialization
-
-### Storage & Cache
-- `LogTag.Data.cache` - Caching operations
-- `LogTag.Data.database` - Database operations
-- `LogTag.Data.coredata` - Core Data operations
-- `LogTag.Data.userdefaults` - UserDefaults operations
-- `LogTag.Data.keychain` - Keychain operations
-- `LogTag.Data.filesystem` - File system operations
-
-### UI & UX
-- `LogTag.UI.ui` - User interface operations
-- `LogTag.UI.navigation` - Navigation events
-- `LogTag.UI.animation` - Animation operations
-- `LogTag.UI.accessibility` - Accessibility features
-- `LogTag.UI.layout` - Layout operations
-
-### Security & Authentication
-- `LogTag.Security.authentication` - Authentication flows
-- `LogTag.Security.authorization` - Authorization checks
-- `LogTag.Security.biometrics` - Biometric authentication
-- `LogTag.Security.encryption` - Encryption operations
-- `LogTag.Security.security` - Security-related events
-
-### Third-party & External
-- `LogTag.ThirdParty.firebase` - Firebase operations
-- `LogTag.ThirdParty.analytics` - Analytics events
-- `LogTag.ThirdParty.crashlytics` - Crashlytics integration
-- `LogTag.ThirdParty.notifications` - Push notifications
-- `LogTag.ThirdParty.sync` - Data synchronization
-
-### Business Logic
-- `LogTag.Business.business` - Business logic operations
-- `LogTag.Business.validation` - Data validation
-- `LogTag.Business.calculation` - Calculations
-- `LogTag.Business.workflow` - Workflow operations
-
-### Development
-- `LogTag.Development.debug` - Debug information (DEBUG only)
-- `LogTag.Development.testing` - Testing operations
-- `LogTag.Development.mock` - Mock data operations
-- `LogTag.Development.configuration` - Configuration changes
-
-### Media & Assets
-- `LogTag.Media.image` / `.video` / `.audio` - Media operations
-- `LogTag.Media.assets` - Asset management
-
-## 🔥 MetricKit Crash Reporting
-
-SwiftMoLogger includes comprehensive crash reporting using Apple's MetricKit framework. This provides:
-
-- **System-level crash collection** - Works outside your app's process
-- **Detailed crash analysis** - Signal interpretation and pattern detection
-- **Automatic crash categorization** - Common crash types identified
-- **Call stack analysis** - Focus on user code
-- **iOS version optimized** - Immediate delivery on iOS 15+
-
-### Key Benefits
-- Captures crashes traditional reporters miss
-- Memory pressure crashes
-- Background termination crashes
-- Watchdog timeout crashes
-- Kernel-level terminations
-
-### Example Output
-```
-🚨 [Crash] 🚨 CRASH DETECTED 🚨
-🚨 [Crash] App version: 1.0.0, iOS version: 15.0, Device: iPhone14,2
-🚨 [Crash] Segmentation fault (SIGSEGV): Invalid memory access
-ℹ️ [Crash] 🔍 Call Stack Analysis:
-⚠️ [Crash] Memory access issue detected - likely accessing deallocated memory
-ℹ️ [Crash] User/Third-party binaries in crash: YourApp
-```
-
-## 🔧 Extensible Architecture
-
-SwiftMoLogger's greatest strength is its extensible architecture. You can easily add custom logging engines to send logs to different destinations.
-
-### Built-in Engine
-
-By default, SwiftMoLogger includes:
-- **SystemLogger**: Outputs to console/Xcode debug area with emoji indicators
-
-### Adding Custom Engines
-
-```swift
-// Create a custom engine that implements LogEngine protocol
-class FileLogEngine: LogEngine {
-    private let fileURL: URL
-    
-    init(fileURL: URL) {
-        self.fileURL = fileURL
-    }
-    
-    func info(message: String) {
-        writeToFile("INFO: \(message)")
-    }
-    
-    func warn(message: String) {
-        writeToFile("WARN: \(message)")
-    }
-    
-    func error(message: String) {
-        writeToFile("ERROR: \(message)")
-    }
-    
-    private func writeToFile(_ message: String) {
-        // Your file writing implementation
-    }
-}
-
-// Add the engine to SwiftMoLogger
-let fileEngine = FileLogEngine(fileURL: logsFileURL)
-SwiftMoLogger.addEngine(fileEngine)
-
-// Now all logs go to both console and file
-SwiftMoLogger.info(message: "This message goes everywhere!")
-```
-
-### Engine Management
-
-```swift
-// Check how many engines are registered
-print("Total engines: \(SwiftMoLogger.engineCount)")
-
-// Get all registered engines
-let allEngines = SwiftMoLogger.getEngines()
-
-// Remove a custom engine (SystemLogger cannot be removed)
-SwiftMoLogger.removeEngine(at: 0) // Removes first custom engine
-```
-
-### Production-Ready Engine Examples
-
-SwiftMoLogger includes advanced engine implementations in `Demo.swift`:
-
-- **MemoryLogEngine**: High-performance circular buffer with filtering
-- **FileLogEngine**: JSON-formatted logs with automatic rotation  
-- **NetworkLogEngine**: Batched remote logging with retry logic
-- **AnalyticsLogEngine**: Error and performance tracking
-- **DebugLogEngine**: Enhanced debugging with stack traces
-
-Run `swift Demo.swift` to see all advanced features in action!
-
-### Multi-Engine Production Setup
-
-```swift
-// Recommended production configuration
-SwiftMoLogger.addEngine(FileLogEngine())          // Persistent storage
-SwiftMoLogger.addEngine(NetworkLogEngine())       // Remote monitoring
-SwiftMoLogger.addEngine(AnalyticsLogEngine())     // Error tracking
-
-#if DEBUG
-SwiftMoLogger.addEngine(DebugLogEngine())         // Enhanced debugging
-SwiftMoLogger.addEngine(MemoryLogEngine())        // Quick inspection
-#endif
-
-// Now all logs are distributed to multiple destinations
-SwiftMoLogger.info("🚀 Multi-engine logging active")
-```
-
-### Advanced Features
-
-- **Thread-Safe**: Concurrent engine access with barrier writes
-- **Performance Optimized**: Background queues prevent UI blocking
-- **Memory Efficient**: Circular buffers and automatic cleanup
-- **Production Ready**: JSON logging, rotation, batching, analytics
-- **Extensible**: Simple protocol-based architecture
-
-See `ADVANCED_FEATURES.md` for comprehensive documentation.
-
-## 🏗️ Clean Architecture
-
-SwiftMoLogger avoids API bloat through smart design choices:
-
-### ✅ Scalable Approach
-- **Namespace organization** - `LogTag.Network.api` instead of individual methods
-- **Protocol-based logging** - Automatic context with `LogTagged`
-- **Flexible API** - Single `info(message:tag:)` for all scenarios
-- **No method explosion** - New tags don't create new methods
-
-### ❌ What We Avoid
-- Bloated convenience methods for every tag
-- Hard-to-discover APIs
-- Method explosion as tags grow
-- Inconsistent logging patterns
-
-## 📖 Advanced Usage
-
-### Custom Log Engines
-
-```swift
-struct CustomLogEngine: LogEngine {
-    func info(message: String) {
-        // Custom info logging implementation
-    }
-    
-    func warn(message: String) {
-        // Custom warning logging implementation
-    }
-    
-    func error(message: String) {
-        // Custom error logging implementation
-    }
-}
-```
-
-### Testing Crash Reporting
-
-```swift
-#if DEBUG
-let crashReporter = MetricKitCrashReporter()
-crashReporter.startMonitoring()
-crashReporter.triggerTestCrash() // ⚠️ This will actually crash your app!
-#endif
-```
-
-## 📋 Requirements
-
-- iOS 15.0+ / macOS 12.0+ / tvOS 15.0+ / watchOS 8.0+
-- Swift 5.7+
-- Xcode 14.0+
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
-
-SwiftMoLogger is available under the MIT license. See the LICENSE file for more info.
-
-## 👨‍💻 Author
-
-**Mohammed Elnaggar**
-- GitHub: [@MoElnaggar14](https://github.com/MoElnaggar14)
-- Twitter: [@MoElnaggar14](https://twitter.com/MoElnaggar14)
-
-## 🙏 Acknowledgments
-
-- Inspired by modern iOS logging needs
-- MetricKit integration follows Apple's best practices
-- Built with scalability and developer experience in mind
+- [Why SwiftMoLogger?](#why-swiftmologger)
+- [Install](#install)
+- [Architecture at a glance](#architecture-at-a-glance)
+- [The headline features](#the-headline-features)
+  - [1. Diagnostics Hub](#1-diagnostics-hub--instruments-inside-your-app)
+  - [2. Bonjour live tail](#2-bonjour-live-tail--zero-config-mac-companion)
+  - [3. Swift Macros](#3-swift-macros--zero-boilerplate-call-sites)
+- [Core logging](#core-logging)
+- [Production hardening](#production-hardening)
+  - [PII redaction](#pii-redaction)
+  - [Breadcrumbs](#breadcrumbs)
+  - [Sampling + rate limiting](#sampling--rate-limiting)
+  - [Remote shipping](#remote-shipping-sentry--datadog--loki)
+  - [Auto network logging](#auto-network-logging)
+  - [Privacy manifest](#privacy-manifest)
+- [Distributed tracing](#distributed-tracing-w3c)
+- [Flight recorder](#flight-recorder--black-box-for-crashes)
+- [Error grouping](#error-grouping)
+- [Swift Concurrency](#swift-concurrency)
+- [Performance](#performance)
+- [Testing](#testing)
+- [Comparison](#comparison)
+- [Migration from v2](#migration-from-v2)
+- [Development model (GitFlow)](#development-model-gitflow)
+- [📚 Article series](#-article-series)
+- [Xcode code snippets](#xcode-code-snippets)
+- [License](#license)
 
 ---
 
-⭐ **Star this repo if you find it helpful!** ⭐
+## Why SwiftMoLogger?
+
+| | What it solves |
+|---|---|
+| 🎯 | **Zero ceremony.** `SwiftMoLogger.info("hi")` works the moment you `import`. No configuration step. |
+| 🧩 | **Structured everywhere.** Every call materialises a `LogEntry` with level + tag + metadata + source location + thread. No more parsing strings downstream. |
+| 🚀 | **Sub-µs hot path.** ~140 ns when no engines are attached, ~310 ns with a memory engine. See [PERFORMANCE.md](PERFORMANCE.md). |
+| 🛡 | **Production-safe by default.** Built-in PII / token / credit-card redaction. Rate limiting. Sampling. Privacy manifest. |
+| 🔭 | **Self-hosted observability.** `DiagnosticsHubView()` is Instruments + Charles + Console inside your app. No cable, no Mac required. |
+| 📡 | **Zero-config live tail.** Bonjour-advertised devices, terminal CLI on your Mac auto-discovers them all. |
+| 🛰 | **W3C distributed tracing.** Stamp every `URLSession` request with `traceparent` so iOS spans show up next to your backend trace. |
+| 📼 | **Flight recorder.** Rolling 2-minute black box persisted to disk; replay the seconds before a crash on next launch. |
+| 🪞 | **Smart error grouping.** Spammy retries collapse into one card with a count, not 1 000 noise lines. |
+| 🧪 | **First-class testing.** Drop-in XCTest assertions over what was logged. |
+| 🪶 | **Opt-in everything.** 7 separate library products. Pay only for what you import. |
+
+---
+
+## Install
+
+```swift
+// Package.swift
+dependencies: [
+    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "3.0.0")
+],
+targets: [
+    .target(name: "App", dependencies: [
+        .product(name: "SwiftMoLogger", package: "SwiftMoLogger"),
+        // …add only what you need:
+        .product(name: "SwiftMoLoggerUI", package: "SwiftMoLogger"),
+        .product(name: "SwiftMoLoggerNetwork", package: "SwiftMoLogger"),
+        .product(name: "SwiftMoLoggerRemote", package: "SwiftMoLogger"),
+        .product(name: "SwiftMoLoggerDiagnostics", package: "SwiftMoLogger"),
+        .product(name: "SwiftMoLoggerTesting", package: "SwiftMoLogger"),
+        .product(name: "SwiftMoLoggerSugar", package: "SwiftMoLogger"),
+    ])
+]
+```
+
+---
+
+## Architecture at a glance
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     YOUR APP                                │
+│       SwiftMoLogger.info("...", tag: .api, metadata: ...)   │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                ┌──────────────▼──────────────┐
+                │      EngineRegistry         │  os_unfair_lock
+                │   (level filter + fan-out)  │  ~140 ns hot path
+                └──────┬─────┬─────┬─────┬────┘
+       ┌──────────────┘     │     │     └──────────────┐
+       │                    │     │                    │
+   ┌───▼───┐         ┌─────▼─┐ ┌─▼──────┐         ┌────▼────┐
+   │System │         │Memory │ │ File   │   …     │ Custom  │
+   │Logger │         │Engine │ │Engine  │         │ Engine  │
+   └───────┘         └───────┘ └────────┘         └─────────┘
+       │                    │     │                    │
+   os.Logger              ring   JSONL              Sentry /
+                          buffer rotation           Datadog /
+                                                    Loki / WS / …
+```
+
+Decorators (`Redacting`, `Sampling`, `RateLimiting`) wrap any engine. Streams (`AsyncStream<LogEntry>`, Combine `Publisher`) tap the registry. The SwiftUI Hub reads from shared `NetworkEventStore` / `SignpostEventStore` / `VitalsHistoryStore` / `BreadcrumbStore`.
+
+### Products
+
+| Product | What you get |
+|---|---|
+| **`SwiftMoLogger`** | Core: levels, tags, metadata, engines, registry, MetricKit, breadcrumbs, redaction, sampling, rate-limiting, Combine, signposts |
+| **`SwiftMoLoggerUI`** | SwiftUI console (`LogConsoleView`) + **`DiagnosticsHubView`** (the headline) |
+| **`SwiftMoLoggerNetwork`** | `URLProtocol` that auto-logs every `URLSession` request |
+| **`SwiftMoLoggerRemote`** | `HTTPLogShipper` + ready-made `SentryLogEngine` / `DatadogLogEngine` / `LokiLogEngine` |
+| **`SwiftMoLoggerDiagnostics`** | `LiveSink` (Bonjour), `AppVitalsMonitor`, `BugReporter`, `WebSocketTailEngine` |
+| **`SwiftMoLoggerTesting`** | `XCTAssertLogged` + `RecordingLogEngine` |
+| **`SwiftMoLoggerSugar`** | `#log` / `#measure` / `@AutoLog` Swift Macros |
+| **`swiftmologger-inspector`** | Mac CLI executable for live tail |
+
+---
+
+## The headline features
+
+### 1. Diagnostics Hub — Instruments inside your app
+
+One SwiftUI view that turns any build into a self-hosted observability cockpit. **No cable, no Mac, no Xcode — just open the app.**
+
+```swift
+import SwiftMoLoggerUI
+
+struct DebugTab: View {
+    var body: some View { DiagnosticsHubView() }
+}
+```
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 🔍 Diagnostics Hub      📄 421   🌐 38   〰 12   [🗑 clear]       │
+├──────────────────────────────────────────────────────────────────┤
+│ 14:22:01 ┃▌▌▌▎▎▍▏ █▌▌▎▎▍▏▏  ▎▌█▌▌▎▍▏  ▌▎▍▎▍▏ ┃ 14:23:01          │
+│           ━━━━━━━━━━━━━━━━━━━━●━━━━━━━━                          │
+├──────────────────────────────────────────────────────────────────┤
+│  [📄 Logs] [🌐 Network] [〰 Signposts] [💗 Vitals] [🐚 Crumbs]   │
+├──────────────────────────────────────────────────────────────────┤
+│ ▶ GET /v1/users      ████░░░░░░  142ms  [200]                    │
+│ ▶ POST /v1/checkout  ████████░░  423ms  [201]                    │
+│ ▶ GET /v1/products   ███████████ 891ms  [500]                    │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+You get:
+
+- **Timeline scrubber** with log-density bar — rewind up to 10 minutes
+- **Network waterfall** of every URLSession request (colour-coded by status)
+- **Signpost flame graph** with automatic lane assignment
+- **Vitals charts** (memory / CPU / FPS / thermal) via Swift Charts
+- **Breadcrumb trail** with category-coloured pins
+
+### 2. Bonjour live tail — zero-config Mac companion
+
+The on-device `LiveSink` advertises a Bonjour service. The bundled Mac CLI discovers every device on the network and pretty-prints every log line.
+
+```swift
+#if DEBUG
+import SwiftMoLoggerDiagnostics
+let sink = LiveSink()
+try sink.start()
+SwiftMoLogger.addEngine(sink)
+#endif
+```
+
+```bash
+$ swift run swiftmologger-inspector
+SwiftMoLogger Inspector — discovering _swiftmologger._tcp on local network…
+◉ discovered MyApp-iPhone-15
+◉ discovered MyApp-iPad-Pro
+● connected MyApp-iPhone-15
+● connected MyApp-iPad-Pro
+
+14:22:01.124 INFO  MyApp-iPhone-15 [API]      HTTP response status=200 duration_ms=132
+14:22:01.221 WARN  MyApp-iPad-Pro  [Layout]   Auto-layout broke 3 constraints
+14:22:01.337 ERROR MyApp-iPhone-15 [Database] Migration v4 → v5 timed out
+```
+
+Multiple devices, one terminal, no Xcode needed.
+
+### 3. Swift Macros — zero-boilerplate call sites
+
+```swift
+import SwiftMoLoggerSugar
+
+#log("user signed in", level: .info, tag: .api)
+// Captures #fileID / #function / #line at the call site.
+
+let users = #measure("loadUsers") {
+    try repo.all()
+}
+// Lowers to LogSignpost.measure("loadUsers") { … }
+
+@AutoLog
+final class CheckoutService {
+    func purchase(_ id: String) throws { … }
+}
+```
+
+Macros live in a separate `SwiftMoLoggerSugar` product so the `swift-syntax` build cost is opt-in.
+
+---
+
+## Core logging
+
+```swift
+import SwiftMoLogger
+
+// 8 levels mapped to OSLogType
+SwiftMoLogger.trace("internals")
+SwiftMoLogger.debug("only in DEBUG builds")
+SwiftMoLogger.info("happy path")
+SwiftMoLogger.notice("worth noticing")
+SwiftMoLogger.warn("looks off")
+SwiftMoLogger.error("broke")
+SwiftMoLogger.critical("badly broke")
+SwiftMoLogger.fault("unrecoverable")
+
+// Errors with auto-metadata
+SwiftMoLogger.error(error, tag: .api)
+// → metadata.error_type, metadata.error captured automatically
+
+// Tagged with namespaces — code completion friendly
+SwiftMoLogger.info("hit cache", tag: .Data.cache)
+SwiftMoLogger.warn("slow query", tag: .Data.database)
+SwiftMoLogger.info("custom", tag: .custom("Checkout", domain: "checkout"))
+
+// Global level filter — short-circuits before any allocation
+SwiftMoLogger.minimumLevel = .info  // drops trace + debug everywhere
+```
+
+### Engines
+
+```swift
+SwiftMoLogger.addEngine(MemoryLogEngine(capacity: 1_000))
+SwiftMoLogger.addEngine(try FileLogEngine(
+    fileURL: URL.documentsDirectory.appending(path: "app.log"),
+    maxFileSizeBytes: 2 * 1_048_576,
+    maxRotatedFiles: 3
+))
+```
+
+Write your own in 3 lines:
+
+```swift
+struct AnalyticsEngine: LogEngine {
+    func log(_ entry: LogEntry) {
+        guard entry.level >= .warning else { return }
+        Analytics.track(entry.message, properties: entry.metadata.storage)
+    }
+}
+SwiftMoLogger.addEngine(AnalyticsEngine())
+```
+
+### LogTagged — automatic per-object tagging
+
+```swift
+struct APIService: LogTagged {
+    var logTag: LogTag { .api }
+}
+
+let service = APIService()
+service.logInfo("hit")           // → automatically tagged [API]
+service.logError(networkError)   // → tag + structured error metadata
+```
+
+---
+
+## Production hardening
+
+### PII redaction
+
+Every log line passes through a regex-based scrubber **before** it leaves your process.
+
+```swift
+SwiftMoLogger.enableRedaction()  // one-line install over SystemLogger
+```
+
+Default rules: JWT, Bearer / Basic tokens, AWS / GCP keys, emails, credit cards, phone numbers, IPv4, UUIDs. Walks `metadata` recursively. Custom rules:
+
+```swift
+var redactor = Redactor()
+try redactor.add(Redactor.Rule(name: "ssn", pattern: #"\d{3}-\d{2}-\d{4}"#))
+SwiftMoLogger.addEngine(RedactingLogEngine(wrapping: networkEngine, redactor: redactor))
+```
+
+### Breadcrumbs
+
+```swift
+SwiftMoLogger.breadcrumb("user tapped Buy", category: .userAction)
+SwiftMoLogger.breadcrumb("nav → checkout", category: .navigation)
+
+// Attach to a crash report / bug report
+let crumbs: [Breadcrumb] = SwiftMoLogger.breadcrumbs()
+```
+
+Bounded ring buffer (default 100), O(1) append, `Sendable` value type matching the Sentry / Bugsnag shape so shipping is a 1:1 mapping.
+
+### Sampling + rate limiting
+
+```swift
+// Keep 1% of trace logs in production
+SwiftMoLogger.addEngine(SamplingLogEngine(
+    wrapping: fileEngine,
+    strategy: .perLevel(rates: [.trace: 0.01, .debug: 0.1])
+))
+
+// Cap any sink at 50 logs/sec with a 100-event burst
+SwiftMoLogger.addEngine(RateLimitingLogEngine(
+    wrapping: networkEngine,
+    permitsPerSecond: 50,
+    burst: 100
+))
+```
+
+Token-bucket rate limiter, thread-local PRNG for sampling — both ~ns-class overhead.
+
+### Remote shipping (Sentry / Datadog / Loki)
+
+```swift
+import SwiftMoLoggerRemote
+
+SwiftMoLogger.addEngine(SentryLogEngine(
+    dsn: URL(string: "https://abc@o123.ingest.sentry.io/456")!,
+    release: "1.4.2",
+    environment: "production"
+))
+
+SwiftMoLogger.addEngine(DatadogLogEngine(
+    apiKey: "<DD_API_KEY>",
+    site: .eu1,
+    service: "checkout"
+))
+
+SwiftMoLogger.addEngine(LokiLogEngine(
+    endpoint: URL(string: "https://loki.example.com/loki/api/v1/push")!,
+    labels: ["job": "ios", "env": "prod"]
+))
+```
+
+All shippers: batch (50–100), debounce (5 s), retry with exponential backoff, cap buffered entries on long offline spells. `log()` is O(1) — network happens off the caller's thread.
+
+### Auto network logging
+
+```swift
+import SwiftMoLoggerNetwork
+
+let config = URLSessionConfiguration.default
+NetworkLogger.install(on: config)
+let session = URLSession(configuration: config)
+// Every request is now logged with method/URL/status/duration_ms
+// + breadcrumbs are recorded. Sensitive headers stripped automatically.
+```
+
+`Authorization`, `Cookie`, `X-API-Key`, `X-Auth-Token` and friends are stripped by default — extend `NetworkLoggingProtocol.sensitiveHeaders` to add more.
+
+### Privacy manifest
+
+`PrivacyInfo.xcprivacy` ships in the package. It declares:
+
+- `NSPrivacyTracking = false` (no tracking)
+- No collected data types
+- Approved API reasons: UserDefaults (CA92.1), FileTimestamp (C617.1), SystemBootTime (35F9.1)
+
+App Store submissions pass without further work.
+
+---
+
+## Distributed tracing (W3C)
+
+Stamp every log entry and every outbound `URLSession` request with a W3C `traceparent` header. Tie the iOS-side operation directly to the downstream backend trace in Datadog, Honeycomb, OpenTelemetry, etc.
+
+```swift
+SwiftMoLogger.withTrace {
+    SwiftMoLogger.info("starting checkout")
+    try await api.charge(order)   // outgoing request gets traceparent: 00-<traceID>-<spanID>-01
+    try await api.confirm(order)  // same trace, new child span
+}
+```
+
+`TraceContext` is a value type — generate fresh roots, spawn child spans, parse inbound headers:
+
+```swift
+let ctx = TraceContext.generate()
+let parsed = TraceContext.parse(traceparent: incomingHeader)
+let child = ctx.childSpan()
+```
+
+Backed by `@TaskLocal`, so concurrent tasks see their own trace.
+
+---
+
+## Flight recorder — black box for crashes
+
+```swift
+let recorder = FlightRecorder(window: 120, flushInterval: 2)
+recorder.start()
+```
+
+Persists a rolling 2-minute window of every signal (logs, breadcrumbs, network, signposts, vitals) to disk every 2 seconds. On next launch:
+
+```swift
+if let session = FlightRecorder.recoverLastSession() {
+    SwiftMoLogger.warn("Recovered crashed session: \(session.entries.count) entries")
+    uploader.attach(session)
+}
+```
+
+Returns non-nil **only** when the previous run never had a clean `stop()` — almost always a crash, OOM, or watchdog kill. The exact signals you wish you'd had, after the fact.
+
+---
+
+## Error grouping
+
+A `1000`-occurrence retry-spam logged once with `count = 1000`:
+
+```swift
+SwiftMoLogger.addEngine(ErrorGroupingEngine(
+    wrapping: sentryShipper,
+    fingerprintMinLevel: .warning,
+    emitThreshold: 1   // emit first occurrence per fingerprint
+))
+```
+
+Fingerprints by normalising the message (UUIDs → `<uuid>`, hex blobs → `<hex>`, digit runs → `#`, quoted strings → `"…"`), then SHA-256 of the result. Different shapes stay distinct; identical-shape noise collapses.
+
+```swift
+let groups = grouper.snapshot()
+// → ErrorGroup(count: 1024, exemplar: "User # timed out", firstSeen: …, lastSeen: …)
+```
+
+---
+
+## Swift Concurrency
+
+### Task-local ambient context
+
+```swift
+SwiftMoLogger.withContext(["request_id": "req-42", "user_id": "u-123"]) {
+    SwiftMoLogger.info("fetching profile")   // ← inherits both keys
+    try await api.fetchProfile()
+    SwiftMoLogger.info("profile cached")     // ← still inherits
+}
+SwiftMoLogger.info("outside scope")          // ← clean
+```
+
+Backed by `@TaskLocal` — concurrent `Task`s see their own scope without interfering.
+
+### AsyncStream of entries
+
+```swift
+Task {
+    for await entry in SwiftMoLogger.stream() where entry.level >= .error {
+        await reportToBackend(entry)
+    }
+}
+```
+
+### Combine publisher (alternative)
+
+```swift
+SwiftMoLogger.publisher()
+    .filter { $0.level >= .error }
+    .sink { entry in /* … */ }
+    .store(in: &cancellables)
+```
+
+### Signposts for Instruments
+
+```swift
+let users = try LogSignpost.measure("loadUsers", tag: .database) {
+    try userRepo.all()
+}
+
+let response = try await LogSignpost.measureAsync("uploadAvatar") {
+    try await uploader.send(image)
+}
+```
+
+One call emits both an `os_signpost` interval (visible in Instruments' Points of Interest) **and** a log entry with `metadata.elapsed_ms`.
+
+---
+
+## Performance
+
+Measured on M1 MacBook Pro, iOS 17 simulator, release build:
+
+| Scenario | per-call median |
+|---|---|
+| `info("…")` — no engines | **~140 ns** |
+| `info("…")` — `MemoryLogEngine` only | **~310 ns** |
+| `info("…")` filtered out by `minimumLevel` | **~35 ns** |
+| `info("…")` — `SystemLogger` (os.log) | **~820 ns** |
+| Concurrent 8 threads × 2 000 calls | linear scaling, ~22 ms total |
+
+Memory: `LogEntry` is 200 B on the stack with zero heap unless `metadata` is non-empty. `MemoryLogEngine` pre-allocates its ring buffer — zero growth, zero GC churn.
+
+Full benchmarks + design rationale → [PERFORMANCE.md](PERFORMANCE.md).
+
+---
+
+## Testing
+
+```swift
+import SwiftMoLoggerTesting
+
+final class CheckoutTests: XCTestCase {
+    var logs: RecordingLogEngine!
+
+    override func setUp() {
+        logs = SwiftMoLogger.installRecorder()
+    }
+
+    func testFailureIsLogged() async throws {
+        try await service.purchase(invalid: true)
+        XCTAssertLogged(.error, contains: "declined", tag: .api, in: logs)
+        XCTAssertLogCount(0, atLevel: .fault, in: logs)
+    }
+}
+```
+
+`RecordingLogEngine` captures everything; assertions are simple, scoped to a single test, and zero-config.
+
+---
+
+## Comparison
+
+| | SwiftMoLogger | os.Logger | SwiftyBeaver | CocoaLumberjack |
+|---|:-:|:-:|:-:|:-:|
+| Structured `LogEntry` | ✅ | ❌ (string) | ⚠️ | ⚠️ |
+| Multi-engine fan-out | ✅ | ❌ | ✅ | ✅ |
+| `AsyncStream<LogEntry>` | ✅ | ❌ | ❌ | ❌ |
+| Combine publisher | ✅ | ❌ | ❌ | ❌ |
+| **In-app Instruments view** | ✅ | ❌ | ❌ | ❌ |
+| **Bonjour live tail** | ✅ | ❌ | ❌ | ❌ |
+| Built-in PII redaction | ✅ | ❌ | ❌ | ❌ |
+| Breadcrumbs | ✅ | ❌ | ❌ | ❌ |
+| Auto `URLSession` capture | ✅ | ❌ | ❌ | ❌ |
+| Sentry / Datadog / Loki | ✅ | ❌ | ⚠️ | ❌ |
+| Sampling + rate limit | ✅ | ❌ | ❌ | ❌ |
+| App vitals (CPU/FPS/mem) | ✅ | ❌ | ❌ | ❌ |
+| Swift Macros | ✅ | ❌ | ❌ | ❌ |
+| `XCTAssertLogged` | ✅ | ❌ | ❌ | ❌ |
+| Privacy manifest | ✅ | n/a | ❌ | ❌ |
+| Task-local context | ✅ | ❌ | ❌ | ❌ |
+| W3C `traceparent` propagation | ✅ | ❌ | ❌ | ❌ |
+| Flight recorder | ✅ | ❌ | ❌ | ❌ |
+| Smart error grouping | ✅ | ❌ | ❌ | ❌ |
+| Xcode code snippets bundled | ✅ | ❌ | ❌ | ❌ |
+| Hot path (no engines) | **~140 ns** | ~120 ns | ~3 µs | ~2 µs |
+
+---
+
+## Migration from v2
+
+| v2 | v3 | Notes |
+|---|---|---|
+| `LogEngine.info(message:)` | `LogEngine.log(_:)` | v2 methods kept as default-impls |
+| `LogTag` is `enum` | `LogTag` is `struct` + namespaces | All `.api` shorthands preserved |
+| `getAllEngines()` | `allEngines()` | Old name kept as deprecated alias |
+| info/warn silently dropped in release | always shipped | **Real bug fix** |
+| no metadata | `metadata: [:]` on every call | |
+| no source location | captured via `#fileID` / `#line` | automatic |
+| no AsyncStream | `SwiftMoLogger.stream()` | |
+| no signpost integration | `LogSignpost.measure` | |
+| no SwiftUI console | `LogConsoleView`, `DiagnosticsHubView` | |
+
+---
+
+## Development model (GitFlow)
+
+| Branch | Purpose | Direct push? |
+|---|---|---|
+| `main` | tagged releases only | ❌ release PR |
+| `develop` | integration | ❌ via PR |
+| `feature/*` | new features → develop | merge to develop |
+| `bugfix/*` | bug fixes → develop | merge to develop |
+| `release/*` | release prep → main + develop | merge both |
+| `hotfix/*` | emergency from main | merge both |
+
+Branch policy is enforced by `.github/workflows/gitflow.yml`. Full procedure → [GITFLOW.md](GITFLOW.md).
+
+---
+
+## 📚 Article series
+
+A 5-part deep-dive on the rewrite, the design choices, and the production playbook. Read in order or jump to whichever is on fire for you today.
+
+| # | Title | What you'll learn |
+|---|---|---|
+| 1 | [Why I rewrote iOS logging from scratch](Articles/01-why-rewrite.md) | The shortcomings of `print` / `os.Logger` / SwiftyBeaver, and the design principles behind v3 |
+| 2 | [Sub-µs logging: the performance design](Articles/02-performance.md) | Why the hot path is ~140 ns — locking choices, autoclosure tricks, allocation budgets |
+| 3 | [Instruments in your app: building Diagnostics Hub](Articles/03-diagnostics-hub.md) | How the timeline + waterfall + flame graph + vitals charts compose |
+| 4 | [Zero-config debugging with Bonjour and Swift Macros](Articles/04-bonjour-and-macros.md) | The Mac CLI live tail, the macros target, and the dev-experience wins |
+| 5 | [The production playbook: tracing, redaction, flight recorder](Articles/05-production-playbook.md) | The features that save you on the 3 AM call |
+
+Series index: [Articles/README.md](Articles/README.md).
+
+---
+
+## Xcode code snippets
+
+Five `.codesnippet` files in [`Extras/Snippets/`](Extras/Snippets) for the calls you'll type most often:
+
+| Prefix | Expands to |
+|---|---|
+| `smlinfo` | `SwiftMoLogger.info(…, tag:, metadata:)` |
+| `smlerror` | `SwiftMoLogger.error(error:, tag:, metadata:)` |
+| `smlmeasure` | `LogSignpost.measure("name", tag: .performance) { … }` |
+| `smlcontext` | `SwiftMoLogger.withContext(…) { … }` |
+| `smlcrumb` | `SwiftMoLogger.breadcrumb(…, category: .userAction)` |
+
+Install:
+
+```bash
+cp Extras/Snippets/*.codesnippet ~/Library/Developer/Xcode/UserData/CodeSnippets/
+```
+
+Restart Xcode. The snippets show up in the Snippets Library (`⌘⇧L`) and autocomplete by prefix.
+
+---
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+---
+
+<p align="center">
+<sub>Built with care by <a href="https://github.com/MoElnaggar14">@MoElnaggar14</a>. If it helped you ship faster, drop a ⭐.</sub>
+</p>

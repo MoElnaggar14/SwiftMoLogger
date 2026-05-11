@@ -1,66 +1,54 @@
 import Foundation
 
-// MARK: - Core Protocol
+/// A destination for log entries.
+///
+/// Engines receive fully-formed `LogEntry` values and decide how to render,
+/// persist, or forward them. Conformers must be safe to call from any thread
+/// (`Sendable`); the registry never serialises calls for you.
+///
+/// Backwards-compatible string-based methods (`info`/`warn`/`error`) are still
+/// available via default implementations, but new engines should override
+/// ``log(_:)`` for full structured access.
+public protocol LogEngine: AnyObject, Sendable {
+    /// Receive a fully-structured log entry.
+    func log(_ entry: LogEntry)
 
-/// Logging engine protocol - the foundation of SwiftMoLogger's extensible architecture
-public protocol LogEngine {
-    /// Log an informational message
+    /// Legacy info-level entry point. Default implementation forwards to
+    /// ``log(_:)``.
     func info(message: String)
 
-    /// Log a warning message
+    /// Legacy warn-level entry point. Default implementation forwards to
+    /// ``log(_:)``.
     func warn(message: String)
 
-    /// Log an error message
+    /// Legacy error-level entry point. Default implementation forwards to
+    /// ``log(_:)``.
     func error(message: String)
+
+    /// Stable identifier for the engine instance. Used by the registry to
+    /// remove engines by identity rather than by index. Defaults to the
+    /// runtime type name.
+    var engineID: String { get }
+
+    /// Lowest level this engine accepts. Entries below the threshold are
+    /// dropped before any work happens. Defaults to ``LogLevel/trace``
+    /// (accept everything).
+    var minimumLevel: LogLevel { get }
 }
 
-// MARK: - Thread-Safe Engine Registry
+public extension LogEngine {
+    var engineID: String { String(describing: type(of: self)) }
+    var minimumLevel: LogLevel { .trace }
 
-/// Thread-safe registry managing all logging engines
-public final class EngineRegistry {
-    public static let shared = EngineRegistry()
-
-    private var engines: [LogEngine] = []
-    private let queue = DispatchQueue(label: "swiftmologger.registry", qos: .utility, attributes: .concurrent)
-
-    private init() {
-        // Initialize with system logger
-        engines.append(SystemLogger())
+    func info(message: String) {
+        log(LogEntry(level: .info, message: message))
     }
 
-    /// Add a custom logging engine
-    public func addEngine(_ engine: LogEngine) {
-        queue.async(flags: .barrier) {
-            self.engines.append(engine)
-        }
+    func warn(message: String) {
+        log(LogEntry(level: .warning, message: message))
     }
 
-    /// Remove engine at specified index (cannot remove system logger at index 0)
-    public func removeEngine(at index: Int) {
-        queue.async(flags: .barrier) {
-            guard index > 0 && index < self.engines.count else { return }
-            self.engines.remove(at: index)
-        }
-    }
-
-    /// Get all registered engines (thread-safe)
-    public func getAllEngines() -> [LogEngine] {
-        queue.sync {
-            Array(engines)
-        }
-    }
-
-    /// Get count of all engines
-    public var engineCount: Int {
-        queue.sync {
-            engines.count
-        }
-    }
-
-    /// Clear all custom engines (keep system logger)
-    public func reset() {
-        queue.async(flags: .barrier) {
-            self.engines = [SystemLogger()]
-        }
+    func error(message: String) {
+        log(LogEntry(level: .error, message: message))
     }
 }

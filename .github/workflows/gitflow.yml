@@ -1,0 +1,50 @@
+name: GitFlow
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validate-base:
+    name: Validate base branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check base branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          echo "PR: $HEAD_REF → $BASE_REF"
+
+          case "$HEAD_REF" in
+            feature/*|bugfix/*)
+              if [ "$BASE_REF" != "develop" ]; then
+                echo "::error::$HEAD_REF must target 'develop' (got '$BASE_REF'). See GITFLOW.md."
+                exit 1
+              fi
+              ;;
+            release/*)
+              if [ "$BASE_REF" != "main" ] && [ "$BASE_REF" != "develop" ]; then
+                echo "::error::$HEAD_REF must target 'main' or 'develop' (got '$BASE_REF')."
+                exit 1
+              fi
+              ;;
+            hotfix/*)
+              if [ "$BASE_REF" != "main" ] && [ "$BASE_REF" != "develop" ]; then
+                echo "::error::$HEAD_REF must target 'main' or 'develop' (got '$BASE_REF')."
+                exit 1
+              fi
+              ;;
+            develop)
+              if [ "$BASE_REF" != "main" ]; then
+                echo "::error::Only release/hotfix PRs may target 'main' (got '$BASE_REF')."
+                exit 1
+              fi
+              ;;
+            claude/*)
+              echo "Claude-managed branch — skipping branch-name policy."
+              ;;
+            *)
+              echo "::warning::Branch '$HEAD_REF' doesn't match a GitFlow prefix. See GITFLOW.md."
+              ;;
+          esac
