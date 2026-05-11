@@ -22,7 +22,8 @@ let package = Package(
         .executable(name: "swiftmologger-inspector", targets: ["SwiftMoLoggerInspector"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "509.0.0"),
+        // Wide range covers swift-syntax 509 (Swift 5.9) through 600 (Swift 6.x).
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.0.0"..<"601.0.0"),
     ],
     targets: [
         .target(

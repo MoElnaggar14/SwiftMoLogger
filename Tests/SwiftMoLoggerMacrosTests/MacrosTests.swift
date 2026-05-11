@@ -1,7 +1,7 @@
 import XCTest
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
-@testable import SwiftMoLoggerMacros
+import SwiftMoLoggerMacros
 
 final class LogMacroTests: XCTestCase {
     private let macros: [String: Macro.Type] = [

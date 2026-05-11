@@ -16,7 +16,7 @@ public struct NetworkWaterfallView: View {
             .sorted { $0.startedAt < $1.startedAt }
         Group {
             if events.isEmpty {
-                ContentUnavailableView(systemImage: "network.slash", title: "No HTTP traffic in window")
+                _HubEmptyState(systemImage: "network.slash", title: "No HTTP traffic in window")
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 4) {
@@ -109,9 +109,10 @@ struct NetworkEventDetailView: View {
     }
 }
 
-/// Lightweight `ContentUnavailableView` polyfill — the real one is iOS 17+.
+/// Internal empty-state placeholder. Deliberately named with an underscore
+/// prefix so it never shadows Apple's iOS 17 `ContentUnavailableView`.
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
-struct ContentUnavailableView: View {
+struct _HubEmptyState: View {
     let systemImage: String
     let title: String
 
