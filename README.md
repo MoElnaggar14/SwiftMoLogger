@@ -19,10 +19,21 @@ Most Swift loggers do one thing well — pretty console output, or file rotation
 | Structured `LogEntry` (level + tag + metadata + source location) | ✅ | ❌ (string only) | partial | partial |
 | Multi-engine fan-out | ✅ | ❌ | ✅ | ✅ |
 | Live `AsyncStream<LogEntry>` for SwiftUI / dashboards | ✅ | ❌ | ❌ | ❌ |
+| Combine publisher | ✅ | ❌ | ❌ | ❌ |
 | Drop-in SwiftUI log console | ✅ `SwiftMoLoggerUI` | ❌ | ❌ | ❌ |
+| Built-in PII / secret redaction | ✅ `Redactor` | ❌ | ❌ | ❌ |
+| Breadcrumbs for crash bundling | ✅ | ❌ | ❌ | ❌ |
+| Auto `URLSession` request/response logging | ✅ `SwiftMoLoggerNetwork` | ❌ | ❌ | ❌ |
+| Ready-made remote backends (Sentry/Datadog/Loki) | ✅ `SwiftMoLoggerRemote` | ❌ | partial | ❌ |
+| Sampling + token-bucket rate limiting | ✅ | ❌ | ❌ | ❌ |
+| App vitals (CPU/FPS/memory/thermal) | ✅ `SwiftMoLoggerDiagnostics` | ❌ | ❌ | ❌ |
+| Live WebSocket tail to dev tools | ✅ | ❌ | ❌ | ❌ |
+| Bug-report bundler (logs + breadcrumbs + device info) | ✅ | ❌ | ❌ | ❌ |
+| XCTest assertion helpers | ✅ `SwiftMoLoggerTesting` | ❌ | ❌ | ❌ |
 | `os_signpost` integration in one call | ✅ `LogSignpost.measure` | manual | ❌ | ❌ |
 | MetricKit crash + hang capture | ✅ | ❌ | ❌ | ❌ |
-| Ambient task-scoped context (`request_id`, `user_id`) | ✅ | ❌ | ❌ | ❌ |
+| Ambient task-scoped context (`request_id`, `user_id`) | ✅ `@TaskLocal` | ❌ | ❌ | ❌ |
+| App Store `PrivacyInfo.xcprivacy` manifest | ✅ | n/a | ❌ | ❌ |
 | Sub-µs hot path (no engines) | ✅ ~140 ns | ~120 ns | ~3 µs | ~2 µs |
 
 See [PERFORMANCE.md](PERFORMANCE.md) for measured numbers.
@@ -190,6 +201,158 @@ The module is gated to platforms where MetricKit is actually available (`iOS` + 
 | `MemoryLogEngine` | `LogEngines/MemoryLogEngine.swift` | Bounded ring buffer; O(1) append, filterable snapshot. |
 | `FileLogEngine` | `LogEngines/FileLogEngine.swift` | JSON-Lines, async writes, size-based rotation. |
 | `LogStream` | `Stream/LogStream.swift` | Fans entries out to one or more `AsyncStream` subscribers. |
+
+---
+
+## Production checklist — opt-in modules
+
+| Module | When to add | Import |
+|---|---|---|
+| `SwiftMoLogger` | always | `import SwiftMoLogger` |
+| `SwiftMoLoggerUI` | you want an in-app debug console | `import SwiftMoLoggerUI` |
+| `SwiftMoLoggerNetwork` | you want auto `URLSession` request/response logging | `import SwiftMoLoggerNetwork` |
+| `SwiftMoLoggerRemote` | you want Sentry / Datadog / Loki shipping | `import SwiftMoLoggerRemote` |
+| `SwiftMoLoggerDiagnostics` | you want bug-report bundling, app vitals, or WebSocket tail | `import SwiftMoLoggerDiagnostics` |
+| `SwiftMoLoggerTesting` | XCTest assertions over what was logged | `@testable import SwiftMoLoggerTesting` |
+
+### PII / secret redaction
+
+```swift
+SwiftMoLogger.enableRedaction()    // wraps the default SystemLogger
+// Or wrap a specific sink:
+SwiftMoLogger.addEngine(RedactingLogEngine(wrapping: fileEngine))
+```
+
+The default `Redactor` strips emails, JWTs, Bearer tokens, AWS/GCP keys, credit cards, UUIDs, IPs, and phone numbers. Add custom rules via `Redactor.Rule` — full regex support.
+
+### Breadcrumbs (auto-attached to crash reports)
+
+```swift
+SwiftMoLogger.breadcrumb("user tapped Buy", category: .userAction)
+SwiftMoLogger.breadcrumb("nav → checkout", category: .navigation)
+
+// On crash / bug report:
+let crumbs: [Breadcrumb] = SwiftMoLogger.breadcrumbs()
+```
+
+Bounded ring buffer (default 100). O(1) append.
+
+### Auto URLSession logging
+
+```swift
+import SwiftMoLoggerNetwork
+
+let config = URLSessionConfiguration.default
+NetworkLogger.install(on: config)
+let session = URLSession(configuration: config)
+// Every request is now logged with method/URL/status/duration_ms,
+// sensitive headers are stripped, and breadcrumbs are recorded.
+```
+
+### Remote shipping
+
+```swift
+import SwiftMoLoggerRemote
+
+SwiftMoLogger.addEngine(SentryLogEngine(
+    dsn: URL(string: "https://abc@o123.ingest.sentry.io/456")!,
+    release: "1.4.2",
+    environment: "production"
+))
+
+SwiftMoLogger.addEngine(DatadogLogEngine(
+    apiKey: "<DD_API_KEY>",
+    site: .eu1,
+    service: "checkout"
+))
+
+SwiftMoLogger.addEngine(LokiLogEngine(
+    endpoint: URL(string: "https://loki.example.com/loki/api/v1/push")!,
+    labels: ["job": "ios", "env": "prod"]
+))
+```
+
+All shippers batch (50–100 entries), debounce (5 s), retry with exponential backoff, and never block the caller.
+
+### Sampling + rate limiting
+
+```swift
+// Keep 1% of trace logs in production
+SwiftMoLogger.addEngine(SamplingLogEngine(
+    wrapping: fileEngine,
+    strategy: .perLevel(rates: [.trace: 0.01, .debug: 0.1])
+))
+
+// Cap any sink at 50 logs/sec with a 100-burst
+SwiftMoLogger.addEngine(RateLimitingLogEngine(
+    wrapping: networkEngine,
+    permitsPerSecond: 50,
+    burst: 100
+))
+```
+
+### Combine publisher
+
+```swift
+SwiftMoLogger.publisher()
+    .filter { $0.level >= .error }
+    .sink { entry in /* … */ }
+    .store(in: &cancellables)
+```
+
+### XCTest assertions
+
+```swift
+import SwiftMoLoggerTesting
+
+final class CheckoutTests: XCTestCase {
+    var logs: RecordingLogEngine!
+    override func setUp() { logs = SwiftMoLogger.installRecorder() }
+
+    func testFailureIsLogged() {
+        service.purchase(invalid: true)
+        XCTAssertLogged(.error, contains: "declined", tag: .api, in: logs)
+        XCTAssertLogCount(0, atLevel: .fault, in: logs)
+    }
+}
+```
+
+### App vitals (CPU / memory / FPS / thermal)
+
+```swift
+import SwiftMoLoggerDiagnostics
+AppVitalsMonitor.shared.start(interval: 10)
+```
+
+Each tick emits a `.notice`-level log entry tagged `.performance` with `cpu_pct`, `memory_mb`, `fps`, `thermal`, and `battery` metadata.
+
+### Bug-report bundler
+
+```swift
+let memory = MemoryLogEngine(capacity: 500)
+SwiftMoLogger.addEngine(memory)
+
+let report = try BugReporter(memoryEngine: memory, appName: "Acme")
+    .generate(extras: ["screen": "checkout"])
+// Returns a directory containing info.txt, breadcrumbs.json,
+// logs.json, vitals.json — hand it to UIActivityViewController or a
+// custom uploader.
+```
+
+### Live WebSocket tail (dev/QA only)
+
+```swift
+SwiftMoLogger.addEngine(WebSocketTailEngine(
+    url: URL(string: "ws://192.168.1.42:9001")!
+))
+
+// On the receiving Mac:
+//   wscat -l 9001
+```
+
+### Privacy manifest
+
+`Sources/SwiftMoLogger/PrivacyInfo.xcprivacy` ships with the package and is included in the binary. It declares `NSPrivacyTracking = false` and lists the approved API reasons (file timestamps, bundle ID read, boot-time read). App Store submissions pass without further work.
 
 ---
 
