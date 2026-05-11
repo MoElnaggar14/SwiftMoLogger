@@ -1,31 +1,42 @@
-// swift-tools-version: 5.7
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
+// swift-tools-version: 5.9
 import PackageDescription
 
 let package = Package(
     name: "SwiftMoLogger",
     defaultLocalization: .init("en"),
-    platforms: [.iOS(.v15), .macOS(.v12), .tvOS(.v15), .watchOS(.v8)],
+    platforms: [
+        .iOS(.v15),
+        .macOS(.v12),
+        .tvOS(.v15),
+        .watchOS(.v8)
+    ],
     products: [
         .library(
             name: "SwiftMoLogger",
             targets: ["SwiftMoLogger"]
         ),
+        .library(
+            name: "SwiftMoLoggerUI",
+            targets: ["SwiftMoLoggerUI"]
+        ),
     ],
-    dependencies: [
-        // Dependencies declare other packages that this package depends on.
-    ],
+    dependencies: [],
     targets: [
-        // Targets are the basic building blocks of a package. A target can define a module or a test suite.
-        // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
             name: "SwiftMoLogger",
             dependencies: []
         ),
+        .target(
+            name: "SwiftMoLoggerUI",
+            dependencies: ["SwiftMoLogger"]
+        ),
         .testTarget(
             name: "SwiftMoLoggerTests",
             dependencies: ["SwiftMoLogger"]
+        ),
+        .testTarget(
+            name: "SwiftMoLoggerUITests",
+            dependencies: ["SwiftMoLoggerUI"]
         ),
     ]
 )
