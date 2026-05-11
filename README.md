@@ -10,6 +10,58 @@ Structured, multi-engine logging for Apple platforms — built on Swift Concurre
 
 ---
 
+## 💎 The headline features
+
+### 1. Diagnostics Hub — Instruments inside your app
+
+One SwiftUI view that turns any iOS/macOS build into a self-hosted Instruments + Charles + Console rolled together. **No Mac, no cable, no Xcode** — just drop the view into a debug screen and ship.
+
+```swift
+import SwiftMoLoggerUI
+DiagnosticsHubView()    // that's it
+```
+
+What's inside:
+- **Timeline scrubber** with log-density bar — rewind to any moment in the last 10 minutes.
+- **Network waterfall** showing every `URLSession` request as a coloured bar (status-aware).
+- **Signpost flame graph** with greedy lane assignment so concurrent spans don't overlap.
+- **Vitals charts** (memory / CPU / FPS) on Swift Charts (iOS 16+, summary card on iOS 15).
+- **Breadcrumb trail** with category-coloured timeline pins.
+
+### 2. Bonjour-based live tail to Mac
+
+The on-device `LiveSink` advertises a Bonjour service (`_swiftmologger._tcp`) and streams JSON-Lines `LogEntry` payloads over TCP. A bundled CLI auto-discovers every device on the network:
+
+```bash
+swift run swiftmologger-inspector
+# ◉ discovered MyApp-iPhone-15
+# ● connected MyApp-iPhone-15
+# 14:22:01 INFO  MyApp-iPhone-15 [API]  HTTP response status=200 duration_ms=132
+```
+
+Zero config, zero cable, multiple devices in one terminal.
+
+### 3. Swift Macros (`SwiftMoLoggerSugar`)
+
+```swift
+import SwiftMoLoggerSugar
+
+#log("user signed in", level: .info, tag: .api)
+
+let users = #measure("loadUsers") {
+    try repo.all()
+}
+
+@AutoLog
+final class CheckoutService {
+    func purchase(_ id: String) throws { /* traced automatically */ }
+}
+```
+
+`SwiftMoLoggerSugar` is opt-in — adopters who don't want the `swift-syntax` build cost can stick with `import SwiftMoLogger` and never see it.
+
+---
+
 ## Why another logger?
 
 Most Swift loggers do one thing well — pretty console output, or file rotation, or remote shipping — and force you to wire the rest yourself. SwiftMoLogger v3 is the opposite: **one call site, many destinations, zero ceremony**.

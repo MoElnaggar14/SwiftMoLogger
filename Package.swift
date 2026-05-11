@@ -1,5 +1,6 @@
 // swift-tools-version: 5.9
 import PackageDescription
+import CompilerPluginSupport
 
 let package = Package(
     name: "SwiftMoLogger",
@@ -17,8 +18,12 @@ let package = Package(
         .library(name: "SwiftMoLoggerRemote", targets: ["SwiftMoLoggerRemote"]),
         .library(name: "SwiftMoLoggerDiagnostics", targets: ["SwiftMoLoggerDiagnostics"]),
         .library(name: "SwiftMoLoggerTesting", targets: ["SwiftMoLoggerTesting"]),
+        .library(name: "SwiftMoLoggerSugar", targets: ["SwiftMoLoggerSugar"]),
+        .executable(name: "swiftmologger-inspector", targets: ["SwiftMoLoggerInspector"]),
     ],
-    dependencies: [],
+    dependencies: [
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "509.0.0"),
+    ],
     targets: [
         .target(
             name: "SwiftMoLogger",
@@ -45,6 +50,23 @@ let package = Package(
             name: "SwiftMoLoggerTesting",
             dependencies: ["SwiftMoLogger"]
         ),
+        .target(
+            name: "SwiftMoLoggerSugar",
+            dependencies: ["SwiftMoLogger", "SwiftMoLoggerMacros"]
+        ),
+        .executableTarget(
+            name: "SwiftMoLoggerInspector",
+            dependencies: []
+        ),
+        .macro(
+            name: "SwiftMoLoggerMacros",
+            dependencies: [
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+            ]
+        ),
         .testTarget(
             name: "SwiftMoLoggerTests",
             dependencies: ["SwiftMoLogger", "SwiftMoLoggerTesting"]
@@ -60,6 +82,13 @@ let package = Package(
         .testTarget(
             name: "SwiftMoLoggerRemoteTests",
             dependencies: ["SwiftMoLoggerRemote"]
+        ),
+        .testTarget(
+            name: "SwiftMoLoggerMacrosTests",
+            dependencies: [
+                "SwiftMoLoggerMacros",
+                .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
+            ]
         ),
     ]
 )
