@@ -4,7 +4,27 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] — Unreleased
+## [3.0.0] — 2026-05-11
+
+Major release. Complete rewrite around structured `LogEntry`, Swift Concurrency, and a multi-product architecture. See the [article series](Articles/) for the design rationale.
+
+### Headline features
+
+- **Diagnostics Hub** (`SwiftMoLoggerUI`) — in-app SwiftUI dashboard with
+  timeline scrubber, network waterfall, signpost flame graph, vitals
+  charts, and breadcrumb trail.
+- **Bonjour live tail** (`SwiftMoLoggerDiagnostics` + `swiftmologger-inspector`
+  executable) — zero-config multi-device terminal tail over the LAN.
+- **Swift Macros** (`SwiftMoLoggerSugar`) — `#log` / `#measure` / `@AutoLog`.
+- **W3C distributed tracing** — `TraceContext`, `traceparent` header
+  auto-injection on every `URLSession` request.
+- **Flight recorder** — rolling 2-minute black box persisted to disk;
+  `FlightRecorder.recoverLastSession()` returns the last snapshot only
+  when the previous run crashed.
+- **Error grouping** — `ErrorGroupingEngine` collapses identical-shape
+  noise by fingerprint (UUIDs → `<uuid>`, digit runs → `#`, …).
+
+### Production hardening
 
 ### Added
 

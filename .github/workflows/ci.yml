@@ -14,9 +14,12 @@ jobs:
     name: Test Swift Package
     runs-on: macos-14
     strategy:
+      fail-fast: false
       matrix:
-        xcode: ['15.4', '15.3']
-        ios: ['17.5', '16.4', '15.6']
+        # 15.4 = Swift 5.10 = swift-syntax 510; 15.2 = Swift 5.9 = swift-syntax 509.
+        # Both fall inside our 509..<601 range so the macros target builds.
+        xcode: ['15.4', '15.2']
+        ios: ['17.5', '16.4']
         include:
           - xcode: '15.4'
             ios: '17.5'
@@ -42,10 +45,20 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-spm-
     
-    - name: Build Swift Package
+    - name: Build all products
       run: |
+        # Build every library product + the inspector executable so a
+        # missing target / broken cross-dependency fails CI loudly.
         swift build -v
-        
+        swift build -v --product SwiftMoLogger
+        swift build -v --product SwiftMoLoggerUI
+        swift build -v --product SwiftMoLoggerNetwork
+        swift build -v --product SwiftMoLoggerRemote
+        swift build -v --product SwiftMoLoggerDiagnostics
+        swift build -v --product SwiftMoLoggerTesting
+        swift build -v --product SwiftMoLoggerSugar
+        swift build -v --product swiftmologger-inspector
+
     - name: Run Tests
       run: |
         swift test --enable-code-coverage
