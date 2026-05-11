@@ -1,39 +1,40 @@
 import Foundation
 import os.log
 
-// MARK: - System Logger
+/// Apple unified-logging backend. Routes every entry through `os.Logger`
+/// (iOS 14+) so messages show up in Console.app, Instruments, and `log
+/// stream`. Falls back to `print` on older OS versions and exclusively in
+/// debug builds.
+///
+/// Bug fix vs. v2: info/warn entries were previously dropped on release
+/// builds because the entire body was wrapped in `#if DEBUG`. They are now
+/// always forwarded to `os.log`; only the `print` fallback remains
+/// debug-only.
+public final class SystemLogger: LogEngine, @unchecked Sendable {
+    public let engineID: String
+    public let minimumLevel: LogLevel
 
-/// High-performance system logger using os.log (iOS 14+) with console fallback
-public final class SystemLogger: LogEngine {
-    private let osLog = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "SwiftMoLogger", category: "General")
+    private let osLog: OSLog
+    private let usePrintFallback: Bool
 
-    public init() {}
-
-    public func info(message: String) {
-        #if DEBUG
-        if #available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *) {
-            os_log(.info, log: osLog, "%{public}@", "ℹ️ \(message)")
-        } else {
-            print("ℹ️ \(message)")
-        }
-        #endif
+    public init(
+        subsystem: String? = nil,
+        category: String = "General",
+        minimumLevel: LogLevel = .trace,
+        usePrintFallback: Bool = false
+    ) {
+        let resolvedSubsystem = subsystem ?? Bundle.main.bundleIdentifier ?? "SwiftMoLogger"
+        self.osLog = OSLog(subsystem: resolvedSubsystem, category: category)
+        self.engineID = "swiftmologger.system.\(resolvedSubsystem).\(category)"
+        self.minimumLevel = minimumLevel
+        self.usePrintFallback = usePrintFallback
     }
 
-    public func warn(message: String) {
-        #if DEBUG
-        if #available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *) {
-            os_log(.default, log: osLog, "%{public}@", "⚠️ \(message)")
-        } else {
-            print("⚠️ \(message)")
-        }
-        #endif
-    }
-
-    public func error(message: String) {
-        if #available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *) {
-            os_log(.error, log: osLog, "%{public}@", "🚨 \(message)")
-        } else {
-            print("🚨 \(message)")
+    public func log(_ entry: LogEntry) {
+        let rendered = entry.formatted()
+        os_log(entry.level.osLogType, log: osLog, "%{public}@", rendered)
+        if usePrintFallback {
+            print(rendered)
         }
     }
 }
