@@ -13,15 +13,17 @@ import Foundation
 /// `JSONEncoder` pass on a background queue.
 ///
 /// ```swift
+/// // In didFinishLaunching:
 /// let recorder = FlightRecorder()
 /// recorder.start()
-///
-/// // ...later, e.g. in didFinishLaunching:
-/// if let session = FlightRecorder.recoverLastSession() {
+/// if let session = recorder.crashedSession {
 ///     SwiftMoLogger.warn("Recovered \(session.entries.count) entries from a crashed session")
 ///     // Optionally feed back into the Diagnostics Hub or upload to a backend.
 /// }
 /// ```
+///
+/// `start()` captures the previous session before marking the new one as
+/// running, so ``crashedSession`` is safe to read at any point afterwards.
 public final class FlightRecorder: @unchecked Sendable {
     public struct Session: Sendable, Codable {
         public let recordedAt: Date
@@ -40,8 +42,9 @@ public final class FlightRecorder: @unchecked Sendable {
 
     private let memory: MemoryLogEngine
     private let queue: DispatchQueue
+    // `timer` and `recovered` are only touched on `queue`.
     private var timer: DispatchSourceTimer?
-    private var stopped = false
+    private var recovered: Session?
 
     public init(
         fileURL: URL? = nil,
@@ -56,34 +59,43 @@ public final class FlightRecorder: @unchecked Sendable {
         self.queue = DispatchQueue(label: "swiftmologger.flightrecorder", qos: .utility)
     }
 
-    /// Begin recording. Also registers the recorder as a log engine so it
-    /// captures everything passing through the registry.
-    public func start() {
-        guard timer == nil else { return }
-        // Always register *this* recorder's private memory engine. Earlier
-        // versions skipped registration whenever any MemoryLogEngine was
-        // already present, which silently broke recording when adopters
-        // wired their own MemoryLogEngine into the registry first.
-        if !SwiftMoLogger.allEngines().contains(where: { ($0 as? MemoryLogEngine) === memory }) {
-            SwiftMoLogger.addEngine(memory)
-        }
-        markSessionAlive(true)
-        let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + flushInterval, repeating: flushInterval)
-        timer.setEventHandler { [weak self] in self?.flushSync() }
-        timer.resume()
-        self.timer = timer
+    /// The snapshot left by the previous run if it didn't stop cleanly,
+    /// captured by the first ``start()``. `nil` after a clean shutdown.
+    public var crashedSession: Session? {
+        queue.sync { recovered }
     }
 
-    /// Stop and mark the session as cleanly terminated. Any subsequent
-    /// `recoverLastSession()` call returns `nil` since there was no crash.
+    /// Begin recording. Also registers the recorder as a log engine so it
+    /// captures everything passing through the registry. Calling it again
+    /// after ``stop()`` resumes recording.
+    public func start() {
+        queue.sync {
+            guard timer == nil else { return }
+            if recovered == nil {
+                recovered = FlightRecorder.recoverLastSession(from: fileURL)
+            }
+            // Always register *this* recorder's private memory engine; it has
+            // a unique id so it can't replace (or be replaced by) another
+            // MemoryLogEngine in the registry.
+            SwiftMoLogger.addEngine(memory)
+            markSessionAlive(true)
+            let timer = DispatchSource.makeTimerSource(queue: queue)
+            timer.schedule(deadline: .now() + flushInterval, repeating: flushInterval)
+            timer.setEventHandler { [weak self] in self?.flushSync() }
+            timer.resume()
+            self.timer = timer
+        }
+    }
+
+    /// Stop and mark the session as cleanly terminated, so the next launch
+    /// doesn't report a crash.
     public func stop() {
         queue.sync {
-            guard !stopped else { return }
-            stopped = true
-            timer?.cancel()
-            timer = nil
-            self.markSessionAlive(false)
+            guard let timer else { return }
+            timer.cancel()
+            self.timer = nil
+            SwiftMoLogger.removeEngine(id: memory.engineID)
+            markSessionAlive(false)
             try? FileManager.default.removeItem(at: fileURL)
         }
     }
@@ -97,11 +109,14 @@ public final class FlightRecorder: @unchecked Sendable {
 
     /// If the previous session was not stopped cleanly, return the last
     /// recorded snapshot. Returns `nil` after a clean shutdown.
+    ///
+    /// Call this *before* any recorder's ``start()`` in the new process (which
+    /// marks the new session as running), or read ``crashedSession`` instead.
     public static func recoverLastSession(from fileURL: URL = FlightRecorder.defaultFileURL) -> Session? {
         guard wasAlive(in: UserDefaults.standard) else { return nil }
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .iso8601WithFractionalSeconds
         return try? decoder.decode(Session.self, from: data)
     }
 
@@ -139,7 +154,7 @@ public final class FlightRecorder: @unchecked Sendable {
             vitals: VitalsHistoryStore.shared.snapshot().filter { $0.timestamp >= cutoff }
         )
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
         do {
             let data = try encoder.encode(session)
             try data.write(to: fileURL, options: .atomic)

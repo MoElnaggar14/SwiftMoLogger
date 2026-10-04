@@ -29,7 +29,7 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
     private let queue = DispatchQueue(label: "swiftmologger.livesink", qos: .utility)
     private let encoder: JSONEncoder
     private var listener: NWListener?
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
     private var clients: [NWConnection] = []
 
     public init(
@@ -41,7 +41,7 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
         self.minimumLevel = minimumLevel
         self.serviceName = serviceName ?? Bundle.main.bundleIdentifier ?? "SwiftMoLogger"
         self.encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
     }
 
     public func start() throws {
@@ -68,10 +68,10 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
             guard let self = self else { return }
             self.listener?.cancel()
             self.listener = nil
-            os_unfair_lock_lock(&self.lock)
+            self.lock.lock()
             for client in self.clients { client.cancel() }
             self.clients.removeAll()
-            os_unfair_lock_unlock(&self.lock)
+            self.lock.unlock()
         }
     }
 
@@ -81,9 +81,9 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
                   let data = try? self.encoder.encode(entry) else { return }
             var line = data
             line.append(0x0A)
-            os_unfair_lock_lock(&self.lock)
+            self.lock.lock()
             let snapshot = self.clients
-            os_unfair_lock_unlock(&self.lock)
+            self.lock.unlock()
             for client in snapshot {
                 client.send(content: line, completion: .contentProcessed { _ in })
             }
@@ -95,14 +95,14 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
             guard let self = self, let connection = connection else { return }
             switch state {
             case .ready:
-                os_unfair_lock_lock(&self.lock)
+                self.lock.lock()
                 self.clients.append(connection)
-                os_unfair_lock_unlock(&self.lock)
+                self.lock.unlock()
                 self.sendBanner(to: connection)
             case .failed, .cancelled:
-                os_unfair_lock_lock(&self.lock)
+                self.lock.lock()
                 self.clients.removeAll { $0 === connection }
-                os_unfair_lock_unlock(&self.lock)
+                self.lock.unlock()
             default: break
             }
         }

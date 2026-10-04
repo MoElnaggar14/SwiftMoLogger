@@ -4,6 +4,39 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] — Unreleased
+
+A correctness release. No breaking API changes; see "Behaviour changes".
+
+### Fixed
+- **Locks were undefined behaviour.** Thirteen types took `&lock` on a stored `os_unfair_lock_s`. Swift doesn't guarantee a stable address for that, so the lock could silently become a no-op. All of them now use a heap-allocated `UnfairLock`.
+- **Engines replaced each other.** `MemoryLogEngine` and `RecordingLogEngine` had fixed IDs, so the Flight Recorder's memory engine swapped out yours (or vice versa), and the Diagnostics Hub's Logs tab stayed empty when you'd already registered one. IDs are now unique per instance. Pass `id:` to opt back into de-duplication.
+- `FileLogEngine` IDs are now keyed by full path, so same-named files in different directories no longer collide.
+- **The system-logger guard used its position.** `removeEngine(at: 0)` refused to remove whatever happened to be first (after `removeAllEngines()` that's a user engine). The registry's default system logger is now protected by identity.
+- **`enableRedaction` dropped logs.** It removed every engine and then re-added them. It's now a single atomic `replaceEngine(id:with:)`.
+- **Wrong source column.** Level helpers didn't forward `#column`, and `LogSignpost` logged with its own file and line. Both now report the caller.
+- **`LogTag` lost its domain when persisted.** Tags encoded as a bare string, so `LogTag.api` came back with domain `"api"`. Tags now encode `{rawValue, domain}`, and the old format still decodes. The Inspector's tag column works again.
+- **Persisted timestamps dropped milliseconds.** The new `.iso8601WithFractionalSeconds` strategies keep them, and still decode whole-second dates.
+- **`FileLogEngine`:**
+  - `maxRotatedFiles: 0` crashed (`1...0`).
+  - A failed rotation dropped all later writes.
+  - Queued writes were lost if the engine was released early.
+- **`FlightRecorder`:**
+  - After `start → stop → start`, the next `stop()` did nothing, so the next launch reported a false crash.
+  - `recoverLastSession()` after `start()` always reported a crash. Use the new `crashedSession` property.
+  - The timer was accessed from two threads.
+- `ErrorGroupingEngine` grew without bound. New `maxGroups:` parameter (default 1,000) evicts the least recently seen group.
+- `AppVitalsMonitor` leaked a mach port per thread on every CPU sample.
+- `WebSocketTailEngine` was never deallocated: `URLSession` retains its delegate. `disconnect()` now invalidates the session.
+- `LogSignpost.Interval.end()` had a data race on its "ended" flag.
+
+### Changed
+- swift-syntax range widened to `509.0.0..<603.0.0`, so the macro target no longer conflicts with packages that need a newer swift-syntax.
+- CI: rebuilt on macOS 15 and the latest Xcode. It builds every library for iOS, Mac Catalyst, tvOS and watchOS, tests against the newest swift-syntax, and builds DocC. The always-failing manifest grep and the masked iOS test step are gone.
+
+### Behaviour changes
+- `MemoryLogEngine().engineID` and `RecordingLogEngine().engineID` are no longer constants. If you removed one with `removeEngine(id: "swiftmologger.memory")`, use `removeEngine(id: engine.engineID)` or construct it with `MemoryLogEngine(id:)`.
+
 ## [3.0.0] — 2026-05-11
 
 Major release. Complete rewrite around structured `LogEntry`, Swift Concurrency, and a multi-product architecture. See the [article series](Articles/) for the design rationale.

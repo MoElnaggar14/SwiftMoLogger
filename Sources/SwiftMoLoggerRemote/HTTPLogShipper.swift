@@ -144,7 +144,7 @@ public class HTTPLogShipper: LogEngine, @unchecked Sendable {
     /// Default JSON envelope: `{"entries": [LogEntry, …]}`.
     public static let defaultJSONBody: BodyBuilder = { entries in
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
         return try encoder.encode(["entries": entries])
     }
 }

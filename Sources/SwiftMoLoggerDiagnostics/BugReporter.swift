@@ -43,7 +43,7 @@ public struct BugReporter: Sendable {
         try info.write(to: root.appendingPathComponent("info.txt"), atomically: true, encoding: .utf8)
 
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
         let breadcrumbs = SwiftMoLogger.breadcrumbs()

@@ -48,7 +48,7 @@ public final class NetworkEventStore: @unchecked Sendable {
     private var buffer: [NetworkEvent?]
     private var head = 0
     private var count = 0
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
 
     public init(capacity: Int = 500) {
         precondition(capacity > 0)
@@ -57,16 +57,16 @@ public final class NetworkEventStore: @unchecked Sendable {
     }
 
     public func record(_ event: NetworkEvent) {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         buffer[head] = event
         head = (head + 1) % capacity
         if count < capacity { count += 1 }
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
     }
 
     public func snapshot() -> [NetworkEvent] {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         guard count > 0 else { return [] }
         var out: [NetworkEvent] = []
         out.reserveCapacity(count)
@@ -80,9 +80,9 @@ public final class NetworkEventStore: @unchecked Sendable {
     }
 
     public func clear() {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         for index in 0..<capacity { buffer[index] = nil }
         head = 0; count = 0
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
     }
 }

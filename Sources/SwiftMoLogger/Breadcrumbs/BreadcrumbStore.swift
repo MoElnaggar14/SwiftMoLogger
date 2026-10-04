@@ -15,7 +15,7 @@ public final class BreadcrumbStore: @unchecked Sendable {
     private var buffer: [Breadcrumb?]
     private var head: Int = 0
     private var count: Int = 0
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
     public let capacity: Int
 
     public init(capacity: Int = 100) {
@@ -25,16 +25,16 @@ public final class BreadcrumbStore: @unchecked Sendable {
     }
 
     public func record(_ crumb: Breadcrumb) {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         buffer[head] = crumb
         head = (head + 1) % capacity
         if count < capacity { count += 1 }
     }
 
     public func snapshot() -> [Breadcrumb] {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         guard count > 0 else { return [] }
         var out: [Breadcrumb] = []
         out.reserveCapacity(count)
@@ -49,8 +49,8 @@ public final class BreadcrumbStore: @unchecked Sendable {
     }
 
     public func clear() {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         for index in 0..<capacity { buffer[index] = nil }
         head = 0
         count = 0

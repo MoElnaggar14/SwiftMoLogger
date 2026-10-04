@@ -24,7 +24,7 @@ public final class SentryLogEngine: HTTPLogShipper {
 
     private static func makeBody(release: String?, environment: String?) -> BodyBuilder {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
         return { entries in
             var payload = Data()
             // Envelope header

@@ -22,7 +22,7 @@ public final class WebSocketTailEngine: NSObject, LogEngine, @unchecked Sendable
     private var session: URLSession?
     private var task: URLSessionWebSocketTask?
     private let encoder: JSONEncoder
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
     private var connected = false
 
     public init(url: URL, minimumLevel: LogLevel = .trace) {
@@ -30,7 +30,7 @@ public final class WebSocketTailEngine: NSObject, LogEngine, @unchecked Sendable
         self.url = url
         self.minimumLevel = minimumLevel
         self.encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
         super.init()
         connect()
     }
@@ -46,24 +46,30 @@ public final class WebSocketTailEngine: NSObject, LogEngine, @unchecked Sendable
         }
     }
 
+    /// Close the socket and release the session. `URLSession` retains its
+    /// delegate (this engine) until invalidated, so call this when you're done
+    /// or the engine is never deallocated.
     public func disconnect() {
         queue.async { [weak self] in
-            self?.task?.cancel(with: .goingAway, reason: nil)
-            self?.task = nil
-            self?.setConnected(false)
+            guard let self else { return }
+            self.task?.cancel(with: .goingAway, reason: nil)
+            self.task = nil
+            self.session?.invalidateAndCancel()
+            self.session = nil
+            self.setConnected(false)
         }
     }
 
     private var isConnected: Bool {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         return connected
     }
 
     private func setConnected(_ value: Bool) {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         connected = value
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
     }
 
     private func connect() {

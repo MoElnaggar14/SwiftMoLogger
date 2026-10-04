@@ -116,7 +116,7 @@ final class FlightRecorderTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: tmpURL.path))
         let data = try! Data(contentsOf: tmpURL)
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .iso8601WithFractionalSeconds
         let session = try? decoder.decode(FlightRecorder.Session.self, from: data)
         XCTAssertNotNil(session)
         XCTAssertTrue(session?.entries.contains { $0.message == "flight test" } ?? false)

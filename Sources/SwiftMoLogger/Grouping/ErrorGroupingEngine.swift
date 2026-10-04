@@ -31,7 +31,8 @@ public final class ErrorGroupingEngine: LogEngine, @unchecked Sendable {
     private let wrapped: any LogEngine
     private let fingerprintMinLevel: LogLevel
     private let emitThreshold: Int
-    private var lock = os_unfair_lock_s()
+    private let maxGroups: Int
+    private let lock = UnfairLock()
     private var groups: [String: ErrorGroup] = [:]
 
     /// - Parameters:
@@ -42,14 +43,19 @@ public final class ErrorGroupingEngine: LogEngine, @unchecked Sendable {
     ///     each group, then drop further entries to the wrapped engine
     ///     while still bumping the count. `1` means "emit only the first,
     ///     remember the count for later via ``snapshot()``".
+    ///   - maxGroups: upper bound on remembered groups. When full, the group
+    ///     seen least recently is evicted, so high-cardinality messages can't
+    ///     grow memory without bound.
     public init(
         wrapping wrapped: any LogEngine,
         fingerprintMinLevel: LogLevel = .warning,
-        emitThreshold: Int = 1
+        emitThreshold: Int = 1,
+        maxGroups: Int = 1_000
     ) {
         self.wrapped = wrapped
         self.fingerprintMinLevel = fingerprintMinLevel
         self.emitThreshold = max(emitThreshold, 1)
+        self.maxGroups = max(maxGroups, 1)
         self.engineID = "swiftmologger.grouping.\(wrapped.engineID)"
         self.minimumLevel = wrapped.minimumLevel
     }
@@ -61,13 +67,17 @@ public final class ErrorGroupingEngine: LogEngine, @unchecked Sendable {
         }
         let fp = ErrorGroupingEngine.fingerprint(for: entry)
         let shouldForward: Bool
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         if var existing = groups[fp] {
             existing.count += 1
             existing.lastSeen = entry.timestamp
             groups[fp] = existing
             shouldForward = existing.count <= emitThreshold
         } else {
+            if groups.count >= maxGroups,
+               let stalest = groups.min(by: { $0.value.lastSeen < $1.value.lastSeen })?.key {
+                groups[stalest] = nil
+            }
             groups[fp] = ErrorGroup(
                 fingerprint: fp,
                 level: entry.level,
@@ -78,7 +88,7 @@ public final class ErrorGroupingEngine: LogEngine, @unchecked Sendable {
             )
             shouldForward = true
         }
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
         if shouldForward {
             wrapped.log(entry)
         }
@@ -86,16 +96,16 @@ public final class ErrorGroupingEngine: LogEngine, @unchecked Sendable {
 
     /// Snapshot of all observed groups, sorted by count descending.
     public func snapshot() -> [ErrorGroup] {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         let copy = groups
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
         return copy.values.sorted { $0.count > $1.count }
     }
 
     public func clear() {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         groups.removeAll()
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
     }
 
     // MARK: - Fingerprinting

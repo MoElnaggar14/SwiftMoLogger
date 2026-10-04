@@ -19,14 +19,14 @@ public final class LogStream: LogEngine, @unchecked Sendable {
     public let minimumLevel: LogLevel = .trace
 
     private var continuations: [UUID: AsyncStream<LogEntry>.Continuation] = [:]
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
 
     public init() {}
 
     public func log(_ entry: LogEntry) {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         let snapshot = Array(continuations.values)
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
         for continuation in snapshot {
             continuation.yield(entry)
         }
@@ -42,23 +42,23 @@ public final class LogStream: LogEngine, @unchecked Sendable {
     public func subscribe(bufferSize: Int = 256) -> AsyncStream<LogEntry> {
         AsyncStream(LogEntry.self, bufferingPolicy: .bufferingNewest(bufferSize)) { continuation in
             let id = UUID()
-            os_unfair_lock_lock(&lock)
+            lock.lock()
             continuations[id] = continuation
-            os_unfair_lock_unlock(&lock)
+            lock.unlock()
 
             continuation.onTermination = { [weak self] _ in
                 guard let self = self else { return }
-                os_unfair_lock_lock(&self.lock)
+                self.lock.lock()
                 self.continuations.removeValue(forKey: id)
-                os_unfair_lock_unlock(&self.lock)
+                self.lock.unlock()
             }
         }
     }
 
     /// Number of currently active subscribers. Exposed for tests/diagnostics.
     public var subscriberCount: Int {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         return continuations.count
     }
 }

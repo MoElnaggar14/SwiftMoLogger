@@ -28,14 +28,17 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
         maxRotatedFiles: Int = 3,
         minimumLevel: LogLevel = .info
     ) throws {
+        precondition(maxRotatedFiles >= 0, "maxRotatedFiles must not be negative")
         self.fileURL = fileURL
         self.maxFileSizeBytes = maxFileSizeBytes
         self.maxRotatedFiles = maxRotatedFiles
         self.minimumLevel = minimumLevel
-        self.engineID = "swiftmologger.file.\(fileURL.lastPathComponent)"
+        // Keyed by full path: two engines for the same file replace each other,
+        // same-named files in different directories don't.
+        self.engineID = "swiftmologger.file.\(fileURL.standardizedFileURL.path)"
         self.queue = DispatchQueue(label: "swiftmologger.file.\(fileURL.lastPathComponent)", qos: .utility)
         self.encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
 
         try Self.ensureFileExists(at: fileURL)
         let handle = try FileHandle(forWritingTo: fileURL)
@@ -49,9 +52,9 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
     }
 
     public func log(_ entry: LogEntry) {
-        queue.async { [weak self] in
-            self?.writeEntry(entry)
-        }
+        // Strong capture on purpose: queued writes must land even if the
+        // engine is removed from the registry before the queue drains.
+        queue.async { self.writeEntry(entry) }
     }
 
     /// Synchronously flush any pending writes. Useful before bug reports or
@@ -70,7 +73,7 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
         if FileManager.default.fileExists(atPath: fileURL.path) {
             urls.append(fileURL)
         }
-        for index in 1...maxRotatedFiles {
+        for index in stride(from: 1, through: maxRotatedFiles, by: 1) {
             let rotated = directory.appendingPathComponent("\(base).\(index)")
             if FileManager.default.fileExists(atPath: rotated.path) {
                 urls.append(rotated)
@@ -99,13 +102,20 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
     }
 
     private func rotate() throws {
-        try handle?.close()
+        try? handle?.close()
         handle = nil
+        // Whatever happens while shifting files, reopen the active file so a
+        // single failed rotation doesn't silently drop every later write.
+        defer { reopenActiveFile() }
 
         let directory = fileURL.deletingLastPathComponent()
         let base = fileURL.lastPathComponent
         let manager = FileManager.default
 
+        guard maxRotatedFiles > 0 else {
+            try manager.removeItem(at: fileURL)
+            return
+        }
         let oldest = directory.appendingPathComponent("\(base).\(maxRotatedFiles)")
         if manager.fileExists(atPath: oldest.path) {
             try manager.removeItem(at: oldest)
@@ -117,15 +127,21 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
                 try manager.moveItem(at: from, to: to)
             }
         }
-        let rotated = directory.appendingPathComponent("\(base).1")
         if manager.fileExists(atPath: fileURL.path) {
-            try manager.moveItem(at: fileURL, to: rotated)
+            try manager.moveItem(at: fileURL, to: directory.appendingPathComponent("\(base).1"))
         }
-        try Self.ensureFileExists(at: fileURL)
-        let newHandle = try FileHandle(forWritingTo: fileURL)
-        try newHandle.seekToEnd()
-        handle = newHandle
-        currentSize = 0
+    }
+
+    private func reopenActiveFile() {
+        do {
+            try Self.ensureFileExists(at: fileURL)
+            let newHandle = try FileHandle(forWritingTo: fileURL)
+            try newHandle.seekToEnd()
+            handle = newHandle
+            currentSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0
+        } catch {
+            NSLog("FileLogEngine could not reopen %@: %@", fileURL.path, String(describing: error))
+        }
     }
 
     private static func ensureFileExists(at url: URL) throws {

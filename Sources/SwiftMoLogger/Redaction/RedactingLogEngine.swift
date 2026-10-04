@@ -47,12 +47,8 @@ public extension SwiftMoLogger {
     static func enableRedaction(at index: Int = 0, redactor: Redactor = Redactor()) {
         let engines = EngineRegistry.shared.allEngines()
         guard engines.indices.contains(index) else { return }
-        let target = engines[index]
-        if target is RedactingLogEngine { return }
-        let wrapped = RedactingLogEngine(wrapping: target, redactor: redactor)
-        EngineRegistry.shared.removeAllEngines()
-        for (offset, engine) in engines.enumerated() {
-            EngineRegistry.shared.addEngine(offset == index ? wrapped : engine)
+        EngineRegistry.shared.replaceEngine(id: engines[index].engineID) { target in
+            target is RedactingLogEngine ? target : RedactingLogEngine(wrapping: target, redactor: redactor)
         }
     }
 }

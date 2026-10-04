@@ -9,7 +9,7 @@ import Foundation
 ///    no `configure(…)`, no protocol gymnastics, no required setup.
 /// 2. **No surprises in production.** Unlike v2, no log call ever silently
 ///    becomes a no-op in release builds; the only debug-gated method is the
-///    explicit ``debug(_:tag:metadata:file:function:line:)``.
+///    explicit ``debug(_:tag:metadata:file:function:line:column:)``.
 /// 3. **Structured all the way down.** Every call materialises a
 ///    ``LogEntry``; tag, level, metadata, and source location travel
 ///    together so downstream engines never have to re-parse a string.
@@ -49,10 +49,11 @@ public enum SwiftMoLogger {
         metadata: LogMetadata = [:],
         file: String = #fileID,
         function: String = #function,
-        line: Int = #line
+        line: Int = #line,
+        column: Int = #column
     ) {
         guard LogLevel.trace >= EngineRegistry.shared.minimumLevel else { return }
-        log(.trace, message(), tag: tag, metadata: metadata, file: file, function: function, line: line)
+        log(.trace, message(), tag: tag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
     public static func info(
@@ -61,10 +62,11 @@ public enum SwiftMoLogger {
         metadata: LogMetadata = [:],
         file: String = #fileID,
         function: String = #function,
-        line: Int = #line
+        line: Int = #line,
+        column: Int = #column
     ) {
         guard LogLevel.info >= EngineRegistry.shared.minimumLevel else { return }
-        log(.info, message(), tag: tag, metadata: metadata, file: file, function: function, line: line)
+        log(.info, message(), tag: tag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
     public static func notice(
@@ -73,10 +75,11 @@ public enum SwiftMoLogger {
         metadata: LogMetadata = [:],
         file: String = #fileID,
         function: String = #function,
-        line: Int = #line
+        line: Int = #line,
+        column: Int = #column
     ) {
         guard LogLevel.notice >= EngineRegistry.shared.minimumLevel else { return }
-        log(.notice, message(), tag: tag, metadata: metadata, file: file, function: function, line: line)
+        log(.notice, message(), tag: tag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
     public static func warn(
@@ -85,10 +88,11 @@ public enum SwiftMoLogger {
         metadata: LogMetadata = [:],
         file: String = #fileID,
         function: String = #function,
-        line: Int = #line
+        line: Int = #line,
+        column: Int = #column
     ) {
         guard LogLevel.warning >= EngineRegistry.shared.minimumLevel else { return }
-        log(.warning, message(), tag: tag, metadata: metadata, file: file, function: function, line: line)
+        log(.warning, message(), tag: tag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
     public static func error(
@@ -97,10 +101,11 @@ public enum SwiftMoLogger {
         metadata: LogMetadata = [:],
         file: String = #fileID,
         function: String = #function,
-        line: Int = #line
+        line: Int = #line,
+        column: Int = #column
     ) {
         guard LogLevel.error >= EngineRegistry.shared.minimumLevel else { return }
-        log(.error, message(), tag: tag, metadata: metadata, file: file, function: function, line: line)
+        log(.error, message(), tag: tag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
     /// Convenience for capturing a thrown error with its localised
@@ -111,12 +116,13 @@ public enum SwiftMoLogger {
         metadata: LogMetadata = [:],
         file: String = #fileID,
         function: String = #function,
-        line: Int = #line
+        line: Int = #line,
+        column: Int = #column
     ) {
         var enriched = metadata
         enriched["error_type"] = .string(String(describing: type(of: error)))
         enriched["error"] = .string(String(describing: error))
-        log(.error, error.localizedDescription, tag: tag, metadata: enriched, file: file, function: function, line: line)
+        log(.error, error.localizedDescription, tag: tag, metadata: enriched, file: file, function: function, line: line, column: column)
     }
 
     public static func critical(
@@ -125,9 +131,10 @@ public enum SwiftMoLogger {
         metadata: LogMetadata = [:],
         file: String = #fileID,
         function: String = #function,
-        line: Int = #line
+        line: Int = #line,
+        column: Int = #column
     ) {
-        log(.critical, message(), tag: tag, metadata: metadata, file: file, function: function, line: line)
+        log(.critical, message(), tag: tag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
     public static func fault(
@@ -136,9 +143,10 @@ public enum SwiftMoLogger {
         metadata: LogMetadata = [:],
         file: String = #fileID,
         function: String = #function,
-        line: Int = #line
+        line: Int = #line,
+        column: Int = #column
     ) {
-        log(.fault, message(), tag: tag, metadata: metadata, file: file, function: function, line: line)
+        log(.fault, message(), tag: tag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
     /// DEBUG-only logger. Body is stripped entirely from release builds — no
@@ -149,10 +157,11 @@ public enum SwiftMoLogger {
         metadata: LogMetadata = [:],
         file: String = #fileID,
         function: String = #function,
-        line: Int = #line
+        line: Int = #line,
+        column: Int = #column
     ) {
         #if DEBUG
-        log(.debug, message(), tag: tag ?? .debug, metadata: metadata, file: file, function: function, line: line)
+        log(.debug, message(), tag: tag ?? .debug, metadata: metadata, file: file, function: function, line: line, column: column)
         #endif
     }
 
@@ -163,9 +172,10 @@ public enum SwiftMoLogger {
         metadata: LogMetadata = [:],
         file: String = #fileID,
         function: String = #function,
-        line: Int = #line
+        line: Int = #line,
+        column: Int = #column
     ) {
-        log(.critical, message(), tag: .crash, metadata: metadata, file: file, function: function, line: line)
+        log(.critical, message(), tag: .crash, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
     // MARK: - Ambient context (task-local)
@@ -255,23 +265,23 @@ public protocol LogTagged {
 }
 
 public extension LogTagged {
-    func logInfo(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line) {
-        SwiftMoLogger.info(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line)
+    func logInfo(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line, column: Int = #column) {
+        SwiftMoLogger.info(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
-    func logWarn(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line) {
-        SwiftMoLogger.warn(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line)
+    func logWarn(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line, column: Int = #column) {
+        SwiftMoLogger.warn(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
-    func logError(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line) {
-        SwiftMoLogger.error(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line)
+    func logError(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line, column: Int = #column) {
+        SwiftMoLogger.error(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
-    func logError(_ error: Error, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line) {
-        SwiftMoLogger.error(error, tag: logTag, metadata: metadata, file: file, function: function, line: line)
+    func logError(_ error: Error, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line, column: Int = #column) {
+        SwiftMoLogger.error(error, tag: logTag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
-    func logDebug(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line) {
-        SwiftMoLogger.debug(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line)
+    func logDebug(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line, column: Int = #column) {
+        SwiftMoLogger.debug(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 }

@@ -442,13 +442,13 @@ recorder.start()
 Persists a rolling 2-minute window of every signal (logs, breadcrumbs, network, signposts, vitals) to disk every 2 seconds. On next launch:
 
 ```swift
-if let session = FlightRecorder.recoverLastSession() {
+if let session = recorder.crashedSession {
     SwiftMoLogger.warn("Recovered crashed session: \(session.entries.count) entries")
     uploader.attach(session)
 }
 ```
 
-Returns non-nil **only** when the previous run never had a clean `stop()` — almost always a crash, OOM, or watchdog kill. The exact signals you wish you'd had, after the fact.
+`crashedSession` is non-nil **only** when the previous run never had a clean `stop()`. That is almost always a crash, OOM, or watchdog kill. `start()` captures it before marking the new session as running, so it's safe to read at any point. (The static `FlightRecorder.recoverLastSession()` still works, but only before the first `start()`.) The exact signals you wish you'd had, after the fact.
 
 ---
 

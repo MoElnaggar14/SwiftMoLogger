@@ -30,7 +30,7 @@ public final class AppVitalsMonitor: @unchecked Sendable {
 
     private var timer: DispatchSourceTimer?
     private let queue = DispatchQueue(label: "swiftmologger.vitals", qos: .utility)
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
     private var _lastSample: Sample?
 
     #if canImport(QuartzCore) && (os(iOS) || os(tvOS))
@@ -43,8 +43,8 @@ public final class AppVitalsMonitor: @unchecked Sendable {
     private init() {}
 
     public var lastSample: Sample? {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         return _lastSample
     }
 
@@ -88,9 +88,9 @@ public final class AppVitalsMonitor: @unchecked Sendable {
             thermalState: thermalStateLabel(),
             batteryLevel: currentBatteryLevel()
         )
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         _lastSample = sample
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
 
         let memoryMB = Double(sample.memoryUsedBytes) / 1_048_576
         SwiftMoLogger.notice("vitals", tag: .performance, metadata: [
@@ -127,7 +127,16 @@ public final class AppVitalsMonitor: @unchecked Sendable {
         guard task_threads(mach_task_self_, &threadList, &threadCount) == KERN_SUCCESS,
               let threads = threadList else { return 0 }
         defer {
-            vm_deallocate(mach_task_self_, vm_address_t(bitPattern: threads), vm_size_t(threadCount) * vm_size_t(MemoryLayout<thread_t>.size))
+            // task_threads hands us a send right per thread plus the array
+            // itself; release both or every sample leaks mach ports.
+            for index in 0..<Int(threadCount) {
+                mach_port_deallocate(mach_task_self_, threads[index])
+            }
+            vm_deallocate(
+                mach_task_self_,
+                vm_address_t(bitPattern: threads),
+                vm_size_t(threadCount) * vm_size_t(MemoryLayout<thread_t>.size)
+            )
         }
         var total: Double = 0
         // Compute count from layout to avoid relying on the
