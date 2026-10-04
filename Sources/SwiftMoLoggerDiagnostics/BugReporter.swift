@@ -73,7 +73,9 @@ public struct BugReporter: Sendable {
         lines.append("Generated: \(Date())")
         let bundle = Bundle.main.infoDictionary
         lines.append("App: \(bundle?["CFBundleName"] as? String ?? "?")")
-        lines.append("Version: \(bundle?["CFBundleShortVersionString"] as? String ?? "?") (\(bundle?["CFBundleVersion"] as? String ?? "?"))")
+        let shortVersion = bundle?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = bundle?["CFBundleVersion"] as? String ?? "?"
+        lines.append("Version: \(shortVersion) (\(build))")
         #if canImport(UIKit)
         let device = UIDevice.current
         lines.append("Device: \(device.model)")

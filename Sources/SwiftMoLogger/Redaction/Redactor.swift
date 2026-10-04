@@ -15,7 +15,12 @@ public struct Redactor: Sendable {
         public let pattern: NSRegularExpression
         public let replacement: String
 
-        public init(name: String, pattern: String, replacement: String = "[REDACTED]", options: NSRegularExpression.Options = [.caseInsensitive]) throws {
+        public init(
+            name: String,
+            pattern: String,
+            replacement: String = "[REDACTED]",
+            options: NSRegularExpression.Options = [.caseInsensitive]
+        ) throws {
             self.name = name
             self.pattern = try NSRegularExpression(pattern: pattern, options: options)
             self.replacement = replacement

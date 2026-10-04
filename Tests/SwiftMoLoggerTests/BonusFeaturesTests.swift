@@ -103,7 +103,7 @@ final class FlightRecorderTests: XCTestCase {
         SwiftMoLogger.minimumLevel = .trace
     }
 
-    func testFlushWritesJSONFile() {
+    func testFlushWritesJSONFile() throws {
         let tmpURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("fr-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: tmpURL) }
@@ -114,7 +114,7 @@ final class FlightRecorderTests: XCTestCase {
         recorder.flush()
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: tmpURL.path))
-        let data = try! Data(contentsOf: tmpURL)
+        let data = try Data(contentsOf: tmpURL)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601WithFractionalSeconds
         let session = try? decoder.decode(FlightRecorder.Session.self, from: data)

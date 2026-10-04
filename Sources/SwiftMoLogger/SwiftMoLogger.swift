@@ -265,23 +265,58 @@ public protocol LogTagged {
 }
 
 public extension LogTagged {
-    func logInfo(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line, column: Int = #column) {
+    func logInfo(
+        _ message: @autoclosure () -> String,
+        metadata: LogMetadata = [:],
+        file: String = #fileID,
+        function: String = #function,
+        line: Int = #line,
+        column: Int = #column
+    ) {
         SwiftMoLogger.info(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
-    func logWarn(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line, column: Int = #column) {
+    func logWarn(
+        _ message: @autoclosure () -> String,
+        metadata: LogMetadata = [:],
+        file: String = #fileID,
+        function: String = #function,
+        line: Int = #line,
+        column: Int = #column
+    ) {
         SwiftMoLogger.warn(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
-    func logError(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line, column: Int = #column) {
+    func logError(
+        _ message: @autoclosure () -> String,
+        metadata: LogMetadata = [:],
+        file: String = #fileID,
+        function: String = #function,
+        line: Int = #line,
+        column: Int = #column
+    ) {
         SwiftMoLogger.error(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
-    func logError(_ error: Error, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line, column: Int = #column) {
+    func logError(
+        _ error: Error,
+        metadata: LogMetadata = [:],
+        file: String = #fileID,
+        function: String = #function,
+        line: Int = #line,
+        column: Int = #column
+    ) {
         SwiftMoLogger.error(error, tag: logTag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 
-    func logDebug(_ message: @autoclosure () -> String, metadata: LogMetadata = [:], file: String = #fileID, function: String = #function, line: Int = #line, column: Int = #column) {
+    func logDebug(
+        _ message: @autoclosure () -> String,
+        metadata: LogMetadata = [:],
+        file: String = #fileID,
+        function: String = #function,
+        line: Int = #line,
+        column: Int = #column
+    ) {
         SwiftMoLogger.debug(message(), tag: logTag, metadata: metadata, file: file, function: function, line: line, column: column)
     }
 }

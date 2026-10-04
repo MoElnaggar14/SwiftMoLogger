@@ -56,15 +56,13 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
-      - name: Build library products
+      - name: Build
         run: |
           set -o pipefail
-          for scheme in SwiftMoLogger SwiftMoLoggerUI SwiftMoLoggerNetwork SwiftMoLoggerRemote \
-                        SwiftMoLoggerDiagnostics SwiftMoLoggerTesting SwiftMoLoggerSugar; do
-            echo "::group::$scheme"
-            xcodebuild build -scheme "$scheme" -destination "${{ matrix.destination }}" CODE_SIGNING_ALLOWED=NO -quiet
-            echo "::endgroup::"
-          done
+          xcodebuild build \
+            -scheme SwiftMoLogger-Package \
+            -destination "${{ matrix.destination }}" \
+            CODE_SIGNING_ALLOWED=NO -quiet
 
   lint:
     name: SwiftLint
@@ -85,5 +83,5 @@ jobs:
           xcode-version: latest-stable
       - name: Build DocC archive
         run: |
-          xcodebuild docbuild -scheme SwiftMoLogger -destination 'generic/platform=iOS' \
+          xcodebuild docbuild -scheme SwiftMoLogger-Package -destination 'generic/platform=iOS' \
             -derivedDataPath .build/docc CODE_SIGNING_ALLOWED=NO -quiet

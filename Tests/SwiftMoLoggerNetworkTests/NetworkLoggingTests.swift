@@ -11,7 +11,8 @@ final class NetworkLoggingTests: XCTestCase {
     }
 
     func testProtocolRejectsAlreadyHandledRequests() {
-        guard let mutable = (URLRequest(url: URL(string: "https://example.com")!) as NSURLRequest).mutableCopy() as? NSMutableURLRequest else {
+        let request = URLRequest(url: URL(string: "https://example.com")!)
+        guard let mutable = (request as NSURLRequest).mutableCopy() as? NSMutableURLRequest else {
             return XCTFail("could not build mutable request")
         }
         URLProtocol.setProperty(true, forKey: NetworkLoggingProtocol.propertyKey, in: mutable)

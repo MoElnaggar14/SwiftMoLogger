@@ -86,7 +86,12 @@ public final class WebSocketTailEngine: NSObject, LogEngine, @unchecked Sendable
         setConnected(true)
     }
 
-    public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+    public func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+        reason: Data?
+    ) {
         setConnected(false)
     }
 }

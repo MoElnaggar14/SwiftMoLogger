@@ -154,9 +154,9 @@ final class CorrectnessTests: XCTestCase {
     }
 
     func testFileEnginesInDifferentDirectoriesHaveDifferentIDs() throws {
-        let a = try FileLogEngine(fileURL: temporaryURL("a/app.log"))
-        let b = try FileLogEngine(fileURL: temporaryURL("b/app.log"))
-        XCTAssertNotEqual(a.engineID, b.engineID)
+        let first = try FileLogEngine(fileURL: temporaryURL("a/app.log"))
+        let second = try FileLogEngine(fileURL: temporaryURL("b/app.log"))
+        XCTAssertNotEqual(first.engineID, second.engineID)
     }
 
     // MARK: - FlightRecorder
