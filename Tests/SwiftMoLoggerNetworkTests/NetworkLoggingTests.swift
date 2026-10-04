@@ -18,6 +18,16 @@ final class NetworkLoggingTests: XCTestCase {
         XCTAssertFalse(NetworkLoggingProtocol.canInit(with: mutable as URLRequest))
     }
 
+    func testExcludedRequestsAreNotIntercepted() {
+        var request = URLRequest(url: URL(string: "https://logs.example.com/ingest")!)
+        XCTAssertFalse(request.isExcludedFromNetworkLogging)
+
+        request.excludeFromNetworkLogging()
+
+        XCTAssertTrue(request.isExcludedFromNetworkLogging)
+        XCTAssertFalse(NetworkLoggingProtocol.canInit(with: request))
+    }
+
     func testProtocolRejectsNonHTTPSchemes() {
         let ftpRequest = URLRequest(url: URL(string: "ftp://example.com/file")!)
         XCTAssertFalse(NetworkLoggingProtocol.canInit(with: ftpRequest))

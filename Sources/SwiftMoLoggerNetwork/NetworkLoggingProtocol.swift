@@ -14,13 +14,26 @@ import SwiftMoLogger
 /// Implementation forwards every call to a child `URLSession` configured
 /// without the protocol installed, avoiding infinite recursion.
 public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
-    public static let propertyKey = "swiftmologger.network.handled"
+    public static let propertyKey = URLRequest.swiftMoLoggerExemptionKey
 
-    /// Header names whose values are stripped before logging.
-    public static var sensitiveHeaders: Set<String> = [
+    /// Header names whose values are stripped before logging. Lower-case.
+    public static var sensitiveHeaders: Set<String> {
+        get { sensitiveHeadersLock.withLock { _sensitiveHeaders } }
+        set { sensitiveHeadersLock.withLock { _sensitiveHeaders = newValue } }
+    }
+
+    private static let sensitiveHeadersLock = UnfairLock()
+    private static var _sensitiveHeaders: Set<String> = [
         "authorization", "cookie", "set-cookie", "x-api-key", "x-auth-token", "proxy-authorization"
     ]
 
+    // URLProtocol contract: every `client` callback must happen on the thread
+    // (and run loop mode) that called `startLoading()`, and none after
+    // `stopLoading()`. The child session calls back on its own queue, so
+    // results are hopped back to the client thread.
+    private var clientThread: Thread?
+    private var clientModes: [String] = [RunLoop.Mode.default.rawValue]
+    private var stopped = false
     private var dataTask: URLSessionDataTask?
     private var receivedData = Data()
     private var startTime: DispatchTime = .now()
@@ -45,6 +58,10 @@ public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
     }
 
     public override func startLoading() {
+        clientThread = Thread.current
+        if let mode = RunLoop.current.currentMode, mode != .default {
+            clientModes = [mode.rawValue, RunLoop.Mode.default.rawValue]
+        }
         startTime = DispatchTime.now()
         startDate = Date()
         requestBodyBytes = Int64(request.httpBody?.count ?? 0)
@@ -74,6 +91,7 @@ public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
     }
 
     public override func stopLoading() {
+        stopped = true
         dataTask?.cancel()
         dataTask = nil
     }
@@ -86,18 +104,42 @@ public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
 
         if let error = error {
             logFailure(error: error, elapsedMS: elapsedMS)
-            client?.urlProtocol(self, didFailWithError: error)
-            return
+        } else {
+            logResponse(data: data, response: response, elapsedMS: elapsedMS)
         }
 
-        if let response = response {
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        onClientThread { [self] in
+            guard !stopped else { return }
+            if let error {
+                client?.urlProtocol(self, didFailWithError: error)
+                return
+            }
+            if let response {
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            }
+            if let data {
+                client?.urlProtocol(self, didLoad: data)
+            }
+            client?.urlProtocolDidFinishLoading(self)
         }
-        if let data = data {
-            client?.urlProtocol(self, didLoad: data)
+    }
+
+    private func onClientThread(_ block: @escaping () -> Void) {
+        guard let clientThread, clientThread != Thread.current else {
+            block()
+            return
         }
-        logResponse(data: data, response: response, elapsedMS: elapsedMS)
-        client?.urlProtocolDidFinishLoading(self)
+        perform(
+            #selector(runOnClientThread(_:)),
+            on: clientThread,
+            with: ClientBlock(block),
+            waitUntilDone: false,
+            modes: clientModes
+        )
+    }
+
+    @objc private func runOnClientThread(_ block: ClientBlock) {
+        block.run()
     }
 
     private func logRequest(_ request: URLRequest) {
@@ -159,10 +201,20 @@ public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
     }
 
     private static func sanitiseHeaders(_ headers: [String: String]) -> String {
+        let sensitive = sensitiveHeaders
         let pairs = headers.map { (key, value) -> String in
-            sensitiveHeaders.contains(key.lowercased()) ? "\(key)=[REDACTED]" : "\(key)=\(value)"
+            sensitive.contains(key.lowercased()) ? "\(key)=[REDACTED]" : "\(key)=\(value)"
         }
         return pairs.sorted().joined(separator: " ")
+    }
+}
+
+/// Boxes a closure so it can be passed through `perform(_:on:with:...)`.
+private final class ClientBlock: NSObject {
+    let run: () -> Void
+
+    init(_ run: @escaping () -> Void) {
+        self.run = run
     }
 }
 

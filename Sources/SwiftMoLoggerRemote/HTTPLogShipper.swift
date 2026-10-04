@@ -115,6 +115,7 @@ public class HTTPLogShipper: LogEngine, @unchecked Sendable {
         }
 
         var request = URLRequest(url: configuration.endpoint)
+        request.excludeFromNetworkLogging()
         request.httpMethod = configuration.method
         request.httpBody = body
         for (key, value) in configuration.headers {
