@@ -25,6 +25,7 @@ A correctness release. No breaking API changes; see "Behaviour changes".
   - After `start → stop → start`, the next `stop()` did nothing, so the next launch reported a false crash.
   - `recoverLastSession()` after `start()` always reported a crash. Use the new `crashedSession` property.
   - The timer was accessed from two threads.
+  - A custom `fileURL` inside a folder that didn't exist yet silently recorded nothing.
 - `ErrorGroupingEngine` grew without bound. New `maxGroups:` parameter (default 1,000) evicts the least recently seen group.
 - `AppVitalsMonitor` leaked a mach port per thread on every CPU sample.
 - `WebSocketTailEngine` was never deallocated: `URLSession` retains its delegate. `disconnect()` now invalidates the session.

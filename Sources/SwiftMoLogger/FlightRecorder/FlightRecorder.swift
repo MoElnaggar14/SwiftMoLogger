@@ -157,6 +157,11 @@ public final class FlightRecorder: @unchecked Sendable {
         encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
         do {
             let data = try encoder.encode(session)
+            // A custom `fileURL` may point into a folder that doesn't exist yet.
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try data.write(to: fileURL, options: .atomic)
         } catch {
             NSLog("FlightRecorder flush failed: %@", String(describing: error))
