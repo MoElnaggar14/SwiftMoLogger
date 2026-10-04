@@ -3,7 +3,7 @@ import SwiftMoLogger
 
 /// Ships log entries to a Grafana Loki push endpoint
 /// (`POST /loki/api/v1/push`).
-public final class LokiLogEngine: HTTPLogShipper {
+public final class LokiLogEngine: HTTPLogShipper, @unchecked Sendable {
     public init(endpoint: URL, labels: [String: String] = ["job": "swiftmologger"], basicAuth: (user: String, password: String)? = nil) {
         var headers: [String: String] = ["Content-Type": "application/json"]
         if let auth = basicAuth {

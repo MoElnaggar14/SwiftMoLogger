@@ -33,7 +33,7 @@ public final class LogConsoleViewModel: ObservableObject {
             for await entry in stream {
                 guard let self = self else { return }
                 if Task.isCancelled { return }
-                await self.append(entry)
+                self.append(entry)
             }
         }
     }

@@ -4,7 +4,7 @@ import SwiftMoLogger
 /// Ships log entries to a Sentry-compatible `envelope` endpoint as messages
 /// (not events). Pair with the official Sentry SDK if you also want crashes
 /// — this engine is purely for logs.
-public final class SentryLogEngine: HTTPLogShipper {
+public final class SentryLogEngine: HTTPLogShipper, @unchecked Sendable {
     public init(dsn: URL, release: String? = nil, environment: String? = nil) {
         precondition(dsn.scheme == "https" || dsn.scheme == "http", "Sentry DSN must be http(s)")
         let configuration = Configuration(

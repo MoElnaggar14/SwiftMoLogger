@@ -79,7 +79,7 @@ public final class NetworkLoggingProtocol: URLProtocol, @unchecked Sendable {
 
         logRequest(mutable as URLRequest)
         SwiftMoLogger.breadcrumb(
-            "→ \(mutable.httpMethod ?? "?") \(mutable.url?.absoluteString ?? "?")",
+            "→ \(mutable.httpMethod) \(mutable.url?.absoluteString ?? "?")",
             category: .network
         )
 
