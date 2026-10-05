@@ -15,8 +15,8 @@ import SwiftMoLogger
 /// let (data, _) = try await URLSession.shared.data(for: request, delegate: network)
 /// ```
 ///
-/// For each task it logs the request (with sensitive headers redacted) and the
-/// outcome (status, bytes, duration), leaves breadcrumbs, and records a
+/// For each task it logs the request (with sensitive headers and URL query
+/// values redacted, see ``URLRedaction``) and the outcome (status, bytes, duration), leaves breadcrumbs, and records a
 /// ``NetworkEvent`` for the Diagnostics Hub's waterfall. It only observes: it
 /// never changes requests, buffers bodies or affects redirects.
 ///
@@ -32,6 +32,7 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
     private let events: NetworkEventStore?
     private let breadcrumbs: BreadcrumbStore?
     private let sensitiveHeaders: Set<String>
+    private let urlRedaction: URLRedaction
 
     /// Tasks whose request was already logged by `didCreateTask`. That callback
     /// only reaches session-level delegates, so tasks using a per-task delegate
@@ -44,21 +45,29 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
     ///   - events: Records each task for the Diagnostics Hub. `nil` to skip.
     ///   - breadcrumbs: Gets a breadcrumb per request and response. `nil` to skip.
     ///   - sensitiveHeaders: Header names (any case) whose values are redacted.
+    ///   - urlRedaction: How much of each URL is written to logs, breadcrumbs and events.
     public init(
         logger: MoLogger,
         events: NetworkEventStore? = nil,
         breadcrumbs: BreadcrumbStore? = nil,
-        sensitiveHeaders: Set<String> = NetworkLogger.defaultSensitiveHeaders
+        sensitiveHeaders: Set<String> = NetworkLogger.defaultSensitiveHeaders,
+        urlRedaction: URLRedaction = .default
     ) {
         self.logger = logger.tag == nil ? logger.with(tag: .api) : logger
         self.events = events
         self.breadcrumbs = breadcrumbs
         self.sensitiveHeaders = Set(sensitiveHeaders.map { $0.lowercased() })
+        self.urlRedaction = urlRedaction
     }
 
     /// Logs through the environment's logger and records into its stores.
-    public convenience init(environment: LogEnvironment) {
-        self.init(logger: environment.logger, events: environment.networkEvents, breadcrumbs: environment.breadcrumbs)
+    public convenience init(environment: LogEnvironment, urlRedaction: URLRedaction = .default) {
+        self.init(
+            logger: environment.logger,
+            events: environment.networkEvents,
+            breadcrumbs: environment.breadcrumbs,
+            urlRedaction: urlRedaction
+        )
     }
 
     // MARK: - URLSessionTaskDelegate
@@ -70,13 +79,14 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
 
     private func logRequest(of task: URLSessionTask) {
         guard let request = task.originalRequest ?? task.currentRequest else { return }
+        let url = request.url.map { urlRedaction.apply(to: $0).absoluteString } ?? "?"
         logger.info("HTTP request", metadata: [
             "http.method": .string(request.httpMethod ?? "GET"),
-            "http.url": .string(request.url?.absoluteString ?? "?"),
+            "http.url": .string(url),
             "http.headers": .string(redactedHeaders(request.allHTTPHeaderFields ?? [:])),
             "http.body_bytes": .int(Int64(request.httpBody?.count ?? 0))
         ])
-        breadcrumbs?.record("→ \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "?")", category: .network)
+        breadcrumbs?.record("→ \(request.httpMethod ?? "GET") \(url)", category: .network)
     }
 
     /// Logs the outcome. URLSession delivers metrics for every task, including
@@ -93,7 +103,7 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
 
         let error = task.error
         let request = task.originalRequest
-        let url = task.response?.url ?? request?.url ?? URL(fileURLWithPath: "/")
+        let url = urlRedaction.apply(to: task.response?.url ?? request?.url ?? URL(fileURLWithPath: "/"))
         let method = request?.httpMethod ?? "GET"
         let interval = metrics.taskInterval
         let durationMS = interval.duration * 1_000
@@ -107,7 +117,7 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
                 "http.method": .string(method),
                 "http.url": .string(url.absoluteString),
                 "http.duration_ms": .double(durationMS),
-                "error": .string(String(describing: error))
+                "error": .string(Self.describe(error))
             ])
             breadcrumbs?.record("✗ \(url.host ?? "?"): \(error.localizedDescription)", category: .network)
         } else {
@@ -130,11 +140,18 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
             statusCode: status,
             responseBytes: responseBytes,
             requestBytes: requestBytes,
-            errorDescription: error.map { String(describing: $0) }
+            errorDescription: error.map(Self.describe)
         ))
     }
 
     // MARK: - Private
+
+    /// Domain, code and message only. `String(describing:)` on a `URLError`
+    /// includes its userInfo, which holds the full, unredacted failing URL.
+    static func describe(_ error: Error) -> String {
+        let error = error as NSError
+        return "\(error.domain) \(error.code): \(error.localizedDescription)"
+    }
 
     func redactedHeaders(_ headers: [String: String]) -> String {
         headers

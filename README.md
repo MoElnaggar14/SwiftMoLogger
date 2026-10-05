@@ -506,7 +506,15 @@ let (data, _) = try await URLSession.shared.data(for: request, delegate: network
 // recorded, and the Hub's network waterfall is fed. Sensitive headers are redacted.
 ```
 
-`NetworkLogger` is a `URLSessionTaskDelegate` you inject where you create sessions; there is no global hook, so only sessions (or requests) you hand it are logged. It only observes: it never changes requests, buffers bodies or affects redirects. `Authorization`, `Cookie`, `Set-Cookie`, `X-API-Key`, `X-Auth-Token` and `Proxy-Authorization` values are redacted by default; pass `sensitiveHeaders:` to `NetworkLogger(logger:events:breadcrumbs:sensitiveHeaders:)` to change the list (start from `NetworkLogger.defaultSensitiveHeaders`).
+`NetworkLogger` is a `URLSessionTaskDelegate` you inject where you create sessions; there is no global hook, so only sessions (or requests) you hand it are logged. It only observes: it never changes requests, buffers bodies or affects redirects. `Authorization`, `Cookie`, `Set-Cookie`, `X-API-Key`, `X-Auth-Token` and `Proxy-Authorization` values are redacted by default; pass `sensitiveHeaders:` to `NetworkLogger(logger:events:breadcrumbs:sensitiveHeaders:urlRedaction:)` to change the list (start from `NetworkLogger.defaultSensitiveHeaders`).
+
+URLs are redacted too, everywhere they're written (log entries, breadcrumbs, the Hub's waterfall, error descriptions). By default `user:password@` is dropped and the values of common secret query items (`token`, `access_token`, `code`, `api_key`, `signature`, `X-Amz-Signature`, …) become `REDACTED`. Pick another `URLRedaction` per logger:
+
+```swift
+NetworkLogger(environment: logging, urlRedaction: .withoutQuery)                    // drop query strings
+NetworkLogger(environment: logging, urlRedaction: .redactingQueryItems(URLRedaction.defaultSensitiveQueryItems.union(["otp"])))
+NetworkLogger(environment: logging, urlRedaction: .full)                            // local debugging only
+```
 
 ### Privacy manifest
 

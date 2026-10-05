@@ -18,6 +18,7 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - Macros take their dependency explicitly: `#log(logger, …)`, `#measure(signposter, …)`. `@AutoLog` uses the type's `logger` property.
 
 ### Added
+- `URLRedaction` for `NetworkLogger`: URLs in log entries, breadcrumbs and network events drop `user:password@` and redact secret query values (`token`, `code`, `api_key`, `signature`, …) by default. `.withoutQuery` and `.full` are also available.
 - `LogEnvironment`: the composition root (registry, bound logger, live stream, diagnostics stores, signposter).
 - `LogContext.with(_:operation:)` and `TraceContext.run(_:)` for task-local scoping.
 - `URLRequest.addTraceparentHeader()`.
@@ -26,6 +27,7 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - `FlightRecorder(defaults:)` / `recoverLastSession(from:defaults:)`, so tests and app groups can supply their own `UserDefaults`.
 
 ### Fixed (found in review of the 4.0 changes)
+- **Network failures logged the full failing URL.** The error description was `String(describing:)` of the `URLError`, whose userInfo holds the unredacted URL.
 - **Requests weren't logged on the per-task delegate path.** With `session.data(for:delegate:)`, the request was never logged; it's now logged together with the outcome.
 - **`FlightRecorder(redactor:)` only redacted entries.** It now also redacts breadcrumbs and network-event errors, and drops URL query strings.
 - **`registry.reset()` disconnected `LogEnvironment.stream`.** The stream is now a persistent engine (`EngineRegistry.addPersistentEngine(_:)`), so it survives a reset.

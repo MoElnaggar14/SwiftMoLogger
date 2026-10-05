@@ -58,6 +58,48 @@ final class NetworkLoggingTests: XCTestCase {
         XCTAssertEqual(messages, ["HTTP request", "HTTP failure"])
     }
 
+    func testDefaultRedactionHidesSensitiveQueryValuesAndCredentials() {
+        let url = URL(string: "https://user:pw@example.com/cb?code=abc123&page=2&Access_Token=t0k#frag")!
+
+        let redacted = URLRedaction.default.apply(to: url).absoluteString
+
+        XCTAssertEqual(redacted, "https://example.com/cb?code=REDACTED&page=2&Access_Token=REDACTED#frag")
+    }
+
+    func testRedactionPolicies() {
+        let url = URL(string: "https://example.com/a?x=1&key=k#f")!
+        XCTAssertEqual(URLRedaction.full.apply(to: url), url)
+        XCTAssertEqual(URLRedaction.withoutQuery.apply(to: url).absoluteString, "https://example.com/a")
+        XCTAssertEqual(
+            URLRedaction.redactingQueryItems(["X"]).apply(to: url).absoluteString,
+            "https://example.com/a?x=REDACTED&key=k#f"
+        )
+        let plain = URL(string: "https://example.com/a")!
+        XCTAssertEqual(URLRedaction.default.apply(to: plain), plain)
+    }
+
+    func testSecretsInTheURLNeverReachLogsBreadcrumbsOrEvents() async throws {
+        let (environment, recorder) = LogEnvironment.recording()
+        let network = NetworkLogger(environment: environment)
+        let session = URLSession(configuration: .ephemeral, delegate: network, delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+
+        _ = try? await session.data(from: URL(string: "http://invalid.invalid/cb?token=s3cret&page=2")!)
+
+        for _ in 0..<100 where recorder.recorded().filter({ $0.message.hasPrefix("HTTP") }).count < 2 {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        let entries = recorder.recorded().filter { $0.message.hasPrefix("HTTP") }
+        XCTAssertEqual(entries.count, 2)
+        // The failure's error carries the failing URL in its userInfo; it must not leak either.
+        let logged = entries.map { "\($0.message) \($0.metadata)" }.joined()
+            + environment.breadcrumbs.snapshot().map(\.message).joined()
+            + environment.networkEvents.snapshot().map { "\($0.url) \($0.errorDescription ?? "")" }.joined()
+        XCTAssertFalse(logged.contains("s3cret"), logged)
+        XCTAssertTrue(logged.contains("token=REDACTED"))
+        XCTAssertTrue(logged.contains("page=2"))
+    }
+
     func testTraceparentHeaderOnlyInsideATrace() {
         var outside = URLRequest(url: URL(string: "https://example.com")!)
         outside.addTraceparentHeader()
