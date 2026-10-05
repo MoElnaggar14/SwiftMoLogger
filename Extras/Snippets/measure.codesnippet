@@ -7,7 +7,7 @@
     <key>IDECodeSnippetCompletionScopes</key>
     <array><string>All</string></array>
     <key>IDECodeSnippetContents</key>
-    <string>LogSignpost.measure("&lt;#name#&gt;", tag: .performance) {
+    <string>signposter.measure("&lt;#name#&gt;", tag: .performance) {
     &lt;#code#&gt;
 }</string>
     <key>IDECodeSnippetIdentifier</key>
