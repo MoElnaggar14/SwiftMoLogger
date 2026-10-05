@@ -108,6 +108,6 @@ public struct BugReporter: Sendable {
         guard sysctlbyname("hw.machine", nil, &size, nil, 0) == 0, size > 0 else { return "unknown" }
         var machine = [CChar](repeating: 0, count: size)
         guard sysctlbyname("hw.machine", &machine, &size, nil, 0) == 0 else { return "unknown" }
-        return String(cString: machine)
+        return String(decoding: machine.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 }

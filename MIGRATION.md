@@ -17,6 +17,10 @@ The global registry made SwiftMoLogger easy to start with, but it caused three p
 
 With injection, all three are explicit and swappable.
 
+## Requirements
+
+Xcode 16 or later. The library now compiles in the Swift 6 language mode; your app can stay on Swift 5 mode.
+
 ## 1. Build the environment once
 
 ```swift

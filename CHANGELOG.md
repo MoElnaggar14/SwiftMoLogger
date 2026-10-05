@@ -10,6 +10,7 @@ Dependency injection everywhere: SwiftMoLogger no longer has any singletons or
 global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 
 ### Breaking
+- **Swift 6.** Library targets compile in the Swift 6 language mode, with full data-race checking. Requires Xcode 16 or later (swift-tools-version 6.0).
 - Removed the static `SwiftMoLogger.*` facade and every `.shared` instance (`EngineRegistry`, `MoLogger`, `BreadcrumbStore`, `NetworkEventStore`, `SignpostEventStore`, `VitalsHistoryStore`, `LogStream`, `CombineLogPublisher`, `AppVitalsMonitor`).
 - `LogSignpost` replaced by the injectable `Signposter`; `LogTagged` replaced by `MoLogger.with(tag:)`.
 - Network capture is now `NetworkLogger`, a `URLSessionTaskDelegate` you inject. The `URLProtocol`-based capture is gone because the system instantiates those objects and they can't receive dependencies.

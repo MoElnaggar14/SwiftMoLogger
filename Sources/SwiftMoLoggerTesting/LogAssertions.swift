@@ -20,7 +20,7 @@ public func XCTAssertLogged(
     contains substring: String? = nil,
     tag: LogTag? = nil,
     in recorder: RecordingLogEngine,
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
 ) {
     let matches = recorder.recorded().filter { entry in
@@ -42,7 +42,7 @@ public func XCTAssertNotLogged(
     _ level: LogLevel,
     contains substring: String? = nil,
     in recorder: RecordingLogEngine,
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
 ) {
     let matches = recorder.recorded().filter { entry in
@@ -59,7 +59,7 @@ public func XCTAssertLogCount(
     _ expected: Int,
     atLevel level: LogLevel? = nil,
     in recorder: RecordingLogEngine,
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
 ) {
     let count: Int
