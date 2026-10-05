@@ -30,6 +30,7 @@ A correctness release. No breaking API changes; see "Behaviour changes".
 - `AppVitalsMonitor` leaked a mach port per thread on every CPU sample.
 - `WebSocketTailEngine` was never deallocated: `URLSession` retains its delegate. `disconnect()` now invalidates the session.
 - `LogSignpost.Interval.end()` had a data race on its "ended" flag.
+- **`SwiftMoLoggerUI` and `SwiftMoLoggerDiagnostics` didn't compile for tvOS or watchOS**, despite the declared platforms. Controls with no equivalent on those platforms now degrade gracefully (for example, the timeline scrubber uses step buttons on tvOS).
 - **Network logging broke the `URLProtocol` contract.** Client callbacks arrived on the child session's queue and could fire after `stopLoading()`. They're now delivered on the loading thread, and never after stop.
 - **Log shipping fed itself.** With `NetworkLogger.installOnSharedSession()` and a shipper on `URLSession.shared`, every shipped batch was logged and shipped again. Shippers now mark their requests with the new `URLRequest.excludeFromNetworkLogging()`.
 - `NetworkLoggingProtocol.sensitiveHeaders` is now lock-protected.

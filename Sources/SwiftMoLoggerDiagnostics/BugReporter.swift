@@ -76,10 +76,12 @@ public struct BugReporter: Sendable {
         let shortVersion = bundle?["CFBundleShortVersionString"] as? String ?? "?"
         let build = bundle?["CFBundleVersion"] as? String ?? "?"
         lines.append("Version: \(shortVersion) (\(build))")
-        #if canImport(UIKit)
+        #if canImport(UIKit) && !os(watchOS)
         let device = UIDevice.current
         lines.append("Device: \(device.model)")
         lines.append("OS: \(device.systemName) \(device.systemVersion)")
+        #else
+        lines.append("OS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
         #endif
         lines.append("Locale: \(Locale.current.identifier)")
         if let info = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()),

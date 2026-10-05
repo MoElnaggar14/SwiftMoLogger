@@ -69,8 +69,18 @@ public struct TimelineScrubberView: View {
                 model.scrubbedTime = date.timeIntervalSinceNow > -2 ? nil : date
             }
         )
+        #if os(tvOS)
+        // tvOS has no Slider; step through the window with focusable buttons.
+        let step: TimeInterval = 30
+        return HStack {
+            Button("−\(Int(step))s") { binding.wrappedValue = max(0, binding.wrappedValue - step) }
+            Button("Live") { model.scrubbedTime = nil }
+            Button("+\(Int(step))s") { binding.wrappedValue = min(span, binding.wrappedValue + step) }
+        }
+        #else
         return Slider(value: binding, in: 0...span)
             .controlSize(.small)
+        #endif
     }
 
     private func densityBuckets(count: Int, bucketSeconds: TimeInterval) -> [Int] {
