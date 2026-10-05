@@ -4,7 +4,7 @@
 > Structured, multi-engine, Swift-Concurrency-native — with an in-app Instruments dashboard, zero-config live tail to your Mac, automatic PII redaction, Sentry/Datadog/Loki shippers, and Swift Macros. All in one package, all opt-in.
 
 [![Swift](https://img.shields.io/badge/Swift-5.9_→_6.4-orange.svg)](https://swift.org)
-[![Platforms](https://img.shields.io/badge/iOS_15_•_macOS_12_•_tvOS_15_•_watchOS_8-lightgrey.svg)](https://developer.apple.com)
+[![Platforms](https://img.shields.io/badge/iOS_16_•_macOS_13_•_tvOS_16_•_watchOS_9-lightgrey.svg)](https://developer.apple.com)
 [![SPM](https://img.shields.io/badge/SPM-supported-brightgreen.svg)](https://swift.org/package-manager/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 

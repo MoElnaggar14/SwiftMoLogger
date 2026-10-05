@@ -70,7 +70,7 @@ jobs:
     - name: Setup Xcode
       uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: latest-stable
+        xcode-version: '27.0'
 
     - run: swift --version
     
@@ -102,8 +102,8 @@ jobs:
         fi
         
         # Validate iOS deployment target
-        if ! grep -q "iOS(.v15)" Package.swift; then
-          echo "❌ iOS 15 minimum deployment target requirement not met"
+        if ! grep -q "iOS(.v16)" Package.swift; then
+          echo "❌ iOS 16 minimum deployment target requirement not met"
           exit 1
         fi
         
@@ -215,14 +215,14 @@ jobs:
     - name: Setup Xcode
       uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: latest-stable
+        xcode-version: '27.0'
 
     - name: Use the package, not the stale root workspace
       # SwiftMoLogger.xcworkspace hides the package's schemes from xcodebuild.
       run: mv SwiftMoLogger.xcworkspace "$RUNNER_TEMP/"
 
     - name: Build tests for the iOS Simulator
-      # Compiles every library and test target against the iOS 15 deployment
+      # Compiles every library and test target against the iOS 16 deployment
       # target with the newest SDK.
       run: |
         set -o pipefail
