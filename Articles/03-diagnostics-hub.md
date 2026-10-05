@@ -2,33 +2,64 @@
 
 > The bug only repros on TestFlight, on a colleague's iPad, with airplane mode toggled at the wrong moment. You can't attach Xcode. You can't run Instruments. You have a screenshot and a feeling.
 
-This is the situation that motivated `DiagnosticsHubView`. The thesis: if every signal an iOS engineer cares about — logs, network requests, signpost spans, CPU/memory/FPS, breadcrumbs — is already a `Sendable` value in the app's memory, why does looking at them require a Mac?
+This is the situation that motivated `DiagnosticsHubView`. The thesis: if every signal an iOS engineer cares about (logs, network requests, signpost spans, CPU/memory/FPS, breadcrumbs) is already a `Sendable` value in the app's memory, why does looking at them require a Mac?
 
 ```swift
+import SwiftMoLogger
 import SwiftMoLoggerUI
 
 struct DebugTab: View {
-    var body: some View { DiagnosticsHubView() }
+    let logging: LogEnvironment   // injected from your App
+    var body: some View { DiagnosticsHubView(environment: logging) }
 }
 ```
 
-That's it. The same data Instruments would show you, in a SwiftUI view you can drop into any debug screen of any build.
+That's it: Instruments-style data in a SwiftUI view you can drop into any debug screen of any build.
 
 ## The architecture
 
-The Hub has one rule: **never own the data**. Each signal already has a shared `Store` in the core target:
+The Hub has one rule: **never own the data**. In 4.0 there are no `.shared` stores; one `LogEnvironment`, created at your composition root, owns the registry, logger and four diagnostics stores. The Hub only reads them.
 
+Think of a building's security system. The stores are cameras recording onto loop tapes. The Hub is the monitor room: it records nothing, it just plays the tapes.
+
+Each producer gets the piece it records into:
+
+```swift
+import SwiftMoLogger
+import SwiftMoLoggerNetwork
+import SwiftMoLoggerDiagnostics
+
+let logging = LogEnvironment()
+
+// Network waterfall
+let network = NetworkLogger(environment: logging)
+let session = URLSession(configuration: .default, delegate: network, delegateQueue: nil)
+
+// Flame graph
+let signposter = logging.signposter
+let users = try signposter.measure("loadUsers") { try userRepository.all() }
+
+// Vitals charts (keep a strong reference, or sampling stops)
+let vitals = AppVitalsMonitor(logger: logging.logger, history: logging.vitals)
+vitals.start(interval: 1)
+
+// Breadcrumbs
+logging.breadcrumbs.record("tapped Checkout", category: .userAction)
 ```
-NetworkEventStore.shared      ← NetworkLoggingProtocol records here
-SignpostEventStore.shared     ← LogSignpost.measure records here
-VitalsHistoryStore.shared     ← AppVitalsMonitor records here
-BreadcrumbStore.shared        ← SwiftMoLogger.breadcrumb records here
-MemoryLogEngine               ← engineCount controlled by HubViewModel
-```
 
-Each store is a fixed-capacity ring buffer guarded by `os_unfair_lock`. `record(_:)` is O(1). `snapshot()` returns a value-typed `Array`. No retain cycles, no shared mutable state escapes the lock.
+The rule that matters with injection: **feed and read from the same environment**. A `NetworkLogger` built from another `LogEnvironment` writes to another store, and the waterfall stays empty.
 
-The `HubViewModel` (`@MainActor ObservableObject`) polls every 500 ms, pulls a snapshot from each store, and publishes them as `@Published` properties. SwiftUI rebuilds the affected sub-views and that's it. The 500 ms tick is the throttle that keeps the UI thread untouched even when 10 000 log entries land per second.
+### Loop tapes, not archives
+
+Each store is a fixed-capacity ring buffer behind an `UnfairLock`. When full, the oldest item is overwritten, like a loop tape. Defaults: 500 network events, 500 spans, 600 vitals ticks, 100 breadcrumbs (pass your own `capacity:` stores to `LogEnvironment`). `record(_:)` is O(1), and `snapshot()` returns a value-typed `Array`.
+
+### The view model
+
+`HubViewModel` (`@MainActor`) snapshots every store every 500 ms by default, but only while the Hub is on screen. The tick is the throttle: a burst of logs never becomes a burst of SwiftUI updates.
+
+The Logs tab is the exception to "never own the data". The view model registers its own `MemoryLogEngine` (2,000 entries by default) with `environment.registry`, and removes it in `deinit`. Older versions left it behind whenever a Hub closed, still receiving every line.
+
+So the Logs tab starts when the model does. For history from launch, create a `HubViewModel(environment:)` early and show it with `DiagnosticsHubView(model:)`.
 
 ## The unifying abstraction: `scrubbedTime`
 
@@ -40,33 +71,33 @@ public func inWindow(_ timestamp: Date) -> Bool {
 }
 ```
 
-`windowEnd` defaults to `Date()` (live tail). When the user drags the slider in `TimelineScrubberView`, `model.scrubbedTime` becomes a fixed instant and every sub-view shows you that moment's reality — the network requests that were in flight, the signpost spans that were open, the memory level at the time.
+`windowEnd` is `scrubbedTime ?? Date()`, so `nil` means live tail, over a 60-second window by default. Drag the slider in `TimelineScrubberView` (it reaches back 10 minutes) and `scrubbedTime` becomes a fixed instant. Every sub-view shows that moment: requests in flight, spans running, memory level. "Live" snaps back.
 
-This is the **time-travel** part. It's not a complicated abstraction — it's a `Date` shared by five views — but the effect on debugging is dramatic. "What was happening right before the crash?" becomes "drag the slider until the crash entry, look around."
+This is the **time-travel** part: rewinding every tape at once. One shared `Date`, but "what was happening right before the crash?" becomes "drag the slider to the crash entry and look around."
 
 ## The five tabs
 
 ### Logs
 
-A `LazyVStack` of `LogEntryRowView`s filtered by `inWindow`. The view is intentionally simple — the heavy lifting (filtering by level, search, pause) lives on the existing `LogConsoleViewModel` that the Hub composes.
+A `LazyVStack` of `LogEntryRowView`s from the Hub's memory engine, filtered by `inWindow`. The scrubber draws a per-second density bar from the same entries. For just a console, use `LogConsoleView(stream: logging.stream)`.
 
 ### Network waterfall
 
-Each `NetworkEvent` becomes a row:
+Each `NetworkEvent` becomes a row, something like:
 
 ```
-GET /v1/users         ████░░░░░░  142ms  [200]
-POST /v1/checkout     ████████░░  423ms  [201]
-GET /v1/products      ███████████ 891ms  [500]
+GET users         ████░░░░░░  142ms  [200]
+POST checkout     ████████░░  423ms  [201]
+GET products      ███████████ 891ms  [500]
 ```
 
-The bar's `x` position encodes start time relative to the window; the bar's width encodes duration. Status family drives colour (`200..<300` green, `400..<500` orange, `500..<600` red). Tap a row → sheet with the full request/response/error detail.
+Offset encodes start time within the window; width encodes duration. Colour follows status: green 2xx, yellow 3xx, orange 4xx, red for 5xx or a transport error. Tap a row for method, URL, status, sizes, duration, error and timestamps.
 
-The data comes from `NetworkEventStore.shared`, which the `NetworkLoggingProtocol` records into on every request completion. So you opt into the waterfall by installing the protocol — nothing else.
+The data comes from `NetworkLogger`, which records each task when `urlSession(_:task:didFinishCollecting:)` fires. Use it on a session you own, or per request: `URLSession.shared.data(for: request, delegate: network)`. It only observes, and redacts URLs before they reach the store (see `NetworkLogger(environment:urlRedaction:)`).
 
 ### Signpost flame graph
 
-Spans laid out via greedy lane assignment: walk events sorted by start time; place each in the lowest lane whose current occupant has already ended. Concurrent spans stack vertically; sequential spans share a lane.
+Greedy lane assignment: walk spans by start time and put each in the lowest lane whose occupant has already ended. Concurrent spans stack; sequential spans share a lane.
 
 ```swift
 private func laneAssignments(for events: [SignpostEvent]) -> [UUID: Int] {
@@ -85,30 +116,25 @@ private func laneAssignments(for events: [SignpostEvent]) -> [UUID: Int] {
 }
 ```
 
-Span colour encodes duration tier: blue (< 50 ms), orange (< 250 ms), red (≥ 250 ms). The signposts come from `LogSignpost.measure` — same call you'd use for Instruments integration — so wiring an existing app costs nothing.
+Colour encodes duration: blue up to 50 ms, orange up to 250 ms, red above. The spans come from `environment.signposter`, a `Signposter` wired to the environment's logger and signpost store. One `measure` gives you an Instruments interval, a timing log entry and a flame-graph bar.
 
 ### Vitals charts
 
-Three line charts: memory_MB, cpu_pct, fps. On iOS 16+ they render via Swift Charts:
+Memory, CPU and FPS line charts in Swift Charts, with a summary card where Charts is unavailable. The data is `environment.vitals.snapshot()`, fed by `AppVitalsMonitor(logger:history:)` once you call `start(interval:)`.
 
-```swift
-Chart(ticks) { tick in
-    LineMark(x: .value("t", tick.timestamp),
-             y: .value("MB", tick.memoryMB))
-}
-```
-
-On iOS 15 there's a summary card fallback. Either way, the data is `VitalsHistoryStore.shared.snapshot()` — a value-typed array of `VitalsTick`. The store is fed by `AppVitalsMonitor.shared.start(interval:)`.
+Two monitor bugs are fixed in 4.0. Its `CADisplayLink` retained the monitor until `stop()`; a proxy now holds it weakly. And on ProMotion it held the screen at 120 Hz just to count frames; the link is now capped at 60 Hz, so FPS is measured against 60.
 
 ### Breadcrumbs trail
 
-A vertical timeline of `Breadcrumb`s, with a coloured dot per category and a connecting line between them. Synced to the same window as everything else. This is the "what was the user doing before this happened" view.
+A vertical timeline of `Breadcrumb`s, a coloured dot per category, synced to the same window. This is the "what was the user doing before this happened" view. `NetworkLogger` adds a crumb per request and response, so trail and waterfall line up.
 
-## Why one view, not a separate Xcode app
+The Hub also builds for tvOS and watchOS and degrades gracefully: tvOS has no `Slider`, so the scrubber uses step buttons, and FPS is only measured on iOS and tvOS.
 
-A separate desktop tool (Charles / Pulse / Bagel) is genuinely useful, but it has a cost: every QA engineer needs to install it, configure proxies, accept root certificates, and run a Mac. The on-device Hub bypasses all of that. Anybody who can install your TestFlight build can open the debug tab and see what happened.
+## Why one view, not a separate Mac app
 
-The Mac CLI in `SwiftMoLoggerInspector` complements the Hub — it's there for the times when you do want a multi-device dashboard on a real screen. But it's not the *primary* surface. The Hub is.
+Charles, Pulse or Bagel are genuinely useful, but every QA engineer needs to install them, configure proxies, trust certificates and run a Mac. Anybody who can install your TestFlight build can open the Hub.
+
+The `swiftmologger-inspector` CLI, which tails `LiveSink` devices over Bonjour, complements it. But the Hub is the *primary* surface.
 
 ## What I'd add next
 
@@ -116,6 +142,6 @@ The Mac CLI in `SwiftMoLoggerInspector` complements the Hub — it's there for t
 - **Export as `.trace`.** Hand off to real Instruments for deep dives.
 - **Replay from a `FlightRecorder` file.** Crash recovered? Load the recorded session into the Hub and scrub through what happened.
 
-The third one is closer than it looks — it's the next article's topic.
+The third is closer than it looks: since stores are injected, a recovered session could be poured into a fresh `LogEnvironment` and handed to the Hub. The Flight Recorder is covered in [the production playbook](05-production-playbook.md); next up is [Bonjour and Swift Macros](04-bonjour-and-macros.md).
 
-→ See [`Sources/SwiftMoLoggerUI/Hub/`](../Sources/SwiftMoLoggerUI/Hub) for the implementation.
+→ Implementation: [`Sources/SwiftMoLoggerUI/Hub/`](../Sources/SwiftMoLoggerUI/Hub). Setup: [README](../README.md). Coming from 3.x: [MIGRATION.md](../MIGRATION.md).

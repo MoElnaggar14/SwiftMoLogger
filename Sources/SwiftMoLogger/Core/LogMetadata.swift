@@ -39,7 +39,8 @@ extension LogMetadataValue: ExpressibleByStringLiteral, ExpressibleByIntegerLite
     public init(nilLiteral: ()) { self = .null }
     public init(arrayLiteral elements: LogMetadataValue...) { self = .array(elements) }
     public init(dictionaryLiteral elements: (String, LogMetadataValue)...) {
-        self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
+        // A repeated key keeps its last value instead of trapping.
+        self = .dictionary(Dictionary(elements, uniquingKeysWith: { _, last in last }))
     }
 }
 
@@ -52,7 +53,8 @@ public struct LogMetadata: Sendable, Hashable, Codable, ExpressibleByDictionaryL
     }
 
     public init(dictionaryLiteral elements: (String, LogMetadataValue)...) {
-        self.storage = Dictionary(uniqueKeysWithValues: elements)
+        // A repeated key keeps its last value instead of trapping.
+        self.storage = Dictionary(elements, uniquingKeysWith: { _, last in last })
     }
 
     public var isEmpty: Bool { storage.isEmpty }

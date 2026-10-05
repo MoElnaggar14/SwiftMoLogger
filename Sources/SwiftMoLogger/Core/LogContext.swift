@@ -9,4 +9,20 @@ import Foundation
 public enum LogContext {
     @TaskLocal
     public static var current: LogMetadata = LogMetadata()
+
+    /// Runs `operation` with `metadata` merged onto the current context.
+    /// Every entry logged inside (by any logger) carries it.
+    public static func with<T>(
+        _ metadata: LogMetadata,
+        operation: () throws -> T
+    ) rethrows -> T {
+        try $current.withValue(current.merging(metadata), operation: operation)
+    }
+
+    public static func with<T>(
+        _ metadata: LogMetadata,
+        operation: () async throws -> T
+    ) async rethrows -> T {
+        try await $current.withValue(current.merging(metadata), operation: operation)
+    }
 }

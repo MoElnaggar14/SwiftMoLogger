@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Debug configuration only: LiveSink advertises on the local network so the
+	     swiftmologger-inspector CLI can tail this device. Release builds don't need
+	     (and shouldn't ship) these keys. Merged with the keys Xcode generates. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Streams debug logs to the SwiftMoLogger Inspector on your Mac.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_swiftmologger._tcp</string>
+	</array>
+</dict>
+</plist>

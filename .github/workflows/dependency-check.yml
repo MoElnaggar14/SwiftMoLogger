@@ -18,15 +18,19 @@ on:
 jobs:
   dependency-analysis:
     name: Dependency Analysis
-    runs-on: macos-14
+    runs-on: xcode-27
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
     - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '27.0'
+
+    - name: Toolchain
       run: |
-        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
         swift --version
         
     - name: Analyze Package Dependencies
@@ -186,40 +190,51 @@ jobs:
         cat $REPORT_FILE
 
   swift-version-compatibility:
-    name: Swift Version Compatibility
-    runs-on: macos-14
+    name: Swift Version Compatibility (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
-        swift-version: ['5.9', '5.10']
-        
+        include:
+          - name: Swift 6.4, Xcode 27
+            runner: xcode-27
+            xcode: '27.0'
+          - name: Swift 6.3, Xcode 26.6
+            runner: macos-26
+            xcode: '26.6'
+          - name: Swift 6.1, Xcode 16.4
+            runner: macos-15
+            xcode: '16.4'
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Test Swift ${{ matrix.swift-version }} Compatibility
+
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: ${{ matrix.xcode }}
+
+    - name: Build and test with the newest allowed dependencies
       run: |
-        echo "🔍 Testing compatibility with Swift ${{ matrix.swift-version }}"
-        
-        # This is a basic compatibility check
-        # In practice, you'd use different Xcode versions or Docker images
-        
-        swift build -v
+        swift --version
+        swift package update
+        swift build --build-tests
         swift test
-        
-        echo "✅ Compatible with Swift ${{ matrix.swift-version }}"
 
   package-quality-metrics:
     name: Package Quality Metrics
-    runs-on: macos-14
+    runs-on: xcode-27
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
     - name: Setup Xcode
-      run: |
-        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-        
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '27.0'
+
     - name: Calculate Package Metrics
       run: |
         echo "📊 Calculating package quality metrics..."
@@ -269,7 +284,7 @@ jobs:
 
   maintenance-check:
     name: Maintenance Check
-    runs-on: macos-14
+    runs-on: macos-15
     if: github.event_name == 'schedule'
     
     steps:
@@ -301,7 +316,7 @@ jobs:
 
   alert-on-issues:
     name: Alert on Critical Issues
-    runs-on: macos-14
+    runs-on: macos-15
     needs: [dependency-analysis, swift-version-compatibility, package-quality-metrics]
     if: failure() && (github.event_name == 'schedule' || github.event_name == 'push')
     

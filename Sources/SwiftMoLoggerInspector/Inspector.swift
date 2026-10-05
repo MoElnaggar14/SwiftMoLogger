@@ -16,7 +16,7 @@ import Network
 /// ```swift
 /// let sink = LiveSink()
 /// try sink.start()
-/// SwiftMoLogger.addEngine(sink)
+/// logging.registry.addEngine(sink)
 /// ```
 
 @main
@@ -117,7 +117,19 @@ final class InspectorRuntime: @unchecked Sendable {
             return
         }
         if object["service"] as? String == "SwiftMoLogger.LiveSink" {
-            print(Ansi.dim("…banner from \(source): \(object["app"] ?? "?")"))
+            // Hello line (version 2) or the 3.x banner (version 1, no `kind`).
+            let version = object["version"] as? Int ?? 1
+            let app = object["app"] as? String ?? "?"
+            let appVersion = object["app_version"] as? String ?? ""
+            print(Ansi.dim("…connected to \(source): \(app) \(appVersion)"))
+            if version != Self.protocolVersion {
+                print(Ansi.yellow("…\(source) speaks LiveSink protocol \(version); this inspector speaks \(Self.protocolVersion). "
+                    + "Use the inspector from the same SwiftMoLogger version as the app."))
+            }
+            return
+        }
+        // Control messages from newer devices: skip the kinds this inspector doesn't know.
+        if object["kind"] != nil {
             return
         }
         // LogEntry shape
@@ -128,6 +140,9 @@ final class InspectorRuntime: @unchecked Sendable {
         let timestamp = object["timestamp"] as? String ?? ""
         print("\(Ansi.dim(timestamp)) \(level) \(Ansi.cyan(source)) \(Ansi.magenta(tag)) \(Ansi.dim("[" + thread + "]")) \(message)")
     }
+
+    /// The LiveSink line protocol this inspector understands (``LiveSink/protocolVersion``).
+    static let protocolVersion = 2
 
     private static func levelString(from raw: Any?) -> String {
         let intValue = raw as? Int ?? -1
@@ -146,12 +161,19 @@ final class InspectorRuntime: @unchecked Sendable {
 }
 
 enum Ansi {
-    static func bold(_ s: String) -> String { "\u{1B}[1m\(s)\u{1B}[0m" }
-    static func dim(_ s: String) -> String { "\u{1B}[2m\(s)\u{1B}[0m" }
-    static func red(_ s: String) -> String { "\u{1B}[31m\(s)\u{1B}[0m" }
-    static func green(_ s: String) -> String { "\u{1B}[32m\(s)\u{1B}[0m" }
-    static func yellow(_ s: String) -> String { "\u{1B}[33m\(s)\u{1B}[0m" }
-    static func blue(_ s: String) -> String { "\u{1B}[34m\(s)\u{1B}[0m" }
-    static func magenta(_ s: String) -> String { "\u{1B}[35m\(s)\u{1B}[0m" }
-    static func cyan(_ s: String) -> String { "\u{1B}[36m\(s)\u{1B}[0m" }
+    /// Off when `NO_COLOR` is set (https://no-color.org) or output isn't a terminal.
+    static let enabled = ProcessInfo.processInfo.environment["NO_COLOR"] == nil && isatty(STDOUT_FILENO) != 0
+
+    private static func style(_ code: String, _ s: String) -> String {
+        enabled ? "\u{1B}[\(code)m\(s)\u{1B}[0m" : s
+    }
+
+    static func bold(_ s: String) -> String { style("1", s) }
+    static func dim(_ s: String) -> String { style("2", s) }
+    static func red(_ s: String) -> String { style("31", s) }
+    static func green(_ s: String) -> String { style("32", s) }
+    static func yellow(_ s: String) -> String { style("33", s) }
+    static func blue(_ s: String) -> String { style("34", s) }
+    static func magenta(_ s: String) -> String { style("35", s) }
+    static func cyan(_ s: String) -> String { style("36", s) }
 }

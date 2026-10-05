@@ -14,11 +14,10 @@ import UIKit
 /// shipping engines.
 ///
 /// ```swift
-/// AppVitalsMonitor.shared.start(interval: 5)
+/// let vitals = AppVitalsMonitor(logger: logging.logger, history: logging.vitals)
+/// vitals.start(interval: 5)
 /// ```
 public final class AppVitalsMonitor: @unchecked Sendable {
-    public static let shared = AppVitalsMonitor()
-
     public struct Sample: Sendable, Codable {
         public let timestamp: Date
         public let memoryUsedBytes: UInt64
@@ -30,7 +29,7 @@ public final class AppVitalsMonitor: @unchecked Sendable {
 
     private var timer: DispatchSourceTimer?
     private let queue = DispatchQueue(label: "swiftmologger.vitals", qos: .utility)
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
     private var _lastSample: Sample?
 
     #if canImport(QuartzCore) && (os(iOS) || os(tvOS))
@@ -38,24 +37,45 @@ public final class AppVitalsMonitor: @unchecked Sendable {
     private var frameCount: Int = 0
     private var fpsStart: CFTimeInterval = 0
     private var lastFPS: Double = 0
+    private var displayLinkGeneration = 0
     #endif
 
-    private init() {}
+    private let logger: MoLogger
+    private let history: VitalsHistoryStore?
+
+    /// - Parameters:
+    ///   - logger: Receives one `.notice` entry per sample.
+    ///   - history: Keeps samples for the Diagnostics Hub's charts. `nil` to skip.
+    public init(logger: MoLogger, history: VitalsHistoryStore? = nil) {
+        self.logger = logger
+        self.history = history
+    }
 
     public var lastSample: Sample? {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         return _lastSample
     }
 
     public func start(interval: TimeInterval = 10) {
         stop()
         #if canImport(QuartzCore) && (os(iOS) || os(tvOS))
+        let generation = lock.withLock { () -> Int in
+            displayLinkGeneration += 1
+            return displayLinkGeneration
+        }
         DispatchQueue.main.async {
+            // A stop() (or newer start()) that ran before this block wins.
+            guard self.lock.withLock({ self.displayLinkGeneration == generation }) else { return }
+            self.displayLink?.invalidate()
             self.fpsStart = CACurrentMediaTime()
             self.frameCount = 0
-            self.displayLink = CADisplayLink(target: self, selector: #selector(self.tickFrame))
-            self.displayLink?.add(to: .main, forMode: .common)
+            // The proxy holds the monitor weakly: a display link retains its target.
+            let link = CADisplayLink(target: DisplayLinkProxy(self), selector: #selector(DisplayLinkProxy.tick))
+            // Capped at 60 Hz so ProMotion screens aren't kept at 120 Hz just to be measured.
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+            link.add(to: .main, forMode: .common)
+            self.displayLink = link
         }
         #endif
 
@@ -68,12 +88,24 @@ public final class AppVitalsMonitor: @unchecked Sendable {
         self.timer = timer
     }
 
+    deinit {
+        timer?.cancel()
+        #if canImport(QuartzCore) && (os(iOS) || os(tvOS))
+        // Only touched on the main queue, where it's invalidated.
+        nonisolated(unsafe) let link = displayLink
+        DispatchQueue.main.async { link?.invalidate() }
+        #endif
+    }
+
     public func stop() {
         timer?.cancel()
         timer = nil
         #if canImport(QuartzCore) && (os(iOS) || os(tvOS))
-        displayLink?.invalidate()
-        displayLink = nil
+        lock.withLock { displayLinkGeneration += 1 }
+        DispatchQueue.main.async {
+            self.displayLink?.invalidate()
+            self.displayLink = nil
+        }
         #endif
     }
 
@@ -88,19 +120,19 @@ public final class AppVitalsMonitor: @unchecked Sendable {
             thermalState: thermalStateLabel(),
             batteryLevel: currentBatteryLevel()
         )
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         _lastSample = sample
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
 
         let memoryMB = Double(sample.memoryUsedBytes) / 1_048_576
-        SwiftMoLogger.notice("vitals", tag: .performance, metadata: [
+        logger.notice("vitals", tag: .performance, metadata: [
             "memory_mb": .double(memoryMB),
             "cpu_pct": .double(sample.cpuUsagePercent),
             "fps": .double(sample.fps),
             "thermal": .string(sample.thermalState),
             "battery": .double(sample.batteryLevel)
         ])
-        VitalsHistoryStore.shared.record(VitalsTick(
+        history?.record(VitalsTick(
             timestamp: sample.timestamp,
             memoryMB: memoryMB,
             cpuPercent: sample.cpuUsagePercent,
@@ -127,7 +159,16 @@ public final class AppVitalsMonitor: @unchecked Sendable {
         guard task_threads(mach_task_self_, &threadList, &threadCount) == KERN_SUCCESS,
               let threads = threadList else { return 0 }
         defer {
-            vm_deallocate(mach_task_self_, vm_address_t(bitPattern: threads), vm_size_t(threadCount) * vm_size_t(MemoryLayout<thread_t>.size))
+            // task_threads hands us a send right per thread plus the array
+            // itself; release both or every sample leaks mach ports.
+            for index in 0..<Int(threadCount) {
+                mach_port_deallocate(mach_task_self_, threads[index])
+            }
+            vm_deallocate(
+                mach_task_self_,
+                vm_address_t(UInt(bitPattern: threads)),
+                vm_size_t(threadCount) * vm_size_t(MemoryLayout<thread_t>.size)
+            )
         }
         var total: Double = 0
         // Compute count from layout to avoid relying on the
@@ -178,16 +219,40 @@ public final class AppVitalsMonitor: @unchecked Sendable {
 
     private func currentBatteryLevel() -> Double {
         #if canImport(UIKit) && os(iOS)
-        UIDevice.current.isBatteryMonitoringEnabled = true
-        return Double(UIDevice.current.batteryLevel)
+        // UIDevice is main-actor isolated; samples are taken on a background queue.
+        return DispatchQueue.main.sync {
+            MainActor.assumeIsolated {
+                // Battery monitoring is app-wide state: leave it as the app had it.
+                let device = UIDevice.current
+                let wasEnabled = device.isBatteryMonitoringEnabled
+                if !wasEnabled { device.isBatteryMonitoringEnabled = true }
+                defer { if !wasEnabled { device.isBatteryMonitoringEnabled = false } }
+                return Double(device.batteryLevel)
+            }
+        }
         #else
         return -1
         #endif
     }
 
     #if canImport(QuartzCore) && (os(iOS) || os(tvOS))
-    @objc private func tickFrame() {
+    fileprivate func tickFrame() {
         frameCount += 1
     }
     #endif
 }
+
+#if canImport(QuartzCore) && (os(iOS) || os(tvOS))
+/// Forwards display-link callbacks without retaining the monitor.
+private final class DisplayLinkProxy: NSObject {
+    private weak var monitor: AppVitalsMonitor?
+
+    init(_ monitor: AppVitalsMonitor) {
+        self.monitor = monitor
+    }
+
+    @objc func tick() {
+        monitor?.tickFrame()
+    }
+}
+#endif

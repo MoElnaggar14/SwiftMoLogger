@@ -28,6 +28,33 @@ public struct LogTag: Sendable, Hashable, Codable, RawRepresentable, CustomStrin
 
     public var description: String { rawValue }
 
+    // MARK: Codable
+    //
+    // Written by hand: the synthesized RawRepresentable coding would encode
+    // only `rawValue` and re-derive `domain` on decode, turning e.g.
+    // `LogTag.api` (domain "network.api") into domain "api".
+
+    private enum CodingKeys: String, CodingKey {
+        case rawValue, domain
+    }
+
+    public init(from decoder: any Decoder) throws {
+        if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+            let rawValue = try container.decode(String.self, forKey: .rawValue)
+            let domain = try container.decodeIfPresent(String.self, forKey: .domain)
+            self.init(rawValue, domain: domain ?? LogTag.derivedDomain(from: rawValue))
+        } else {
+            // Files written before 3.1 stored the tag as a bare string.
+            self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(rawValue, forKey: .rawValue)
+        try container.encode(domain, forKey: .domain)
+    }
+
     private static func derivedDomain(from rawValue: String) -> String {
         let trimmed = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
         return trimmed.isEmpty ? "general" : trimmed.lowercased()

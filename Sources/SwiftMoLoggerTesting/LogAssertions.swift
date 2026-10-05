@@ -7,7 +7,7 @@ import SwiftMoLogger
 /// ```swift
 /// final class CheckoutTests: XCTestCase {
 ///     var logs: RecordingLogEngine!
-///     override func setUp() { logs = SwiftMoLogger.installRecorder() }
+///     override func setUp() { (log, logs) = MoLogger.recording() }
 ///
 ///     func testCheckoutFailureIsLogged() {
 ///         service.purchase(invalid: true)
@@ -20,16 +20,10 @@ public func XCTAssertLogged(
     contains substring: String? = nil,
     tag: LogTag? = nil,
     in recorder: RecordingLogEngine,
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    let matches = recorder.recorded().filter { entry in
-        guard entry.level == level else { return false }
-        if let substring = substring, !entry.message.contains(substring) { return false }
-        if let tag = tag, entry.tag?.domain != tag.domain { return false }
-        return true
-    }
-    if matches.isEmpty {
+    if !recorder.contains(level, containing: substring, tag: tag) {
         let levelDescription = level.description
         let summary = "Expected log at level \(levelDescription)" +
             (substring.map { " containing \"\($0)\"" } ?? "") +
@@ -42,14 +36,10 @@ public func XCTAssertNotLogged(
     _ level: LogLevel,
     contains substring: String? = nil,
     in recorder: RecordingLogEngine,
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    let matches = recorder.recorded().filter { entry in
-        guard entry.level == level else { return false }
-        if let substring = substring, !entry.message.contains(substring) { return false }
-        return true
-    }
+    let matches = recorder.entries(level, containing: substring)
     if !matches.isEmpty {
         XCTFail("Expected no log at \(level.description); found: \(matches.map(\.message))", file: file, line: line)
     }
@@ -59,14 +49,8 @@ public func XCTAssertLogCount(
     _ expected: Int,
     atLevel level: LogLevel? = nil,
     in recorder: RecordingLogEngine,
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    let count: Int
-    if let level = level {
-        count = recorder.recorded().filter { $0.level == level }.count
-    } else {
-        count = recorder.recorded().count
-    }
-    XCTAssertEqual(count, expected, file: file, line: line)
+    XCTAssertEqual(recorder.count(level), expected, file: file, line: line)
 }

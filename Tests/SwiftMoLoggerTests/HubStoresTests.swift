@@ -1,7 +1,7 @@
 import XCTest
 @testable import SwiftMoLogger
 
-final class HubStoresTests: XCTestCase {
+final class HubStoresTests: LoggingTestCase {
 
     func testNetworkEventStoreBoundedByCapacity() {
         let store = NetworkEventStore(capacity: 3)

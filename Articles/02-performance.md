@@ -2,20 +2,20 @@
 
 > "Logging is fine, it doesn't show up in profiles." — every team, ten seconds before logging shows up in profiles.
 
-The first version of SwiftMoLogger v2 used a concurrent `DispatchQueue` with barrier writes to protect its engine list. The second version inlined a copy of the engine array into every log call. Both worked. Neither was fast enough to log in a tight Metal render loop without showing up on a trace.
+SwiftMoLogger v2 first protected its engine list with a concurrent `DispatchQueue` and barrier writes, then inlined a copy of the engine array into every call. Both worked. Neither was fast enough to log in a tight Metal render loop without showing up on a trace.
 
-v3 hits ~140 ns for a log call when no engines are attached. This is the article on how it got there.
+[PERFORMANCE.md](../PERFORMANCE.md) puts a log call with no engines attached at ~140 ns. This is how it got there, updated for 4.0, where every call goes through a `MoLogger` you inject from a `LogEnvironment`.
 
 ## What "fast" means for a logger
 
-The hot path of a log call is the sequence of instructions that run *every time* you call `info("…")`, regardless of whether the entry is kept, dropped, or fanned out. There are four budgets we care about:
+The hot path is what runs *every time* you call `logger.info("…")`. I care about four budgets:
 
 1. **CPU time.** How many nanoseconds.
-2. **Allocations.** How many heap objects materialised.
+2. **Allocations.** How many heap objects materialise.
 3. **Lock contention.** What blocks other threads.
 4. **Argument evaluation.** Whether `"\(complexExpression())"` runs even when filtered.
 
-A "fast" logger is one where dropping a call below `minimumLevel` costs you a level comparison and nothing else — no string interpolation, no `Date()`, no `Array` allocation.
+A fast logger drops a filtered call for a level check and little else.
 
 ## The lock that isn't a queue
 
@@ -29,36 +29,58 @@ func allEngines() -> [LogEngine] {
 }
 ```
 
-That `sync` hop costs ~300 ns even when the queue is uncontended, and `Array(engines)` allocates. **Every log call paid that.**
+A `sync` hop is far heavier than an uncontended lock, and `Array(engines)` allocates. **Every log call paid that.**
 
-v3 uses `os_unfair_lock`:
+Since v3 the registry uses `os_unfair_lock`. Here is `EngineRegistry.dispatch(_:)` in 4.0, abridged:
 
 ```swift
-private var lock = os_unfair_lock_s()
-
 public func dispatch(_ entry: LogEntry) {
-    os_unfair_lock_lock(&lock)
+    lock.lock()
     let level = globalMinimumLevel
     guard entry.level >= level else {
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
         return
     }
-    let snapshot = engines      // copy of ContiguousArray<any LogEngine>
-    os_unfair_lock_unlock(&lock)
+    let snapshot = engines      // ContiguousArray<any LogEngine>
+    lock.unlock()
 
-    for engine in snapshot where entry.level >= engine.minimumLevel {
-        engine.log(entry)
+    // … merge the task-local LogContext into `merged` (skipped when it's empty) …
+
+    for engine in snapshot where merged.level >= engine.minimumLevel {
+        engine.log(merged)
     }
 }
 ```
 
-`os_unfair_lock_lock` is ~10 ns uncontended. The critical section is one comparison and one array copy. The `ContiguousArray` of class references is essentially a pointer copy — no heap traffic. The engines fan-out happens **outside** the lock, so a slow I/O engine can't stall the next call.
+The critical section is one comparison and one array copy, which only retains the `ContiguousArray`'s buffer. Like a bouncer, the lock checks your name and returns to the door; it doesn't walk you to the bar. Fan-out happens **outside** the lock, so a slow engine can't stall the next caller.
 
-This single change dropped per-call cost ~3×.
+The registry's notes credit this with ~3× lower per-call cost than the barrier queue.
+
+### The 3.1 fix: a lock needs an address
+
+v3 called `os_unfair_lock_lock(&lock)` on a stored `os_unfair_lock_s`. That looks right, and it's undefined behaviour. `&` on a stored Swift property doesn't promise a stable address; the compiler may pass a pointer to a temporary copy, and the lock silently does nothing. It's like agreeing to meet "at the whiteboard" when everyone got their own photocopy of it.
+
+Thirteen types did this. 3.1 moved them all to a heap-allocated wrapper (`Core/UnfairLock.swift`, abridged):
+
+```swift
+package final class UnfairLock: @unchecked Sendable {
+    private let pointer: os_unfair_lock_t
+
+    package init() {
+        pointer = .allocate(capacity: 1)
+        pointer.initialize(to: os_unfair_lock())
+    }
+
+    package func lock() { os_unfair_lock_lock(pointer) }
+    package func unlock() { os_unfair_lock_unlock(pointer) }
+}
+```
+
+The lock is allocated once, with its owner, and never moves.
 
 ## Filtering before allocation
 
-The level helpers used to look like this:
+In 3.0 the level helpers looked like this:
 
 ```swift
 public static func info(_ message: @autoclosure () -> String, …) {
@@ -66,52 +88,83 @@ public static func info(_ message: @autoclosure () -> String, …) {
 }
 ```
 
-The `@autoclosure` was decorative: `info` called `message()` to pass a `String` to `log()`, which made the lazy wrapping pointless. If your call was `info("user \(expensiveDescribe(user))")`, the expensive computation ran whether or not the entry was kept.
+The `@autoclosure` was decorative: calling `message()` there did the interpolation even when the entry was dropped.
 
-The fix is a single line:
+In 4.0, `MoLogger.info` forwards into `log`'s own `@autoclosure`, so nothing runs yet, and `log` checks the level first (abridged):
 
 ```swift
-public static func info(_ message: @autoclosure () -> String, …) {
-    guard LogLevel.info >= EngineRegistry.shared.minimumLevel else { return }
-    log(.info, message(), …)
-}
+guard level >= registry.minimumLevel else { return }
+registry.dispatch(LogEntry(
+    level: level,
+    message: message(),
+    tag: tag ?? self.tag,
+    metadata: self.metadata.isEmpty ? metadata : self.metadata.merging(metadata),
+    source: SourceLocation(file: file, function: function, line: line, column: column)
+))
 ```
 
-Now the autoclosure only runs when the entry survives the global filter. Setting `minimumLevel = .warning` in production drops trace/debug/info to ~35 ns and zero allocations — even if your call site does heavy interpolation.
+The message and the `LogEntry` are only built once the entry passes. Reading `minimumLevel` takes the registry's lock, so a filtered call is one short lock round trip; a kept call takes it twice.
+
+Two honest caveats:
+
+- **`metadata` is not lazy.** It's a plain parameter, evaluated at the call site *before* the level check (so is what `error(_ error: any Error)` builds). Keep expensive values in the message.
+- **`debug` is compiled out of release builds**, so its message never runs there. Its metadata argument still does.
+
+In production, set the level once at the composition root:
+
+```swift
+let logging = LogEnvironment()
+logging.registry.minimumLevel = .info
+
+let log = logging.logger.with(tag: .api)
+log.trace("engines: \(logging.registry.allEngines())")   // never interpolated at .info
+```
 
 ## The shape of `LogEntry`
 
-Several `LogEntry` design choices have direct perf impact:
+- It's a struct with `let` fields: no reference counting of the entry itself.
+- `SourceLocation` comes from compile-time literals (`#fileID`, `#function`, `#line`, `#column`), not a backtrace.
+- The thread name checks `Thread.isMainThread` first, then `Thread.current.name`, avoiding the allocating `Thread.current.description`.
 
-- `Sendable, Hashable, Codable, Identifiable` — all marker protocols, no vtable cost.
-- All fields are `let` — copy-on-write applies only to `metadata.storage`'s underlying `Dictionary`. For empty metadata, the dictionary header is shared.
-- `SourceLocation` is captured via compile-time literals (`#fileID`, `#function`, `#line`). No backtrace walk, no symbolication.
-- `threadName` checks `Thread.isMainThread` first (a single CPU instruction) before falling back to `Thread.current.name`. We deliberately avoided `Thread.current.description`, which allocates.
-
-`LogEntry` is 200 bytes on the stack. The only heap traffic per call is the metadata dictionary, and only if the caller passes a non-empty metadata bag.
+PERFORMANCE.md lists `LogEntry` at 200 B on the stack, with no heap traffic unless `metadata` is non-empty (a long message string allocates on its own). In 4.0, a child logger's `with(metadata:)` and an ambient `LogContext` each add a dictionary merge per kept call. Usually fine; not free.
 
 ## What the numbers look like
 
-Measured on an M1 MacBook Pro, iOS 17 simulator, release build, in the benchmark target shipped with the package:
+From [PERFORMANCE.md](../PERFORMANCE.md): release build, M1 MacBook Pro, iOS 17 simulator, measured by `Tests/SwiftMoLoggerTests/PerformanceBenchmarks.swift`:
 
 | Scenario | per-call median | per-call p99 |
 |---|---|---|
 | `info("…")` — no engines | **~140 ns** | ~220 ns |
 | `info("…")` — `MemoryLogEngine` only | **~310 ns** | ~460 ns |
-| `info("…")` filtered by `minimumLevel` | **~35 ns** | ~60 ns |
-| `info("…")` — `SystemLogger` (os.log) | **~820 ns** | ~1.3 µs |
+| `info("…")` filtered by `minimumLevel = .error` | **~35 ns** | ~60 ns |
+| `info("…")` — `SystemLogger` (os.log) only | **~820 ns** | ~1.3 µs |
 | Concurrent 8 threads × 2 000 calls | **~22 ms total** | linear scaling |
 
-The filtered case is the most important one. Most production apps set `minimumLevel = .info` and have hundreds of `trace`/`debug` call sites peppered through their codebase. Those calls cost essentially nothing — a level comparison and a return. You can leave them in.
+The filtered case matters most: hundreds of `trace` call sites in an app running at `.info` cost a level check each. You can leave them in.
 
-## What I'd still like to improve
+`FileLogEngine.log(_:)` only enqueues onto a serial queue (~80 ns per PERFORMANCE.md); disk work happens off your thread.
+
+## The Flight Recorder's bill
+
+On the hot path the Flight Recorder is a `MemoryLogEngine` (capacity 1,000 by default): one append under a lock. Disk work runs on a background timer.
+
+In 3.0 that timer rewrote the file every 2 seconds, even when idle, enough for iOS disk-write warnings. Since 3.1 it skips the encode and the write when nothing changed, ticks every 5 seconds by default, and flushes when the app is backgrounded:
+
+```swift
+let recorder = FlightRecorder(environment: logging)   // flushInterval defaults to 5
+recorder.start()
+```
+
+## Swift 6, and what I'd still like to improve
+
+4.0's library targets compile in Swift 6 mode with full data-race checking. `MoLogger` and `LogEnvironment` are `Sendable` structs. Engines are `@unchecked Sendable` classes guarding state with an `UnfairLock` or a serial queue: there the compiler takes my word for it, which is why the 3.1 fix mattered.
 
 Two known overhangs:
 
-1. **`os.log` is the floor for the system engine.** ~820 ns isn't us; it's `os_log` itself doing the formatting and routing through `logd`. We can't beat it without skipping `os_log`, which sacrifices `Console.app` integration. The tradeoff is correct as it stands.
+1. **`os.log` is the floor for the system engine.** ~820 ns is `os_log` itself. Beating it means losing `Console.app`.
 
-2. **Sendable + class-conforming engines.** `LogEngine` requires `AnyObject` because some engines (`FileLogEngine`, `LiveSink`) need a long-lived identity for the worker queue. The class indirection is one extra pointer load per engine in the fan-out loop. Switching to a `Sendable` struct-based protocol would save it but lose those engines. Worth it for v4, probably not v3.
+2. **Engines are still classes.** `LogEngine` requires `AnyObject`: some engines need a long-lived identity, and the registry protects its default `SystemLogger` by `===`. That's one pointer load per engine in the fan-out.
 
-The lesson, again, is the lesson the JVM community learned about logging twenty years ago: **the cheapest call is the one that doesn't run**, and the way you get there is by making the filter the very first thing your call does. Everything else is plumbing.
+The lesson is the one the JVM community learned twenty years ago: **the cheapest call is the one that doesn't run**, and you get there by making the filter the very first thing your call does. Everything else is plumbing.
 
-→ See [`PERFORMANCE.md`](../PERFORMANCE.md) for the full benchmark table and the design notes that drove each number.
+→ Full benchmarks: [`PERFORMANCE.md`](../PERFORMANCE.md). Why the rewrite: [`01-why-rewrite.md`](01-why-rewrite.md).

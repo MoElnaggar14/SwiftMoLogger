@@ -1,7 +1,7 @@
 import XCTest
 @testable import SwiftMoLogger
 
-final class RedactionTests: XCTestCase {
+final class RedactionTests: LoggingTestCase {
 
     func testEmailIsRedacted() {
         let redactor = Redactor()
@@ -32,6 +32,22 @@ final class RedactionTests: XCTestCase {
         XCTAssertTrue(output.contains("[CARD]"))
     }
 
+    func testPhoneNumbersAreRedacted() {
+        let redactor = Redactor()
+        for text in ["call +1 415 555 0100", "call 415-555-0100 now", "phone=4155550100"] {
+            XCTAssertTrue(redactor.redact(text).output.contains("[PHONE]"), text)
+        }
+    }
+
+    func testDigitsInsideHexIDsAreNotPhoneNumbers() {
+        let redactor = Redactor()
+        // Real-looking trace / span IDs with long digit runs.
+        let ids = ["4bf92f3577b34da6a3ce929d0e0e4736", "00f067aa0ba902b7", "a1234567890123bc", "deadbeef4155550100cafe"]
+        for id in ids {
+            XCTAssertEqual(redactor.redact("trace.id=\(id)").output, "trace.id=\(id)", id)
+        }
+    }
+
     func testCustomRulesAreApplied() throws {
         var redactor = Redactor(rules: [])
         try redactor.add(Redactor.Rule(name: "ssn", pattern: #"\d{3}-\d{2}-\d{4}"#, replacement: "[SSN]"))
@@ -58,10 +74,9 @@ final class RedactionTests: XCTestCase {
     }
 
     func testRedactingEngineWrapsAnotherEngine() {
-        SwiftMoLogger.reset()
         let memory = MemoryLogEngine()
-        SwiftMoLogger.addEngine(RedactingLogEngine(wrapping: memory))
-        SwiftMoLogger.info("contact me at admin@corp.com")
+        registry.addEngine(RedactingLogEngine(wrapping: memory))
+        log.info("contact me at admin@corp.com")
         let captured = memory.snapshot()
         XCTAssertEqual(captured.count, 1)
         XCTAssertTrue(captured[0].message.contains("[EMAIL]"))

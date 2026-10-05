@@ -7,7 +7,7 @@
     <key>IDECodeSnippetCompletionScopes</key>
     <array><string>All</string></array>
     <key>IDECodeSnippetContents</key>
-    <string>SwiftMoLogger.error(&lt;#error#&gt;, tag: .&lt;#tag#&gt;, metadata: ["&lt;#key#&gt;": .string("&lt;#value#&gt;")])</string>
+    <string>logger.error(&lt;#error#&gt;, tag: .&lt;#tag#&gt;, metadata: ["&lt;#key#&gt;": .string("&lt;#value#&gt;")])</string>
     <key>IDECodeSnippetIdentifier</key>
     <string>com.swiftmologger.error</string>
     <key>IDECodeSnippetLanguage</key>

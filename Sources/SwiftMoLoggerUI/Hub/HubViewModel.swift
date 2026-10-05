@@ -3,10 +3,9 @@ import Foundation
 import SwiftUI
 import SwiftMoLogger
 
-/// Drives ``DiagnosticsHubView``. Pulls from the shared in-process stores
-/// (`MemoryLogEngine` for logs, `NetworkEventStore`, `SignpostEventStore`,
-/// `VitalsHistoryStore`, `BreadcrumbStore`) and exposes a unified "scrubbed
-/// time" so every sub-view stays in lockstep with the timeline.
+/// Drives ``DiagnosticsHubView``. Reads the stores of the ``LogEnvironment``
+/// it's given (plus its own `MemoryLogEngine` for logs) and exposes a unified
+/// "scrubbed time" so every sub-view stays in lockstep with the timeline.
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
 @MainActor
 public final class HubViewModel: ObservableObject {
@@ -42,16 +41,28 @@ public final class HubViewModel: ObservableObject {
     @Published public var scrubbedTime: Date?
     @Published public var windowDuration: TimeInterval = 60
 
+    public let environment: LogEnvironment
     public let memoryEngine: MemoryLogEngine
     private let refreshInterval: TimeInterval
     private var task: Task<Void, Never>?
 
-    public init(memoryEngine: MemoryLogEngine = MemoryLogEngine(capacity: 2_000), refreshInterval: TimeInterval = 0.5) {
+    /// - Parameters:
+    ///   - environment: Whose registry and stores the Hub shows.
+    ///   - memoryEngine: Retains recent entries for the Logs tab; registered with the environment.
+    public init(
+        environment: LogEnvironment,
+        memoryEngine: MemoryLogEngine = MemoryLogEngine(capacity: 2_000),
+        refreshInterval: TimeInterval = 0.5
+    ) {
+        self.environment = environment
         self.memoryEngine = memoryEngine
         self.refreshInterval = refreshInterval
-        if !SwiftMoLogger.allEngines().contains(where: { $0.engineID == memoryEngine.engineID }) {
-            SwiftMoLogger.addEngine(memoryEngine)
-        }
+        environment.registry.addEngine(memoryEngine)
+    }
+
+    deinit {
+        // Each Hub registers its own memory engine; don't leave it behind.
+        environment.registry.removeEngine(id: memoryEngine.engineID)
     }
 
     public func start() {
@@ -73,18 +84,18 @@ public final class HubViewModel: ObservableObject {
 
     public func refresh() {
         entries = memoryEngine.snapshot()
-        networkEvents = NetworkEventStore.shared.snapshot()
-        signpostEvents = SignpostEventStore.shared.snapshot()
-        vitalsHistory = VitalsHistoryStore.shared.snapshot()
-        breadcrumbs = SwiftMoLogger.breadcrumbs()
+        networkEvents = environment.networkEvents.snapshot()
+        signpostEvents = environment.signposts.snapshot()
+        vitalsHistory = environment.vitals.snapshot()
+        breadcrumbs = environment.breadcrumbs.snapshot()
     }
 
     public func clearAll() {
         memoryEngine.clear()
-        NetworkEventStore.shared.clear()
-        SignpostEventStore.shared.clear()
-        VitalsHistoryStore.shared.clear()
-        SwiftMoLogger.clearBreadcrumbs()
+        environment.networkEvents.clear()
+        environment.signposts.clear()
+        environment.vitals.clear()
+        environment.breadcrumbs.clear()
         refresh()
     }
 

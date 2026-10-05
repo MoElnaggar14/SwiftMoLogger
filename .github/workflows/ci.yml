@@ -2,264 +2,148 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+  workflow_dispatch:
 
-env:
-  DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test Swift Package
-    runs-on: macos-14
+  test-macos:
+    name: Test (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        # 15.4 = Swift 5.10 = swift-syntax 510; 15.2 = Swift 5.9 = swift-syntax 509.
-        # Both fall inside our 509..<601 range so the macros target builds.
-        xcode: ['15.4', '15.2']
-        ios: ['17.5', '16.4']
         include:
-          - xcode: '15.4'
-            ios: '17.5'
-            upload-coverage: true
-    
+          - name: Swift 6.4, Xcode 27
+            runner: xcode-27
+            xcode: '27.0'
+            swift: '6\.([4-9]|[1-9][0-9])'
+          - name: Swift 6.3, Xcode 26.6
+            runner: macos-26
+            xcode: '26.6'
+            swift: '6\.3'
+          - name: Swift 6.1, Xcode 16.4 (oldest supported)
+            runner: macos-15
+            xcode: '16.4'
+            swift: '6\.1'
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Xcode ${{ matrix.xcode }}
-      run: |
-        sudo xcode-select -s /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
-        xcodebuild -version
-        swift --version
-    
-    - name: Cache Swift Package Manager
-      uses: actions/cache@v4
-      with:
-        path: |
-          .build
-          ~/.cache/org.swift.swiftpm
-        key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
-        restore-keys: |
-          ${{ runner.os }}-spm-
-    
-    - name: Build all products
-      run: |
-        # Build every library product + the inspector executable so a
-        # missing target / broken cross-dependency fails CI loudly.
-        swift build -v
-        swift build -v --product SwiftMoLogger
-        swift build -v --product SwiftMoLoggerUI
-        swift build -v --product SwiftMoLoggerNetwork
-        swift build -v --product SwiftMoLoggerRemote
-        swift build -v --product SwiftMoLoggerDiagnostics
-        swift build -v --product SwiftMoLoggerTesting
-        swift build -v --product SwiftMoLoggerSugar
-        swift build -v --product swiftmologger-inspector
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ matrix.xcode }}
+      - name: Check the toolchain
+        # Fails if the runner image changed and this job no longer tests the Swift it's named after.
+        run: |
+          swift --version
+          swift --version 2>&1 | grep -E "Swift version ${{ matrix.swift }}"
+      - name: Build every product
+        run: swift build --build-tests
+      - name: Test
+        run: swift test --enable-code-coverage
 
-    - name: Run Tests
-      run: |
-        swift test --enable-code-coverage
-        
-    - name: Generate Coverage Report
-      if: matrix.upload-coverage
-      run: |
-        xcrun llvm-cov export -format="lcov" \
-          .build/debug/SwiftMoLoggerPackageTests.xctest/Contents/MacOS/SwiftMoLoggerPackageTests \
-          -instr-profile .build/debug/codecov/default.profdata > coverage.lcov
-          
-    - name: Upload Coverage to Codecov
-      if: matrix.upload-coverage
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.lcov
-        token: ${{ secrets.CODECOV_TOKEN }}
-        fail_ci_if_error: false
-        
-    - name: Test iOS Simulator ${{ matrix.ios }}
-      run: |
-        # Get available simulators
-        echo "Available simulators:"
-        xcrun simctl list devices available
-        
-        # Find iOS simulator with more flexible matching
-        echo "Looking for iOS ${{ matrix.ios }} simulator..."
-        SIMULATOR_LINE=$(xcrun simctl list devices available | grep -E "iPhone.*\(${{ matrix.ios }}" | head -1)
-        
-        if [ -z "$SIMULATOR_LINE" ]; then
-          echo "No iOS ${{ matrix.ios }} simulator found, using latest iPhone..."
-          SIMULATOR_LINE=$(xcrun simctl list devices available | grep -E "iPhone.*\([0-9]+\.[0-9]+" | tail -1)
-        fi
-        
-        if [ -z "$SIMULATOR_LINE" ]; then
-          echo "No iPhone simulator found at all, skipping iOS testing"
-          exit 0
-        fi
-        
-        # Extract UUID using more robust pattern
-        SIMULATOR_ID=$(echo "$SIMULATOR_LINE" | grep -oE "\([A-F0-9-]{36}\)" | tr -d '()')
-        
-        if [ -z "$SIMULATOR_ID" ]; then
-          echo "Could not extract simulator ID, skipping iOS testing"
-          exit 0
-        fi
-        
-        echo "Using simulator: $SIMULATOR_ID"
-        echo "Simulator details: $SIMULATOR_LINE"
-        
-        # Boot simulator if not already booted
-        xcrun simctl boot $SIMULATOR_ID || echo "Simulator already booted or boot failed"
-        
-        # Wait a moment for simulator to be ready
-        sleep 5
-        
-        # Test on iOS - Create a simple scheme-less test
-        set +e  # Don't exit on error
-        xcodebuild test \
-          -scheme SwiftMoLogger \
-          -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-          -enableCodeCoverage YES 2>/dev/null
-        
-        TEST_RESULT=$?
-        if [ $TEST_RESULT -ne 0 ]; then
-          echo "iOS testing failed or not available, but continuing..."
-          echo "This is likely due to scheme configuration - iOS testing is optional"
-        else
-          echo "iOS testing completed successfully"
-        fi
-          
+  test-newest-swift-syntax:
+    name: Test (newest swift-syntax)
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '27.0'
+      - run: swift --version
+      - name: Resolve newest dependencies
+        run: |
+          swift package update
+          swift package show-dependencies
+      - name: Test macros
+        run: swift test --filter SwiftMoLoggerMacrosTests
+
+  build:
+    name: Build (${{ matrix.destination }})
+    runs-on: xcode-27
+    strategy:
+      fail-fast: false
+      matrix:
+        destination:
+          - generic/platform=iOS
+          - generic/platform=macOS,variant=Mac Catalyst
+          - generic/platform=tvOS
+          - generic/platform=watchOS
+          - generic/platform=visionOS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '27.0'
+      - name: Use the package, not the stale root workspace
+        # SwiftMoLogger.xcworkspace hides the package's schemes from xcodebuild.
+        run: mv SwiftMoLogger.xcworkspace "$RUNNER_TEMP/"
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -scheme SwiftMoLogger-Package \
+            -destination "${{ matrix.destination }}" \
+            CODE_SIGNING_ALLOWED=NO -quiet
+
+  example-app:
+    name: Example app (${{ matrix.destination }})
+    runs-on: xcode-27
+    strategy:
+      fail-fast: false
+      matrix:
+        destination:
+          - generic/platform=iOS Simulator
+          - generic/platform=iOS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '27.0'
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project ExampleApp/SwiftMoLoggerExample.xcodeproj \
+            -scheme SwiftMoLoggerExample \
+            -destination "${{ matrix.destination }}" \
+            -skipMacroValidation -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO -quiet
+
   lint:
     name: SwiftLint
-    runs-on: macos-14
-    
+    runs-on: macos-15
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Install SwiftLint
-      run: |
-        brew install swiftlint
-        
-    - name: Run SwiftLint
-      run: |
-        swiftlint lint --reporter github-actions-logging
-        
-  security:
-    name: Security Scan
-    runs-on: macos-14
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Run Security Scan
-      run: |
-        echo "🔍 Running security scan..."
-        
-        # Check for common security issues in Swift code (excluding test/debug methods)
-        if grep -r "NSLog\|print(" Sources/ --include="*.swift" | grep -v "DEBUG\|test\|Test"; then
-          echo "⚠️  Found print statements in non-debug code"
-        else
-          echo "✅ No problematic print statements found"
-        fi
-        
-        # Check for fatal errors (excluding intentional test crashes)
-        FATAL_ERRORS=$(grep -r "fatalError\|preconditionFailure" Sources/ --include="*.swift" | grep -v "triggerTestCrash\|DEBUG" | wc -l)
-        if [ "$FATAL_ERRORS" -gt 0 ]; then
-          echo "⚠️  Found $FATAL_ERRORS fatal error(s) in production code"
-          grep -r "fatalError\|preconditionFailure" Sources/ --include="*.swift" | grep -v "triggerTestCrash\|DEBUG"
-        else
-          echo "✅ No problematic fatal errors found"
-        fi
-        
-        # Check for sensitive data patterns (excluding variable names and comments)
-        SENSITIVE_DATA=$(grep -r "password\s*=\|secret\s*=\|api_key\s*=\|token\s*=" Sources/ --include="*.swift" | grep -v "//" | wc -l)
-        if [ "$SENSITIVE_DATA" -gt 0 ]; then
-          echo "⚠️  Potential sensitive data assignments found in source code"
-          grep -r "password\s*=\|secret\s*=\|api_key\s*=\|token\s*=" Sources/ --include="*.swift" | grep -v "//"
-          exit 1
-        else
-          echo "✅ No sensitive data assignments found"
-        fi
-        
-        echo "🎉 Security scan completed successfully"
-        
-  documentation:
+      - uses: actions/checkout@v4
+      - name: Install SwiftLint
+        run: which swiftlint || brew install swiftlint
+      - run: swiftlint lint --reporter github-actions-logging
+      - name: No 3.x API in the package or example (agent skill audit)
+        # plugin/skills/swiftmologger/scripts/audit_logging.py is what the agent skill
+        # runs in apps; running it here keeps its migration table honest.
+        run: |
+          AUDIT=plugin/skills/swiftmologger/scripts/audit_logging.py
+          for dir in Sources ExampleApp; do
+            if python3 "$AUDIT" "$dir" | grep '\[migrate\]'; then
+              echo "::error::3.x API found in $dir"; exit 1
+            fi
+          done
+
+  docs:
     name: Documentation
-    runs-on: macos-14
-    
+    runs-on: xcode-27
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Xcode
-      run: |
-        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-        
-    - name: Build Documentation
-      run: |
-        # Check if swift-docc is available
-        if swift package plugin --list | grep -q "Swift-DocC"; then
-          swift package generate-documentation --target SwiftMoLogger
-        else
-          echo "Swift-DocC plugin not available, skipping documentation generation"
-          echo "Checking for basic documentation patterns instead..."
-          
-          # Count documented public symbols
-          DOCUMENTED=$(grep -r "///" Sources/ --include="*.swift" | wc -l)
-          PUBLIC_SYMBOLS=$(grep -r "public " Sources/ --include="*.swift" | wc -l)
-          
-          echo "Found $DOCUMENTED documentation comments for approximately $PUBLIC_SYMBOLS public symbols"
-          
-          if [ "$PUBLIC_SYMBOLS" -gt 0 ] && [ "$DOCUMENTED" -lt 5 ]; then
-            echo "⚠️  Consider adding more documentation comments"
-          else
-            echo "✅  Documentation coverage looks reasonable"
-          fi
-        fi
-        
-  validate-package:
-    name: Validate Swift Package
-    runs-on: macos-14
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Xcode
-      run: |
-        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-        
-    - name: Validate Package
-      run: |
-        # Only run API breaking changes if we have a baseline
-        if git rev-parse --verify baseline >/dev/null 2>&1; then
-          swift package diagnose-api-breaking-changes baseline
-        else
-          echo "No baseline branch/tag found, skipping API breaking changes check"
-        fi
-        
-        # Validate package structure
-        swift package dump-package
-        echo "✅ Package structure validation completed"
-        
-        # Additional package validation
-        swift package show-dependencies
-        echo "✅ Dependencies validation completed"
-        
-    - name: Check Package Manifest
-      run: |
-        # Validate Package.swift structure
-        if ! grep -q "iOS(.v15)" Package.swift; then
-          echo "❌ iOS 15 minimum deployment target not found"
-          exit 1
-        fi
-        
-        if ! grep -q 'name: "SwiftMoLogger"' Package.swift; then
-          echo "❌ Package name not correctly set"
-          exit 1
-        fi
-        
-        echo "✅ Package manifest validation passed"
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '27.0'
+      - name: Use the package, not the stale root workspace
+        # SwiftMoLogger.xcworkspace hides the package's schemes from xcodebuild.
+        run: mv SwiftMoLogger.xcworkspace "$RUNNER_TEMP/"
+      - name: Build DocC archive
+        run: |
+          xcodebuild docbuild -scheme SwiftMoLogger-Package -destination 'generic/platform=iOS' \
+            -derivedDataPath .build/docc CODE_SIGNING_ALLOWED=NO -quiet

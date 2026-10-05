@@ -10,12 +10,18 @@ import Foundation
 /// tokens, credit-card-shaped numbers, IPv4 addresses, phone numbers, and
 /// AWS/GCP-style access keys. Adopters add more via ``Redactor/add(_:)``.
 public struct Redactor: Sendable {
-    public struct Rule: Sendable {
+    // NSRegularExpression is immutable and documented as thread-safe.
+    public struct Rule: @unchecked Sendable {
         public let name: String
         public let pattern: NSRegularExpression
         public let replacement: String
 
-        public init(name: String, pattern: String, replacement: String = "[REDACTED]", options: NSRegularExpression.Options = [.caseInsensitive]) throws {
+        public init(
+            name: String,
+            pattern: String,
+            replacement: String = "[REDACTED]",
+            options: NSRegularExpression.Options = [.caseInsensitive]
+        ) throws {
             self.name = name
             self.pattern = try NSRegularExpression(pattern: pattern, options: options)
             self.replacement = replacement
@@ -99,7 +105,13 @@ public extension Redactor {
             rule("gcp_key", #"AIza[0-9A-Za-z\-_]{35}"#, "[GCP_KEY]"),
             rule("email", #"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"#, "[EMAIL]"),
             rule("credit_card", #"\b(?:\d[ -]*?){13,16}\b"#, "[CARD]"),
-            rule("phone", #"\+?\d{1,3}[\s\-]?\(?\d{2,4}\)?[\s\-]?\d{3,4}[\s\-]?\d{3,4}"#, "[PHONE]"),
+            // Not inside a longer alphanumeric run, so digits in hex IDs (trace and
+            // span IDs, hashes) aren't mistaken for phone numbers.
+            rule(
+                "phone",
+                #"(?<![0-9A-Za-z])\+?\d{1,3}[\s\-]?\(?\d{2,4}\)?[\s\-]?\d{3,4}[\s\-]?\d{3,4}(?![0-9A-Za-z])"#,
+                "[PHONE]"
+            ),
             rule("ipv4", #"\b(?:\d{1,3}\.){3}\d{1,3}\b"#, "[IP]"),
             rule("uuid", #"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"#, "[UUID]")
         ]

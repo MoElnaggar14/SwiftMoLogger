@@ -2,137 +2,178 @@
 
 > Half of what a senior iOS engineer spends their day on is *not* writing iOS code. It's reading logs, ten devices at a time, on a flaky office Wi-Fi, while someone keeps unplugging the cable.
 
-This article is about the two parts of v3 that exist to make that day shorter: a Bonjour-advertised live tail, and a small set of Swift Macros that make the call sites painless.
+This article is about two parts of SwiftMoLogger that exist to make that day shorter: a Bonjour-advertised live tail, and a small set of Swift Macros for the call sites. In 4.0 neither touches a global: you build one `LogEnvironment` and inject it (see the [README](../README.md) and [MIGRATION.md](../MIGRATION.md)).
 
 ## Bonjour: the cable nobody plugs in
 
-The standard iOS debugging loop is *plug in the device → trust the certificate → reload Xcode → open Console → filter by subsystem*. Each step has failure modes. Each step gets tedious when you have to do it three times a day across a fleet of QA devices.
+The standard iOS debugging loop is *plug in the device → trust the certificate → reload Xcode → open Console → filter by subsystem*. Each step has failure modes, and each gets tedious three times a day across a fleet of QA devices.
 
-The version of the loop I wanted is: *open Terminal, run one command, see every device's logs immediately*.
+The loop I wanted is: *open Terminal, run one command, see every device's logs immediately*.
+
+Think of it as radio. Each device runs a small station that announces itself on the local network. The Mac runs a scanner that finds every station and tunes in.
 
 ### The iOS side
 
-On the device, `LiveSink` is a `LogEngine` that opens an `NWListener` and advertises itself via Bonjour:
+`LiveSink` is a `LogEngine` that opens an `NWListener` and advertises it over Bonjour as `_swiftmologger._tcp`. Its initializer is `LiveSink(port:serviceName:minimumLevel:statusLogger:allowInRelease:)`, and every argument has a default:
 
 ```swift
-public final class LiveSink: LogEngine {
-    public static let serviceType = "_swiftmologger._tcp"
+import SwiftMoLogger
+import SwiftMoLoggerDiagnostics
 
-    public func start() throws {
-        let listener = try NWListener(using: .tcp, on: port)
-        listener.service = NWListener.Service(name: serviceName, type: LiveSink.serviceType)
-        listener.newConnectionHandler = { [weak self] in self?.accept($0) }
-        listener.start(queue: queue)
+func attachLiveTail(to logging: LogEnvironment) {
+    #if DEBUG
+    let sink = LiveSink(serviceName: "MyApp-iPhone-15", statusLogger: logging.logger)
+    do {
+        try sink.start()
+        logging.registry.addEngine(sink)
+    } catch {
+        logging.logger.error(error, tag: .debug)
     }
-
-    public func log(_ entry: LogEntry) {
-        guard let data = try? encoder.encode(entry) else { return }
-        var line = data; line.append(0x0A)
-        for client in connectedClients {
-            client.send(content: line, completion: .contentProcessed { _ in })
-        }
-    }
+    #endif
 }
 ```
 
-JSON-Lines over TCP. No framing protocol, no handshake beyond Bonjour discovery. The on-device cost is negligible — `NWListener` is part of Apple's `Network.framework`, the JSON encoder is already in your binary, and we send to whoever is connected.
+The `serviceName` defaults to the bundle identifier, so ten devices running one app would announce the same name. Picking your own keeps the terminal readable. The `statusLogger` hears "LiveSink ready" or "LiveSink failed".
+
+Each `LogEntry` goes out as one line of JSON: JSON-Lines over TCP, no framing protocol, no handshake beyond Bonjour discovery. A new client first gets a `"kind": "hello"` line with the app, its version, the OS and the protocol version. Every later line without a `kind` is a `LogEntry`, and clients skip control lines they don't recognise, so new message types can be added without breaking older inspectors. Encoding and sending happen on a background queue, so the call site never waits on the network.
+
+### Info.plist and safety
+
+On iOS, the app must ask before using the local network. Without these keys the listener fails on a real device:
+
+```xml
+<key>NSLocalNetworkUsageDescription</key>
+<string>Streams debug logs to the SwiftMoLogger Inspector on your Mac.</string>
+<key>NSBonjourServices</key>
+<array>
+    <string>_swiftmologger._tcp</string>
+</array>
+```
+
+Back to the radio: this one is a walkie-talkie, not a phone call. `LiveSink` streams every line unencrypted and unauthenticated to anyone who connects. So in 4.0, `start()` does nothing in a non-DEBUG build unless you pass `allowInRelease: true` (meant for internal QA builds on a network you trust). I still wrap the setup in `#if DEBUG` and put the plist keys in the debug configuration only.
 
 ### The Mac side
 
-`swiftmologger-inspector` is an executable target. It uses `NWBrowser` to discover every device advertising `_swiftmologger._tcp` and opens an `NWConnection` to each:
+The Inspector is an executable product in the same package, `swiftmologger-inspector`. From a checkout of the repo:
+
+```bash
+swift run swiftmologger-inspector
+```
+
+It takes no arguments. It uses `NWBrowser` to find every `_swiftmologger._tcp` service and opens an `NWConnection` to each:
 
 ```swift
-let browser = NWBrowser(for: .bonjour(type: "_swiftmologger._tcp", domain: nil), using: parameters)
-browser.browseResultsChangedHandler = { results, _ in
-    for case .service(let name, _, _, _) in results.map(\.endpoint) {
-        connect(to: result.endpoint, name: name)
-    }
+let browser = NWBrowser(for: .bonjour(type: serviceType, domain: nil), using: parameters)
+browser.browseResultsChangedHandler = { [weak self] results, _ in
+    self?.handle(results: results)   // connect to new services, drop vanished ones
 }
 ```
 
-Each incoming line is decoded and rendered with ANSI colour by level and by device name. The terminal output looks like:
+Each line prints as *timestamp (ISO 8601, UTC), level, device, tag, [thread], message*, coloured by level. Abridged:
 
 ```
 SwiftMoLogger Inspector — discovering _swiftmologger._tcp on local network…
 ◉ discovered MyApp-iPhone-15
 ◉ discovered MyApp-iPad-Pro
 ● connected MyApp-iPhone-15
-● connected MyApp-iPad-Pro
-
-14:22:01.124 INFO  MyApp-iPhone-15 [API]     HTTP response status=200 duration_ms=132
-14:22:01.221 WARN  MyApp-iPad-Pro  [Layout]  Auto-layout broke 3 constraints
-14:22:01.337 ERROR MyApp-iPhone-15 [DB]      Migration v4 → v5 timed out
+…connected to MyApp-iPhone-15: com.example.MyApp 1.4.2
+2026-10-05T14:22:01.124Z INFO  MyApp-iPhone-15 [API] [thread] HTTP response 200
+2026-10-05T14:22:01.221Z WARN  MyApp-iPad-Pro [Layout] [main] Auto-layout broke 3 constraints
+2026-10-05T14:22:01.337Z ERROR MyApp-iPhone-15 [Database] [thread] Migration v4 → v5 timed out
+◌ gone MyApp-iPad-Pro
 ```
 
-No certificates, no cables, no Xcode. Run `swift run swiftmologger-inspector` and start watching. The implementation is ~150 lines of `Network.framework` because Apple's APIs are good when you let them be.
-
-A practical safety note: **only enable `LiveSink` in DEBUG builds**. It opens a local network port and emits log lines in the clear. The `LiveSink.swift` doc comment is explicit about this and the README repeats it.
+Metadata isn't printed, so keep the key fact in the message. No certificates, no cables, no Xcode. The tool is one file of about 150 lines of `Network.framework`, because Apple's APIs are good when you let them be.
 
 ## Swift Macros: the call site you don't have to think about
 
-The other half of the daily loop is *typing log statements*. With v3, the bare API is already good:
+The other half of the loop is *typing log statements*. With an injected logger, the plain API is already good:
 
 ```swift
-SwiftMoLogger.info("user signed in", tag: .api,
-                   metadata: ["user_id": .string(user.id)])
+logger.info("user signed in", tag: .api,
+            metadata: ["user_id": .string(user.id)])
 ```
 
-But that's a lot of structure for a `print("user signed in")` replacement. Swift Macros let us reduce it without losing what makes the structured call valuable.
+Macros trim that without losing the structure. One rule holds for all three in 4.0: **the dependency is explicit.** There's no global logger for a macro to reach.
 
-### `#log` — captures source location at the call site
+### `#log` — source location, captured at the call site
 
 ```swift
 import SwiftMoLoggerSugar
 
-#log("user signed in", level: .info, tag: .api)
+#log(logger, "user signed in", level: .info, tag: .api)
 ```
 
-The macro expansion is exactly what you'd write by hand, with `#fileID` / `#function` / `#line` captured at the call site rather than in the library:
+The first argument is any `MoLogger` expression; `level` defaults to `.info`, `tag` to `nil`. The expansion, straight from the macro tests, is what you'd write by hand:
 
 ```swift
-SwiftMoLogger.log(.info, "user signed in", tag: .api,
-                  file: #fileID, function: #function, line: #line)
+logger.log(.info, "user signed in", tag: .api, file: #fileID, function: #function, line: #line)
 ```
 
-Why does that matter when you could already write it? Because the macro lets you build code-mod tools that grep for `#log` invocations without parsing argument lists, and the IDE shows you the expansion in-place. It's also easier to teach a new contributor to write `#log("x")` than to remember the whole structured shape.
+Why bother? `#log(` is trivial to grep for and code-mod, Xcode shows the expansion in place, and one short shape is easier to teach. It doesn't take `metadata:`; for that, call `logger.info(…, metadata:)` directly.
 
-### `#measure` — never typo a signpost name again
+### `#measure` — a signpost in one line
 
 ```swift
-let users = #measure("loadUsers") {
+let users = try #measure(signposter, "loadUsers") {
     try repo.all()
 }
 ```
 
-Lowers to `LogSignpost.measure("loadUsers") { … }`. Same call, but the macro means the signpost name is in the IR before the optimiser ever sees the closure — making it stable and grep-able.
+`signposter` is a `Signposter`, typically `logging.signposter` injected into the component. This lowers to `signposter.measure("loadUsers") { try repo.all() }`, which emits an `os_signpost` interval for Instruments, logs one timing entry, and records a span for the Diagnostics Hub.
 
-### `@AutoLog` — class-wide entry/exit logging
+Honestly, this one saves little: the direct call is as short, and it also takes a `tag:`, which the macro doesn't forward. I keep it because it reads consistently next to `#log`.
+
+### `@AutoLog` — a helper, not magic
 
 ```swift
 @AutoLog
 final class CheckoutService {
-    func purchase(_ id: String) throws { … }
+    let logger: MoLogger
+    init(logger: MoLogger) { self.logger = logger }
+
+    func purchase(_ id: String) throws {
+        __autoLog()        // you write this line; the macro doesn't
+        // …
+    }
 }
 ```
 
-The macro is a `MemberMacro` that synthesises a `fileprivate __autoLog(method:)` helper inside the type, which methods can call at their entry. Macro-driven body rewriting is still an unstable Swift surface — touching it would make the library brittle across compiler versions — so I deliberately stopped at the helper. The convention is `__autoLog()` as the first line of a traced method; it's three keystrokes and you can grep for it.
+`@AutoLog` adds one member to a type that has at least one method:
+
+```swift
+@inline(__always)
+fileprivate func __autoLog(_ method: String = #function,
+                           file: String = #fileID,
+                           line: Int = #line) {
+    logger.trace("→ \(method)", tag: .Development.debug, file: file, function: method, line: line)
+}
+```
+
+Call it first thing in a method and you get a trace entry like `→ purchase(_:)` with the right file and line. It logs through the type's own property, which must be named `logger`.
+
+What it does *not* do: log every method automatically, log exits or thrown errors, or add signposts. The macro also declares a member-attribute role, but that role currently adds nothing. A method without `__autoLog()` stays silent.
+
+That's deliberate. Rewriting function bodies with macros is still an unsettled corner of Swift, and code that rewrites every adopter's methods breaks on some adopter's compiler. A per-method helper you can grep for is the stable middle ground.
 
 ### The opt-in cost
 
-Swift Macros require `swift-syntax` as a build-time dependency. `swift-syntax` is large (~100 MB compiled) and meaningfully extends clean-build times. Forcing every adopter of `SwiftMoLogger` to pay that cost would be hostile.
+Macros need `swift-syntax` at build time, a large dependency that noticeably lengthens clean builds. Forcing that on every adopter would be hostile.
 
-The macros live in a separate library product, `SwiftMoLoggerSugar`, with its own target that depends on the macro plugin. Adopters who want them write:
+So the macros live in their own product, `SwiftMoLoggerSugar`, which re-exports `SwiftMoLogger`. Teams who want them add:
 
 ```swift
 .product(name: "SwiftMoLoggerSugar", package: "SwiftMoLogger")
 ```
 
-Adopters who don't write `SwiftMoLogger` and never see `swift-syntax`. Both paths work; the choice is the team's, not the library's.
+Everyone else depends on `SwiftMoLogger` and never builds `swift-syntax`. The supported range is `509.0.0..<605.0.0`, Swift 5.9 through 6.4, wide on purpose so it doesn't clash with other packages in your app.
 
 ## What these two pieces share
 
-They both target a category I call **dev-experience surface area**. They don't make your code run faster, they don't catch new bugs, they don't add a new sink. They make the moments around logging — typing the call, reading the output across devices — cheaper.
+They both target what I call **dev-experience surface area**. They don't make your code faster, catch new bugs, or add a sink. They make the moments around logging — typing the call, reading output across devices — cheaper.
 
-Dev experience is undervalued in iOS tooling. We accept five-minute compile cycles, hand-rolled URLSession capture, and ad-hoc breakpoints because that's how it's always been. SwiftMoLogger's bet is that a single afternoon saved on Bonjour discovery and a single fewer typo on a signpost name compounds, across a team, into the kind of velocity you can't buy back any other way.
+Dev experience is undervalued in iOS tooling. We accept slow compile cycles, hand-rolled URLSession capture, and ad-hoc breakpoints because that's how it's always been. SwiftMoLogger's bet is that an afternoon saved on device setup, and one fewer hand-typed source location, compound across a team into velocity you can't buy back any other way.
 
-→ See [`Sources/SwiftMoLoggerInspector/Inspector.swift`](../Sources/SwiftMoLoggerInspector/Inspector.swift) and [`Sources/SwiftMoLoggerMacros/`](../Sources/SwiftMoLoggerMacros) for the implementation.
+Previous: [Instruments in your app](03-diagnostics-hub.md) · Next: [The production playbook](05-production-playbook.md)
+
+→ See [`LiveSink.swift`](../Sources/SwiftMoLoggerDiagnostics/LiveSink.swift), [`Inspector.swift`](../Sources/SwiftMoLoggerInspector/Inspector.swift) and [`Sources/SwiftMoLoggerMacros/`](../Sources/SwiftMoLoggerMacros) for the implementation.

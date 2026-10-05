@@ -14,7 +14,8 @@ public struct BreadcrumbsTrailView: View {
         Group {
             if crumbs.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "fossil.shell").font(.system(size: 32)).foregroundColor(.secondary)
+                    Image(systemName: "fossil.shell").font(.largeTitle).foregroundColor(.secondary)
+                        .accessibilityHidden(true)
                     Text("No breadcrumbs in window").foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

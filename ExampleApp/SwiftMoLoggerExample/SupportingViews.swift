@@ -14,7 +14,7 @@ struct NetworkTab: View {
     var body: some View {
         Form {
             Section {
-                Text("`URLSession.shared` is auto-instrumented at launch via `NetworkLogger.installOnSharedSession()`. Every call below flows through `NetworkLoggingProtocol` — request + response are logged with a `traceparent` header and a `NetworkEvent` is fed into the Hub's waterfall view.")
+                Text("The app builds one `URLSession` with a `NetworkLogger(environment:)` delegate and injects it into this screen's view model. Every call below is logged (request + response), leaves breadcrumbs, and feeds a `NetworkEvent` into the Hub's waterfall view. There is no global hook: instrument any session by passing the logger as its delegate, or per request via `URLSession.shared.data(for:delegate:)`.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -29,10 +29,10 @@ struct NetworkTab: View {
                 Button("GET 500 — https://httpbin.org/status/500") {
                     Task { lastSummary = await viewModel.fetch(URL(string: "https://httpbin.org/status/500")!) }
                 }
-                Button("Inside withTrace { } — distributed tracing") {
+                Button("Inside TraceContext.run { } — distributed tracing") {
                     Task {
-                        await SwiftMoLogger.withTrace {
-                            _ = await viewModel.fetch(URL(string: "https://httpbin.org/headers")!)
+                        lastSummary = await TraceContext.generate().run {
+                            await viewModel.fetch(URL(string: "https://httpbin.org/headers")!)
                         }
                     }
                 }
@@ -42,7 +42,7 @@ struct NetworkTab: View {
             }
 
             Section("Sensitive header redaction") {
-                Text("The protocol scrubs `Authorization`, `Cookie`, `X-API-Key`, and other known-sensitive headers before they are logged. See `NetworkLoggingProtocol.sensitiveHeaders` to extend the list.")
+                Text("`NetworkLogger` scrubs `Authorization`, `Cookie`, `X-API-Key`, and other known-sensitive headers before they are logged. Pass `sensitiveHeaders:` to `NetworkLogger(logger:events:breadcrumbs:sensitiveHeaders:)` to extend `NetworkLogger.defaultSensitiveHeaders`.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -55,6 +55,7 @@ struct NetworkTab: View {
 
 struct DiagnosticsTab: View {
     @ObservedObject var viewModel: LoggingDemoViewModel
+    let logger: MoLogger
     @State private var bugReportURL: URL?
     @State private var liveSinkRunning = false
 
@@ -83,9 +84,17 @@ struct DiagnosticsTab: View {
             }
 
             Section("Flight recorder (rolling 2-min black box)") {
-                Text("Active. The recorder captures entries, breadcrumbs, network events, signposts, and vitals into `~/Library/Caches/SwiftMoLoggerFlight.json` every 2 seconds — so even an immediate crash can be reconstructed on next launch via `FlightRecorder.recoverLastSession()`.")
+                Text("Active. The recorder captures entries, breadcrumbs, network events, signposts, and vitals into `Library/Caches/SwiftMoLogger/flight-recorder.json` every 2 seconds — so even an immediate crash can be reconstructed on next launch via `recorder.crashedSession`.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                LabeledContent("Previous run") {
+                    if let count = viewModel.recoveredEntryCount {
+                        Text("crashed — \(count) entries recovered")
+                            .foregroundColor(.red)
+                    } else {
+                        Text("clean shutdown")
+                    }
+                }
             }
 
             Section("Bug report bundle") {
@@ -97,7 +106,7 @@ struct DiagnosticsTab: View {
                         ])
                         bugReportURL = report.directory
                     } catch {
-                        SwiftMoLogger.error(error, tag: .System.internal)
+                        logger.error(error, tag: .System.internal)
                     }
                 }
                 if let url = bugReportURL {
@@ -106,6 +115,7 @@ struct DiagnosticsTab: View {
                 }
             }
 
+            #if DEBUG
             Section("LiveSink (Bonjour log tail)") {
                 Toggle("Advertise _swiftmologger._tcp", isOn: $liveSinkRunning)
                     .onChange(of: liveSinkRunning) { newValue in
@@ -115,21 +125,22 @@ struct DiagnosticsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            #endif
 
             Section("Remote shippers (mocks)") {
                 Text("Production wiring:")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("""
-                SwiftMoLogger.addEngine(SentryLogEngine(dsn: dsn))
-                SwiftMoLogger.addEngine(DatadogLogEngine(apiKey: key, service: \"app\"))
-                SwiftMoLogger.addEngine(LokiLogEngine(endpoint: url))
+                if let sentry = SentryLogEngine(dsn: dsn) { logging.registry.addEngine(sentry) }
+                logging.registry.addEngine(DatadogLogEngine(apiKey: key, service: \"app\"))
+                logging.registry.addEngine(LokiLogEngine(endpoint: url))
                 """)
                 .font(.system(.caption, design: .monospaced))
             }
 
             Section("MetricKit crash + hang capture") {
-                Text("Wire `MetricKitCrashReporter().startMonitoring()` from your app delegate to mirror MetricKit crash and hang payloads through SwiftMoLogger automatically.")
+                Text("Create `MetricKitCrashReporter(logger: logging.logger)` at your composition root, keep it alive, and call `startMonitoring()` to mirror MetricKit crash and hang payloads through that logger automatically.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -143,7 +154,7 @@ struct DiagnosticsTab: View {
 struct AboutTab: View {
     var body: some View {
         Form {
-            Section("SwiftMoLogger v3 — full feature matrix") {
+            Section("SwiftMoLogger v4 — full feature matrix") {
                 ForEach(features, id: \.headline) { feature in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(feature.headline).font(.headline)
@@ -164,7 +175,7 @@ struct AboutTab: View {
 
             Section("Drop into your own app") {
                 Text("""
-                .package(url: \"https://github.com/MoElnaggar14/SwiftMoLogger.git\", from: \"3.0.0\")
+                .package(url: \"https://github.com/MoElnaggar14/SwiftMoLogger.git\", from: \"4.0.0\")
                 """)
                 .font(.system(.caption, design: .monospaced))
             }
@@ -175,20 +186,21 @@ struct AboutTab: View {
     private var features: [(headline: String, detail: String)] {
         [
             ("Structured LogEntry", "Level, tag, metadata, source location & timestamp — every call materialises a typed record."),
-            ("Multi-engine fan-out", "Memory + System + File + Remote + custom engines, all driven by one facade."),
+            ("Multi-engine fan-out", "Memory + System + File + Remote + custom engines behind one injectable EngineRegistry."),
+            ("Dependency injection", "No singletons: one LogEnvironment at the composition root; inject MoLogger (or a child logger) into each component."),
             ("Per-level sampling", "SamplingLogEngine + RateLimitingLogEngine wrappers keep field-device noise sane."),
             ("Redaction", "Regex PII scrubber on emails, tokens, card numbers — wrap any engine in one call."),
             ("Error grouping", "Identical-shape errors collapse into a fingerprint + count."),
             ("Breadcrumbs", "Sentry-compatible ring buffer for crash context."),
-            ("Signposts + macros", "LogSignpost.measure spans + #measure / #log / @AutoLog freestanding macros."),
-            ("W3C tracing", "TraceContext + traceparent injection for distributed tracing."),
+            ("Signposts + macros", "Signposter.measure / makeInterval spans + #measure / #log / @AutoLog macros."),
+            ("W3C tracing", "TraceContext.run + URLRequest.addTraceparentHeader() for distributed tracing."),
             ("Diagnostics Hub", "Live SwiftUI view: timeline, network waterfall, flame graph, vitals charts, breadcrumbs."),
             ("Flight recorder", "Rolling 2-min black box for post-crash forensics."),
             ("App vitals", "Periodic memory / CPU / FPS / thermal / battery sampler."),
             ("Bug-report bundler", "One call → folder of logs + breadcrumbs + vitals + device info, ready for ShareLink."),
             ("LiveSink + Inspector CLI", "Bonjour log-tail server for DEBUG builds plus a `swiftmologger-inspector` macOS CLI."),
             ("MetricKit reporter", "Mirror MetricKit crash + hang payloads into the logging pipeline."),
-            ("Combine + AsyncStream", "Observe entries reactively via SwiftMoLogger.stream() or a Combine publisher."),
+            ("Combine + AsyncStream", "Observe entries via environment.stream.subscribe() or a CombineLogPublisher added to the registry."),
             ("Remote shippers", "Sentry envelopes, Datadog logs API, Grafana Loki push — all batched + retried."),
             ("Testing helpers", "XCTAssertLogged + RecordingLogEngine in SwiftMoLoggerTesting."),
             ("Privacy manifest", "Ships a `PrivacyInfo.xcprivacy` so adopters keep App Store compliance.")
@@ -198,27 +210,40 @@ struct AboutTab: View {
 
 // MARK: - Sugar showcase (#log / #measure / @AutoLog)
 
-enum SugarShowcase {
-    static func runMeasureMacro() {
-        let value = #measure("sugar.hash") {
+/// The macros take their logger / signposter explicitly, so the showcase
+/// is built from injected dependencies like everything else.
+struct SugarShowcase {
+    let logger: MoLogger
+    let signposter: Signposter
+
+    func runMeasureMacro() {
+        let value = #measure(signposter, "sugar.hash") {
             (0..<5000).reduce(0, +)
         }
-        SwiftMoLogger.info("computed \(value) via #measure", tag: .Business.calculation)
+        logger.info("computed \(value) via #measure", tag: .Business.calculation)
     }
 
-    static func runLogMacro() {
-        #log("hello from #log macro", level: .notice, tag: .Development.debug)
+    func runLogMacro() {
+        #log(logger, "hello from #log macro", level: .notice, tag: .Development.debug)
     }
 
-    static func runAutoLog() async throws {
-        let service = CheckoutService()
+    func runAutoLog() throws {
+        let service = CheckoutService(logger: logger)
         try service.purchase(id: "SKU-\(Int.random(in: 100...999))")
     }
 }
 
 @AutoLog
 final class CheckoutService {
+    /// Required by `@AutoLog`: its synthesised `__autoLog()` logs through it.
+    let logger: MoLogger
+
+    init(logger: MoLogger) {
+        self.logger = logger
+    }
+
     func purchase(id: String) throws {
-        SwiftMoLogger.info("processing \(id)", tag: .Business.workflow)
+        __autoLog()
+        logger.info("processing \(id)", tag: .Business.workflow)
     }
 }
