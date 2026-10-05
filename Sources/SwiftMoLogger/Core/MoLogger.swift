@@ -87,8 +87,16 @@ public struct MoLogger: Sendable {
         line: Int = #line,
         column: Int = #column
     ) {
-        log(.trace, message(), tag: tag, metadata: metadata,
-            file: file, function: function, line: line, column: column)
+        log(
+            .trace,
+            message(),
+            tag: tag,
+            metadata: metadata,
+            file: file,
+            function: function,
+            line: line,
+            column: column
+        )
     }
 
     /// Debug-only: compiled out of release builds, like
@@ -103,8 +111,16 @@ public struct MoLogger: Sendable {
         column: Int = #column
     ) {
         #if DEBUG
-        log(.debug, message(), tag: tag, metadata: metadata,
-            file: file, function: function, line: line, column: column)
+        log(
+            .debug,
+            message(),
+            tag: tag,
+            metadata: metadata,
+            file: file,
+            function: function,
+            line: line,
+            column: column
+        )
         #endif
     }
 
@@ -117,8 +133,16 @@ public struct MoLogger: Sendable {
         line: Int = #line,
         column: Int = #column
     ) {
-        log(.info, message(), tag: tag, metadata: metadata,
-            file: file, function: function, line: line, column: column)
+        log(
+            .info,
+            message(),
+            tag: tag,
+            metadata: metadata,
+            file: file,
+            function: function,
+            line: line,
+            column: column
+        )
     }
 
     public func notice(
@@ -130,8 +154,16 @@ public struct MoLogger: Sendable {
         line: Int = #line,
         column: Int = #column
     ) {
-        log(.notice, message(), tag: tag, metadata: metadata,
-            file: file, function: function, line: line, column: column)
+        log(
+            .notice,
+            message(),
+            tag: tag,
+            metadata: metadata,
+            file: file,
+            function: function,
+            line: line,
+            column: column
+        )
     }
 
     public func warning(
@@ -143,8 +175,16 @@ public struct MoLogger: Sendable {
         line: Int = #line,
         column: Int = #column
     ) {
-        log(.warning, message(), tag: tag, metadata: metadata,
-            file: file, function: function, line: line, column: column)
+        log(
+            .warning,
+            message(),
+            tag: tag,
+            metadata: metadata,
+            file: file,
+            function: function,
+            line: line,
+            column: column
+        )
     }
 
     public func error(
@@ -156,8 +196,16 @@ public struct MoLogger: Sendable {
         line: Int = #line,
         column: Int = #column
     ) {
-        log(.error, message(), tag: tag, metadata: metadata,
-            file: file, function: function, line: line, column: column)
+        log(
+            .error,
+            message(),
+            tag: tag,
+            metadata: metadata,
+            file: file,
+            function: function,
+            line: line,
+            column: column
+        )
     }
 
     /// Logs `error`'s localized description, with `error_type` and `error` metadata.
@@ -194,8 +242,16 @@ public struct MoLogger: Sendable {
         line: Int = #line,
         column: Int = #column
     ) {
-        log(.critical, message(), tag: tag, metadata: metadata,
-            file: file, function: function, line: line, column: column)
+        log(
+            .critical,
+            message(),
+            tag: tag,
+            metadata: metadata,
+            file: file,
+            function: function,
+            line: line,
+            column: column
+        )
     }
 
     public func fault(
@@ -207,7 +263,15 @@ public struct MoLogger: Sendable {
         line: Int = #line,
         column: Int = #column
     ) {
-        log(.fault, message(), tag: tag, metadata: metadata,
-            file: file, function: function, line: line, column: column)
+        log(
+            .fault,
+            message(),
+            tag: tag,
+            metadata: metadata,
+            file: file,
+            function: function,
+            line: line,
+            column: column
+        )
     }
 }
