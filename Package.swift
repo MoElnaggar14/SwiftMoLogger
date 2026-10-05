@@ -50,7 +50,8 @@ let package = Package(
         ),
         .target(
             name: "SwiftMoLoggerDiagnostics",
-            dependencies: ["SwiftMoLogger"]
+            dependencies: ["SwiftMoLogger"],
+            resources: [.copy("PrivacyInfo.xcprivacy")]
         ),
         .target(
             name: "SwiftMoLoggerTesting",

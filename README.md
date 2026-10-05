@@ -80,7 +80,7 @@ That's it. No `configure(…)`, no singletons to wire, no protocol gymnastics.
 | 🎯 | **Zero ceremony.** `SwiftMoLogger.info("hi")` works the moment you `import`. No configuration step. |
 | 🧩 | **Structured everywhere.** Every call materialises a `LogEntry` with level + tag + metadata + source location + thread. No more parsing strings downstream. |
 | 🚀 | **Sub-µs hot path.** ~140 ns when no engines are attached, ~310 ns with a memory engine. See [PERFORMANCE.md](PERFORMANCE.md). |
-| 🛡 | **Production-safe by default.** Built-in PII / token / credit-card redaction. Rate limiting. Sampling. Privacy manifest. |
+| 🛡 | **Production hardening built in.** Opt-in PII / token / credit-card redaction. Rate limiting. Sampling. Privacy manifests. |
 | 🔭 | **Self-hosted observability.** `DiagnosticsHubView()` is Instruments + Charles + Console inside your app. No cable, no Mac required. |
 | 📡 | **Zero-config live tail.** Bonjour-advertised devices, terminal CLI on your Mac auto-discovers them all. |
 | 🛰 | **W3C distributed tracing.** Stamp every `URLSession` request with `traceparent` so iOS spans show up next to your backend trace. |
@@ -207,6 +207,19 @@ try sink.start()
 SwiftMoLogger.addEngine(sink)
 #endif
 ```
+
+On iOS, advertising on the local network needs two Info.plist keys, or the listener fails on a real device:
+
+```xml
+<key>NSLocalNetworkUsageDescription</key>
+<string>Streams debug logs to the SwiftMoLogger Inspector on your Mac.</string>
+<key>NSBonjourServices</key>
+<array>
+    <string>_swiftmologger._tcp</string>
+</array>
+```
+
+`LiveSink` streams unencrypted, unauthenticated log lines to anyone on the network, so keep it behind `#if DEBUG` (or a debug-only build configuration) and add the keys to that configuration's Info.plist only.
 
 ```bash
 $ swift run swiftmologger-inspector
@@ -367,11 +380,13 @@ SwiftMoLogger.addEngine(SystemLogger(privacy: .privateInRelease))
 
 ### PII redaction
 
-Every log line passes through a regex-based scrubber **before** it leaves your process.
+Redaction is opt-in. Turn it on and log lines pass through a regex-based scrubber **before** they reach the system log.
 
 ```swift
-SwiftMoLogger.enableRedaction()  // one-line install over SystemLogger
+SwiftMoLogger.enableRedaction()  // wraps the system logger
 ```
+
+Wrap every other engine that persists or ships logs (`FileLogEngine`, remote shippers, `LiveSink`) in a `RedactingLogEngine` as well; `enableRedaction()` only covers the system logger.
 
 Default rules: JWT, Bearer / Basic tokens, AWS / GCP keys, emails, credit cards, phone numbers, IPv4, UUIDs. Walks `metadata` recursively. Custom rules:
 
@@ -453,13 +468,14 @@ let session = URLSession(configuration: config)
 
 ### Privacy manifest
 
-`PrivacyInfo.xcprivacy` ships in the package. It declares:
+Each target that uses a required-reason API ships a `PrivacyInfo.xcprivacy`, and Xcode merges them into your app's privacy report:
 
-- `NSPrivacyTracking = false` (no tracking)
-- No collected data types
-- Approved API reasons: UserDefaults (CA92.1), FileTimestamp (C617.1), SystemBootTime (35F9.1)
+| Target | Declares |
+| --- | --- |
+| `SwiftMoLogger` | UserDefaults (CA92.1), FileTimestamp (C617.1), SystemBootTime (35F9.1) |
+| `SwiftMoLoggerDiagnostics` | DiskSpace (7D9E.1): free disk space in the bug report the user chooses to send |
 
-App Store submissions pass without further work.
+Both declare no tracking and no collected data. The package never sends anything off the device by itself. If you add a remote engine (`HTTPLogShipper`, Sentry, Datadog, Loki, …), declare the data you ship in your app's own manifest and App Store privacy details: typically diagnostics and crash data, plus anything your log messages contain.
 
 ---
 

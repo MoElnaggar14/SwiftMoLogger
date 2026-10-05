@@ -190,6 +190,20 @@ final class CorrectnessTests: XCTestCase {
         crashed.stop()
     }
 
+    func testFlightRecorderOnlyRewritesWhenSomethingChanged() {
+        let url = temporaryURL("flight-idle.json")
+        let recorder = FlightRecorder(fileURL: url, flushInterval: 60)
+        recorder.start()
+        defer { recorder.stop() }
+
+        SwiftMoLogger.error("first")
+        XCTAssertTrue(recorder.flushIfChanged())
+        XCTAssertFalse(recorder.flushIfChanged(), "an unchanged snapshot was rewritten")
+
+        SwiftMoLogger.error("second")
+        XCTAssertTrue(recorder.flushIfChanged())
+    }
+
     func testTwoEnginesOnOneFileKeepEveryLineIntact() throws {
         let url = temporaryURL("shared.log")
         let first = try FileLogEngine(fileURL: url, maxFileSizeBytes: 1_000_000, minimumLevel: .trace)
