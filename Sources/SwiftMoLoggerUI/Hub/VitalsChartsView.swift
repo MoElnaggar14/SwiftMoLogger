@@ -42,7 +42,7 @@ public struct VitalsChartsView: View {
             Text("No vitals samples in window")
                 .font(.callout)
                 .foregroundColor(.secondary)
-            Text("AppVitalsMonitor.shared.start(interval: 1)")
+            Text("AppVitalsMonitor(logger:history:).start(interval: 1)")
                 .font(.caption2.monospaced())
                 .foregroundColor(.secondary)
         }

@@ -3,7 +3,7 @@ import Foundation
 
 /// Compile-time logging helpers backed by Swift Macros.
 ///
-/// Re-exports ``SwiftMoLogger`` so a single `import SwiftMoLoggerSugar`
+/// Re-exports `SwiftMoLogger` so a single `import SwiftMoLoggerSugar`
 /// gives you both the runtime API and the macros. Adopters who don't want
 /// the `swift-syntax` build-time cost can stick to `import SwiftMoLogger`
 /// and skip this product entirely.
@@ -11,30 +11,30 @@ import Foundation
 #if swift(>=5.9)
 
 /// Freestanding macro that captures the current source location at the
-/// call site and emits a structured ``LogEntry`` at the requested level.
+/// call site and logs through the given ``MoLogger``.
 ///
 /// ```swift
-/// #log("user signed in", level: .info, tag: .api)
+/// #log(logger, "user signed in", level: .info, tag: .api)
 /// ```
 @freestanding(expression)
 public macro log(
+    _ logger: MoLogger,
     _ message: String,
     level: LogLevel = .info,
     tag: LogTag? = nil
 ) = #externalMacro(module: "SwiftMoLoggerMacros", type: "LogMacro")
 
-/// Freestanding macro that wraps a block in `LogSignpost.measure(_:)` while
-/// inferring the signpost name from the call site so you never have to
-/// invent one.
+/// Freestanding macro that wraps a block in ``Signposter/measure(_:tag:file:function:line:column:_:)``.
 ///
 /// ```swift
-/// let users = #measure(loadUsers) {
+/// let users = #measure(signposter, "loadUsers") {
 ///     try userRepo.all()
 /// }
 /// ```
 @freestanding(expression)
 public macro measure<T>(
-    _ name: String,
+    _ signposter: Signposter,
+    _ name: StaticString,
     _ body: () throws -> T
 ) -> T = #externalMacro(module: "SwiftMoLoggerMacros", type: "MeasureMacro")
 
@@ -42,10 +42,19 @@ public macro measure<T>(
 /// automatic entry+exit logging. Trace level on entry, error level on
 /// thrown errors. The macro injects a stable signpost name per method.
 ///
+/// The type must have a `logger: MoLogger` property (inject it); the
+/// synthesised `__autoLog()` helper logs through it.
+///
 /// ```swift
 /// @AutoLog
 /// final class CheckoutService {
-///     func purchase(_ id: String) throws { … }   // automatic entry/exit logs
+///     let logger: MoLogger
+///     init(logger: MoLogger) { self.logger = logger }
+///
+///     func purchase(_ id: String) throws {
+///         __autoLog()
+///         …
+///     }
 /// }
 /// ```
 @attached(member, names: arbitrary)

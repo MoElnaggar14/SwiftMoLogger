@@ -1,6 +1,6 @@
 import Foundation
 
-/// A finished signpost span, captured by ``LogSignpost``.
+/// A finished signpost span, recorded by ``Signposter``.
 public struct SignpostEvent: Sendable, Hashable, Codable, Identifiable {
     public let id: UUID
     public let name: String
@@ -25,8 +25,6 @@ public struct SignpostEvent: Sendable, Hashable, Codable, Identifiable {
 
 /// Bounded ring buffer of finished signpost spans.
 public final class SignpostEventStore: @unchecked Sendable {
-    public static let shared = SignpostEventStore()
-
     public let capacity: Int
     private var buffer: [SignpostEvent?]
     private var head = 0

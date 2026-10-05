@@ -1,7 +1,7 @@
 import XCTest
 @testable import SwiftMoLogger
 
-final class RedactionTests: XCTestCase {
+final class RedactionTests: LoggingTestCase {
 
     func testEmailIsRedacted() {
         let redactor = Redactor()
@@ -58,10 +58,9 @@ final class RedactionTests: XCTestCase {
     }
 
     func testRedactingEngineWrapsAnotherEngine() {
-        SwiftMoLogger.reset()
         let memory = MemoryLogEngine()
-        SwiftMoLogger.addEngine(RedactingLogEngine(wrapping: memory))
-        SwiftMoLogger.info("contact me at admin@corp.com")
+        registry.addEngine(RedactingLogEngine(wrapping: memory))
+        log.info("contact me at admin@corp.com")
         let captured = memory.snapshot()
         XCTAssertEqual(captured.count, 1)
         XCTAssertTrue(captured[0].message.contains("[EMAIL]"))

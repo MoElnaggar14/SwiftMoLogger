@@ -9,7 +9,7 @@ import SwiftMoLogger
 /// import SwiftMoLoggerUI
 ///
 /// struct DebugRoot: View {
-///     var body: some View { LogConsoleView() }
+///     var body: some View { LogConsoleView(stream: logging.stream) }
 /// }
 /// ```
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
@@ -17,8 +17,9 @@ public struct LogConsoleView: View {
     @StateObject private var model: LogConsoleViewModel
     @State private var autoScroll = true
 
-    public init(bufferLimit: Int = 2_000) {
-        _model = StateObject(wrappedValue: LogConsoleViewModel(bufferLimit: bufferLimit))
+    /// A console showing every entry flowing through `stream` (typically `environment.stream`).
+    public init(stream: LogStream, bufferLimit: Int = 2_000) {
+        _model = StateObject(wrappedValue: LogConsoleViewModel(stream: stream, bufferLimit: bufferLimit))
     }
 
     public var body: some View {

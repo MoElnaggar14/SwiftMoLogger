@@ -3,11 +3,10 @@ import XCTest
 import SwiftMoLoggerTesting
 
 /// Regression tests for the 3.1 correctness fixes.
-final class CorrectnessTests: XCTestCase {
+final class CorrectnessTests: LoggingTestCase {
     override func setUp() {
         super.setUp()
-        SwiftMoLogger.reset()
-        SwiftMoLogger.minimumLevel = .trace
+        registry.minimumLevel = .trace
     }
 
     // MARK: - Engine identity
@@ -15,20 +14,21 @@ final class CorrectnessTests: XCTestCase {
     func testTwoMemoryEnginesCoexist() {
         let first = MemoryLogEngine()
         let second = MemoryLogEngine()
-        SwiftMoLogger.addEngine(first)
-        SwiftMoLogger.addEngine(second)
+        registry.addEngine(first)
+        registry.addEngine(second)
 
-        SwiftMoLogger.info("hello")
+        log.info("hello")
 
-        XCTAssertEqual(SwiftMoLogger.engineCount, 3)
+        // System logger + stream + both memory engines.
+        XCTAssertEqual(registry.engineCount, 4)
         XCTAssertEqual(first.snapshot().count, 1)
         XCTAssertEqual(second.snapshot().count, 1)
     }
 
     func testExplicitMemoryEngineIdStillDeduplicates() {
-        SwiftMoLogger.addEngine(MemoryLogEngine(id: "mine"))
-        SwiftMoLogger.addEngine(MemoryLogEngine(id: "mine"))
-        XCTAssertEqual(SwiftMoLogger.engineCount, 2)
+        registry.addEngine(MemoryLogEngine(id: "mine"))
+        registry.addEngine(MemoryLogEngine(id: "mine"))
+        XCTAssertEqual(registry.engineCount, 3)
     }
 
     func testDefaultSystemLoggerIsProtectedByIdentityNotPosition() {
@@ -62,33 +62,34 @@ final class CorrectnessTests: XCTestCase {
 
     func testEnableRedactionIsIdempotentAndKeepsOtherEngines() {
         let memory = MemoryLogEngine()
-        SwiftMoLogger.addEngine(memory)
+        registry.addEngine(memory)
 
-        SwiftMoLogger.enableRedaction(at: 1)
-        SwiftMoLogger.enableRedaction(at: 1)
-        SwiftMoLogger.info("mail admin@corp.com")
+        let index = registry.allEngines().firstIndex { $0 === memory }!
+        registry.enableRedaction(at: index)
+        registry.enableRedaction(at: index)
+        log.info("mail admin@corp.com")
 
-        XCTAssertEqual(SwiftMoLogger.engineCount, 2)
+        XCTAssertEqual(registry.engineCount, 3)
         XCTAssertFalse(memory.snapshot().last?.message.contains("admin@corp.com") ?? true)
     }
 
     // MARK: - Source location
 
     func testLevelHelpersForwardColumn() {
-        let recorder = SwiftMoLogger.installRecorder()
-        SwiftMoLogger.warn("x", column: 42)
+        let recorder = installRecorder()
+        log.warning("x", column: 42)
         XCTAssertEqual(recorder.recorded().last?.source.column, 42)
     }
 
     func testSignpostAttributesTheCaller() {
-        let recorder = SwiftMoLogger.installRecorder()
-        LogSignpost.measure("work") { _ = 1 + 1 }
+        let recorder = installRecorder()
+        environment.signposter.measure("work") { _ = 1 + 1 }
         XCTAssertEqual(recorder.recorded().last?.source.file, #fileID)
     }
 
     func testIntervalEndsOnce() {
-        let recorder = SwiftMoLogger.installRecorder()
-        let interval = LogSignpost.Interval(name: "span")
+        let recorder = installRecorder()
+        let interval = environment.signposter.makeInterval("span")
         interval.end()
         interval.end()
         XCTAssertEqual(recorder.recorded().count, 1)
@@ -163,26 +164,28 @@ final class CorrectnessTests: XCTestCase {
 
     func testFlightRecorderCanRestartAndStopCleanly() {
         let url = temporaryURL("flight-restart.json")
-        let recorder = FlightRecorder(fileURL: url, flushInterval: 60)
+        let defaults = isolatedDefaults()
+        let recorder = FlightRecorder(environment: environment, fileURL: url, flushInterval: 60, defaults: defaults)
 
         recorder.start()
         recorder.stop()
         recorder.start()
         recorder.stop()
 
-        XCTAssertFalse(UserDefaults.standard.bool(forKey: "SwiftMoLogger.FlightRecorder.alive"))
+        XCTAssertFalse(defaults.bool(forKey: "SwiftMoLogger.FlightRecorder.alive"))
         XCTAssertNil(recorder.crashedSession)
     }
 
     func testFlightRecorderReportsPreviousCrashAfterStart() {
         let url = temporaryURL("flight-crash.json")
-        let crashed = FlightRecorder(fileURL: url, flushInterval: 60)
+        let defaults = isolatedDefaults()
+        let crashed = FlightRecorder(environment: environment, fileURL: url, flushInterval: 60, defaults: defaults)
         crashed.start()
-        SwiftMoLogger.error("about to crash")
+        log.error("about to crash")
         crashed.flush()
         // No stop(): simulates the process dying.
 
-        let next = FlightRecorder(fileURL: url, flushInterval: 60)
+        let next = FlightRecorder(environment: environment, fileURL: url, flushInterval: 60, defaults: defaults)
         next.start()
 
         XCTAssertEqual(next.crashedSession?.entries.last?.message, "about to crash")
@@ -202,6 +205,12 @@ final class CorrectnessTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    private func isolatedDefaults() -> UserDefaults {
+        let suite = "SwiftMoLoggerTests-\(UUID().uuidString)"
+        addTeardownBlock { UserDefaults().removePersistentDomain(forName: suite) }
+        return UserDefaults(suiteName: suite)!
+    }
 
     private func temporaryURL(_ name: String) -> URL {
         let directory = FileManager.default.temporaryDirectory

@@ -11,29 +11,29 @@ final class LogMacroTests: XCTestCase {
 
     func testLogMacroExpandsWithDefaults() {
         assertMacroExpansion(
-            #"#log("hello")"#,
-            expandedSource: #"SwiftMoLogger.log(.info, "hello", tag: nil, file: #fileID, function: #function, line: #line)"#,
+            #"#log(logger, "hello")"#,
+            expandedSource: #"logger.log(.info, "hello", tag: nil, file: #fileID, function: #function, line: #line)"#,
             macros: macros
         )
     }
 
     func testLogMacroForwardsLevelAndTag() {
         assertMacroExpansion(
-            #"#log("oops", level: .error, tag: .api)"#,
-            expandedSource: #"SwiftMoLogger.log(.error, "oops", tag: .api, file: #fileID, function: #function, line: #line)"#,
+            #"#log(self.log, "oops", level: .error, tag: .api)"#,
+            expandedSource: #"self.log.log(.error, "oops", tag: .api, file: #fileID, function: #function, line: #line)"#,
             macros: macros
         )
     }
 
-    func testMeasureMacroLowersToSignpost() {
+    func testMeasureMacroLowersToInjectedSignposter() {
         assertMacroExpansion(
             """
-            #measure("loadUsers") {
+            #measure(signposter, "loadUsers") {
                 try repo.all()
             }
             """,
             expandedSource: """
-            LogSignpost.measure("loadUsers") {
+            signposter.measure("loadUsers") {
                 try repo.all()
             }
             """,

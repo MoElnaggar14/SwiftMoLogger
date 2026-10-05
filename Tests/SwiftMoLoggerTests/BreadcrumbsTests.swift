@@ -1,16 +1,16 @@
 import XCTest
 @testable import SwiftMoLogger
 
-final class BreadcrumbsTests: XCTestCase {
+final class BreadcrumbsTests: LoggingTestCase {
     override func setUp() {
         super.setUp()
-        SwiftMoLogger.clearBreadcrumbs()
+        environment.breadcrumbs.clear()
     }
 
     func testBreadcrumbsAreRecordedAndSnapshotted() {
-        SwiftMoLogger.breadcrumb("opened cart", category: .userAction)
-        SwiftMoLogger.breadcrumb("nav to checkout", category: .navigation)
-        let crumbs = SwiftMoLogger.breadcrumbs()
+        environment.breadcrumbs.record("opened cart", category: .userAction)
+        environment.breadcrumbs.record("nav to checkout", category: .navigation)
+        let crumbs = environment.breadcrumbs.snapshot()
         XCTAssertEqual(crumbs.count, 2)
         XCTAssertEqual(crumbs[0].category, .userAction)
         XCTAssertEqual(crumbs[1].category, .navigation)
@@ -27,8 +27,8 @@ final class BreadcrumbsTests: XCTestCase {
     }
 
     func testBreadcrumbCarriesMetadata() {
-        SwiftMoLogger.breadcrumb("tapped Buy", category: .userAction, metadata: ["sku": "ABC-1"])
-        let crumb = SwiftMoLogger.breadcrumbs().last
+        environment.breadcrumbs.record("tapped Buy", category: .userAction, metadata: ["sku": "ABC-1"])
+        let crumb = environment.breadcrumbs.snapshot().last
         XCTAssertEqual(crumb?.metadata["sku"], .string("ABC-1"))
     }
 }

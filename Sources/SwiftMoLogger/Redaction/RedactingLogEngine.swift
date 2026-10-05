@@ -40,14 +40,13 @@ public final class RedactingLogEngine: LogEngine, @unchecked Sendable {
     }
 }
 
-public extension SwiftMoLogger {
-    /// Install global redaction by replacing the engine at `index` with a
-    /// ``RedactingLogEngine`` wrapper. Idempotent: re-running it on an
-    /// already-redacted engine is a no-op.
-    static func enableRedaction(at index: Int = 0, redactor: Redactor = Redactor()) {
-        let engines = EngineRegistry.shared.allEngines()
+public extension EngineRegistry {
+    /// Wraps the engine at `index` in a ``RedactingLogEngine``, atomically and
+    /// in place. Idempotent: an already-redacted engine is left as is.
+    func enableRedaction(at index: Int = 0, redactor: Redactor = Redactor()) {
+        let engines = allEngines()
         guard engines.indices.contains(index) else { return }
-        EngineRegistry.shared.replaceEngine(id: engines[index].engineID) { target in
+        replaceEngine(id: engines[index].engineID) { target in
             target is RedactingLogEngine ? target : RedactingLogEngine(wrapping: target, redactor: redactor)
         }
     }

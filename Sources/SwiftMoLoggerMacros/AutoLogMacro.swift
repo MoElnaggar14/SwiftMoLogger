@@ -36,6 +36,8 @@ public struct AutoLogMacro: MemberMacro, MemberAttributeMacro {
         }
         guard !methods.isEmpty else { return [] }
 
+        // The type supplies its own injected `logger: MoLogger` property; the
+        // helper logs through it, so there's no global logger involved.
         // Emit a single helper that the method bodies can call manually
         // (e.g. `__autoLog("purchase")`). Body rewriting via macros is still
         // an evolving area in Swift — keeping the surface minimal avoids
@@ -47,7 +49,7 @@ public struct AutoLogMacro: MemberMacro, MemberAttributeMacro {
         fileprivate func __autoLog(_ method: String = #function,
                                    file: String = #fileID,
                                    line: Int = #line) {
-            SwiftMoLogger.trace("→ \\(method)", tag: .Development.debug, file: file, function: method, line: line)
+            logger.trace("→ \\(method)", tag: .Development.debug, file: file, function: method, line: line)
         }
         """
         return [helper]

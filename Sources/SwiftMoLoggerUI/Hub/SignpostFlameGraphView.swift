@@ -46,7 +46,7 @@ public struct SignpostFlameGraphView: View {
             Text("No signposts in window")
                 .font(.callout)
                 .foregroundColor(.secondary)
-            Text("Wrap code in LogSignpost.measure(\"name\") { … }")
+            Text("Wrap code in signposter.measure(\"name\") { … }")
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }

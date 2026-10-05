@@ -3,16 +3,15 @@ import Foundation
 /// An injectable logger: an ``EngineRegistry`` plus a default tag and bound
 /// metadata.
 ///
-/// The static `SwiftMoLogger.info(…)` API is the zero-ceremony path and logs
-/// through ``MoLogger/shared``. Reach for `MoLogger` when a component should
-/// receive its logger rather than reach for a global:
+/// There is no global logger. Build a ``LogEnvironment`` at your composition
+/// root and inject `environment.logger` (or a child of it) into each component:
 ///
 /// ```swift
 /// final class CheckoutService {
 ///     private let log: MoLogger
 ///
-///     init(log: MoLogger = .shared.with(tag: .business)) {
-///         self.log = log.with(metadata: ["component": "checkout"])
+///     init(log: MoLogger) {
+///         self.log = log.with(tag: .business).with(metadata: ["component": "checkout"])
 ///     }
 ///
 ///     func pay(orderID: String) {
@@ -21,9 +20,9 @@ import Foundation
 /// }
 /// ```
 ///
-/// Each logger can point at its own registry, so a framework can keep its logs
-/// separate from the host app's, and tests can run in parallel without touching
-/// ``EngineRegistry/shared``.
+/// Each logger points at the registry it was given, so a framework can keep its
+/// logs separate from the host app's, and tests can run in parallel with
+/// isolated registries.
 public struct MoLogger: Sendable {
     public let registry: EngineRegistry
     /// Tag applied to entries that don't pass one explicitly.
@@ -31,14 +30,11 @@ public struct MoLogger: Sendable {
     /// Metadata merged under each entry's own metadata (entry keys win).
     public var metadata: LogMetadata
 
-    public init(registry: EngineRegistry = .shared, tag: LogTag? = nil, metadata: LogMetadata = [:]) {
+    public init(registry: EngineRegistry, tag: LogTag? = nil, metadata: LogMetadata = [:]) {
         self.registry = registry
         self.tag = tag
         self.metadata = metadata
     }
-
-    /// Logs through ``EngineRegistry/shared``, like the static API.
-    public static var shared: MoLogger { MoLogger() }
 
     // MARK: Child loggers
 
@@ -99,8 +95,8 @@ public struct MoLogger: Sendable {
         )
     }
 
-    /// Debug-only: compiled out of release builds, like
-    /// ``SwiftMoLogger/debug(_:tag:metadata:file:function:line:column:)``.
+    /// Debug-only: the call is compiled out of release builds, so the message
+    /// is never evaluated there.
     public func debug(
         _ message: @autoclosure () -> String,
         tag: LogTag? = nil,

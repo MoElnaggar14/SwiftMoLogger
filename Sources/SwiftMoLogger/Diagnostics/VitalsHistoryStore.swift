@@ -33,8 +33,6 @@ public struct VitalsTick: Sendable, Hashable, Codable, Identifiable {
 
 /// Rolling vitals history for the Diagnostics Hub charts.
 public final class VitalsHistoryStore: @unchecked Sendable {
-    public static let shared = VitalsHistoryStore()
-
     public let capacity: Int
     private var buffer: [VitalsTick?]
     private var head = 0

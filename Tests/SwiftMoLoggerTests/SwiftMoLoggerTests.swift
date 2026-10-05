@@ -1,29 +1,28 @@
 import XCTest
 @testable import SwiftMoLogger
 
-final class SwiftMoLoggerTests: XCTestCase {
+final class SwiftMoLoggerTests: LoggingTestCase {
     override func setUp() {
         super.setUp()
-        SwiftMoLogger.reset()
     }
 
     func testBasicLogging() {
-        SwiftMoLogger.info("info")
-        SwiftMoLogger.warn("warn")
-        SwiftMoLogger.error("error")
+        log.info("info")
+        log.warning("warn")
+        log.error("error")
     }
 
     func testTaggedLogging() {
-        SwiftMoLogger.info("api call", tag: .api)
-        SwiftMoLogger.warn("layout warning", tag: .layout)
-        SwiftMoLogger.error("db error", tag: .database)
+        log.info("api call", tag: .api)
+        log.warning("layout warning", tag: .layout)
+        log.error("db error", tag: .database)
     }
 
     func testStructuredLogging() {
         let memory = MemoryLogEngine(capacity: 32)
-        SwiftMoLogger.addEngine(memory)
+        registry.addEngine(memory)
 
-        SwiftMoLogger.error("payment failed", tag: .api, metadata: [
+        log.error("payment failed", tag: .api, metadata: [
             "order_id": "ord_123",
             "amount": 49.99,
             "retried": true
@@ -46,9 +45,9 @@ final class SwiftMoLoggerTests: XCTestCase {
             var errorDescription: String? { "kaboom" }
         }
         let memory = MemoryLogEngine(capacity: 4)
-        SwiftMoLogger.addEngine(memory)
+        registry.addEngine(memory)
 
-        SwiftMoLogger.error(BoomError(), tag: .api)
+        log.error(BoomError(), tag: .api)
         let entry = memory.snapshot().last
         XCTAssertEqual(entry?.message, "kaboom")
         XCTAssertEqual(entry?.metadata["error_type"], .string("BoomError"))
@@ -56,13 +55,13 @@ final class SwiftMoLoggerTests: XCTestCase {
 
     func testGlobalMinimumLevelFilters() {
         let memory = MemoryLogEngine(capacity: 16)
-        SwiftMoLogger.addEngine(memory)
+        registry.addEngine(memory)
 
-        SwiftMoLogger.minimumLevel = .warning
-        SwiftMoLogger.info("dropped")
-        SwiftMoLogger.warn("kept")
-        SwiftMoLogger.error("kept")
-        SwiftMoLogger.minimumLevel = .trace
+        registry.minimumLevel = .warning
+        log.info("dropped")
+        log.warning("kept")
+        log.error("kept")
+        registry.minimumLevel = .trace
 
         let messages = memory.snapshot().map(\.message)
         XCTAssertFalse(messages.contains("dropped"))
@@ -83,44 +82,45 @@ final class SwiftMoLoggerTests: XCTestCase {
         XCTAssertLessThan(LogLevel.error, LogLevel.fault)
     }
 
-    func testLogTaggedProtocol() {
-        struct APIService: LogTagged {
-            var logTag: LogTag { .api }
-        }
+    func testChildLoggerTagsEntries() {
         let memory = MemoryLogEngine(capacity: 4)
-        SwiftMoLogger.addEngine(memory)
-        let service = APIService()
-        service.logInfo("hello")
+        registry.addEngine(memory)
+        let apiLog = log.with(tag: .api)
+        apiLog.info("hello")
         XCTAssertEqual(memory.snapshot().last?.tag?.rawValue, "[API]")
     }
 
     func testEngineManagement() {
-        XCTAssertEqual(SwiftMoLogger.engineCount, 1)
+        // A fresh environment holds the system logger and its live stream.
+        let baseline = registry.engineCount
+        XCTAssertEqual(baseline, 2)
         let mem = MemoryLogEngine()
-        SwiftMoLogger.addEngine(mem)
-        XCTAssertEqual(SwiftMoLogger.engineCount, 2)
+        registry.addEngine(mem)
+        XCTAssertEqual(registry.engineCount, baseline + 1)
 
         // Re-adding by id replaces, not duplicates.
-        SwiftMoLogger.addEngine(mem)
-        XCTAssertEqual(SwiftMoLogger.engineCount, 2)
+        registry.addEngine(mem)
+        XCTAssertEqual(registry.engineCount, baseline + 1)
 
-        SwiftMoLogger.removeEngine(id: mem.engineID)
-        XCTAssertEqual(SwiftMoLogger.engineCount, 1)
+        registry.removeEngine(id: mem.engineID)
+        XCTAssertEqual(registry.engineCount, baseline)
     }
 
     func testRemoveEngineDoesNotRemoveSystemLogger() {
-        SwiftMoLogger.removeEngine(at: 0)
-        XCTAssertEqual(SwiftMoLogger.engineCount, 1)
+        let baseline = registry.engineCount
+        registry.removeEngine(at: 0)
+        XCTAssertEqual(registry.engineCount, baseline)
+        XCTAssertTrue(registry.allEngines().first is SystemLogger)
     }
 
     func testAmbientContext() {
         let memory = MemoryLogEngine(capacity: 4)
-        SwiftMoLogger.addEngine(memory)
+        registry.addEngine(memory)
 
-        SwiftMoLogger.withContext(["request_id": "req-42"]) {
-            SwiftMoLogger.info("scoped")
+        LogContext.with(["request_id": "req-42"]) {
+            log.info("scoped")
         }
-        SwiftMoLogger.info("outside")
+        log.info("outside")
 
         let entries = memory.snapshot()
         let scoped = entries.first { $0.message == "scoped" }
@@ -131,9 +131,9 @@ final class SwiftMoLoggerTests: XCTestCase {
 
     func testMemoryEngineCircularBuffer() {
         let memory = MemoryLogEngine(capacity: 3)
-        SwiftMoLogger.addEngine(memory)
+        registry.addEngine(memory)
         for index in 0..<10 {
-            SwiftMoLogger.info("msg-\(index)")
+            log.info("msg-\(index)")
         }
         let snapshot = memory.snapshot()
         XCTAssertEqual(snapshot.count, 3)
@@ -142,11 +142,11 @@ final class SwiftMoLoggerTests: XCTestCase {
 
     func testMemoryEngineCounters() {
         let memory = MemoryLogEngine(capacity: 16)
-        SwiftMoLogger.addEngine(memory)
-        SwiftMoLogger.info("i")
-        SwiftMoLogger.warn("w")
-        SwiftMoLogger.warn("w2")
-        SwiftMoLogger.error("e")
+        registry.addEngine(memory)
+        log.info("i")
+        log.warning("w")
+        log.warning("w2")
+        log.error("e")
         let counters = memory.counters()
         XCTAssertEqual(counters.total, 4)
         XCTAssertEqual(counters.warnings, 2)
@@ -155,10 +155,10 @@ final class SwiftMoLoggerTests: XCTestCase {
 
     func testMemoryEngineFiltering() {
         let memory = MemoryLogEngine(capacity: 16)
-        SwiftMoLogger.addEngine(memory)
-        SwiftMoLogger.info("net stuff", tag: .network)
-        SwiftMoLogger.error("auth boom", tag: .authentication)
-        SwiftMoLogger.warn("net warning", tag: .network)
+        registry.addEngine(memory)
+        log.info("net stuff", tag: .network)
+        log.error("auth boom", tag: .authentication)
+        log.warning("net warning", tag: .network)
 
         let onlyNetwork = memory.filtered(domain: "network")
         XCTAssertEqual(onlyNetwork.count, 2)
@@ -176,8 +176,8 @@ final class SwiftMoLoggerTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: tmp) }
 
         let engine = try FileLogEngine(fileURL: tmp, maxFileSizeBytes: 10_000)
-        SwiftMoLogger.addEngine(engine)
-        SwiftMoLogger.info("hello-file", tag: .api, metadata: ["k": "v"])
+        registry.addEngine(engine)
+        log.info("hello-file", tag: .api, metadata: ["k": "v"])
         engine.flush()
 
         let raw = try String(contentsOf: tmp)
@@ -199,9 +199,9 @@ final class SwiftMoLoggerTests: XCTestCase {
         }
 
         let engine = try FileLogEngine(fileURL: tmp, maxFileSizeBytes: 256, maxRotatedFiles: 2)
-        SwiftMoLogger.addEngine(engine)
+        registry.addEngine(engine)
         for index in 0..<50 {
-            SwiftMoLogger.info("rotation-test-entry-with-enough-bytes-\(index)")
+            log.info("rotation-test-entry-with-enough-bytes-\(index)")
         }
         engine.flush()
 
@@ -211,7 +211,7 @@ final class SwiftMoLoggerTests: XCTestCase {
 
     func testConcurrentLoggingDoesNotCrash() {
         let memory = MemoryLogEngine(capacity: 5_000)
-        SwiftMoLogger.addEngine(memory)
+        registry.addEngine(memory)
 
         let iterations = 200
         let queues = 8
@@ -221,7 +221,7 @@ final class SwiftMoLoggerTests: XCTestCase {
         for queueIndex in 0..<queues {
             DispatchQueue.global(qos: .userInitiated).async {
                 for entryIndex in 0..<iterations {
-                    SwiftMoLogger.info("q\(queueIndex)-\(entryIndex)")
+                    log.info("q\(queueIndex)-\(entryIndex)")
                 }
                 expectation.fulfill()
             }
@@ -232,7 +232,7 @@ final class SwiftMoLoggerTests: XCTestCase {
     }
 
     func testAsyncStreamSubscription() async {
-        let stream = SwiftMoLogger.stream(bufferSize: 16)
+        let stream = environment.stream.subscribe(bufferSize: 16)
         let task = Task<[LogEntry], Never> {
             var collected: [LogEntry] = []
             for await entry in stream {
@@ -243,9 +243,9 @@ final class SwiftMoLoggerTests: XCTestCase {
         }
         // Give the stream a beat to be wired up.
         try? await Task.sleep(nanoseconds: 50_000_000)
-        SwiftMoLogger.info("s1")
-        SwiftMoLogger.info("s2")
-        SwiftMoLogger.info("s3")
+        log.info("s1")
+        log.info("s2")
+        log.info("s3")
 
         let collected = await task.value
         XCTAssertEqual(collected.count, 3)
@@ -254,7 +254,7 @@ final class SwiftMoLoggerTests: XCTestCase {
 
     #if canImport(MetricKit) && (os(iOS) || os(macOS))
     func testMetricKitCrashReporterLifecycle() {
-        let reporter = MetricKitCrashReporter()
+        let reporter = MetricKitCrashReporter(logger: log)
         reporter.startMonitoring()
         reporter.stopMonitoring()
     }

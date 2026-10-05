@@ -1,7 +1,7 @@
 import Foundation
 
-/// Captured snapshot of an HTTP exchange. Fed by ``NetworkLoggingProtocol``
-/// when ``SwiftMoLoggerNetwork`` is installed.
+/// Captured snapshot of an HTTP exchange, recorded by `NetworkLogger`
+/// (SwiftMoLoggerNetwork) for the Diagnostics Hub's waterfall.
 public struct NetworkEvent: Sendable, Hashable, Codable, Identifiable {
     public let id: UUID
     public let startedAt: Date
@@ -42,8 +42,6 @@ public struct NetworkEvent: Sendable, Hashable, Codable, Identifiable {
 
 /// Bounded ring-buffer of recent ``NetworkEvent``s.
 public final class NetworkEventStore: @unchecked Sendable {
-    public static let shared = NetworkEventStore()
-
     public let capacity: Int
     private var buffer: [NetworkEvent?]
     private var head = 0

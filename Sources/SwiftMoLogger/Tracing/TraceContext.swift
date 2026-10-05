@@ -82,26 +82,25 @@ public enum CurrentTrace {
     public static var current: TraceContext?
 }
 
-public extension SwiftMoLogger {
-    /// Run `block` inside a fresh trace. Any log entries emitted during the
-    /// block automatically carry the `trace.id` / `span.id` metadata, and
-    /// any `URLSession` request flowing through ``SwiftMoLoggerNetwork``
-    /// will get the `traceparent` header injected.
-    static func withTrace<T>(
-        _ context: TraceContext = .generate(),
-        _ block: () throws -> T
-    ) rethrows -> T {
-        try CurrentTrace.$current.withValue(context) {
-            try withContext(context.metadata, block)
+public extension TraceContext {
+    /// Runs `operation` inside this trace. Entries logged inside carry the
+    /// `trace.id` / `span.id` metadata, and ``CurrentTrace/current`` is set so
+    /// network layers can send a `traceparent` header.
+    ///
+    /// ```swift
+    /// try await TraceContext.generate().run {
+    ///     try await api.checkout()
+    /// }
+    /// ```
+    func run<T>(_ operation: () throws -> T) rethrows -> T {
+        try CurrentTrace.$current.withValue(self) {
+            try LogContext.with(metadata, operation: operation)
         }
     }
 
-    static func withTrace<T>(
-        _ context: TraceContext = .generate(),
-        _ block: () async throws -> T
-    ) async rethrows -> T {
-        try await CurrentTrace.$current.withValue(context) {
-            try await withContext(context.metadata, block)
+    func run<T>(_ operation: () async throws -> T) async rethrows -> T {
+        try await CurrentTrace.$current.withValue(self) {
+            try await LogContext.with(metadata, operation: operation)
         }
     }
 }

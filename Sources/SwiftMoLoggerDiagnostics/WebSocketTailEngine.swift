@@ -11,7 +11,7 @@ import SwiftMoLogger
 /// ```bash
 /// wscat -l 9001
 /// # in the app:
-/// SwiftMoLogger.addEngine(WebSocketTailEngine(url: URL(string: "ws://192.168.1.42:9001")!))
+/// logging.registry.addEngine(WebSocketTailEngine(url: URL(string: "ws://192.168.1.42:9001")!))
 /// ```
 public final class WebSocketTailEngine: NSObject, LogEngine, @unchecked Sendable, URLSessionWebSocketDelegate {
     public let engineID: String = "swiftmologger.diagnostics.wstail"

@@ -14,11 +14,10 @@ import UIKit
 /// shipping engines.
 ///
 /// ```swift
-/// AppVitalsMonitor.shared.start(interval: 5)
+/// let vitals = AppVitalsMonitor(logger: logging.logger, history: logging.vitals)
+/// vitals.start(interval: 5)
 /// ```
 public final class AppVitalsMonitor: @unchecked Sendable {
-    public static let shared = AppVitalsMonitor()
-
     public struct Sample: Sendable, Codable {
         public let timestamp: Date
         public let memoryUsedBytes: UInt64
@@ -40,7 +39,16 @@ public final class AppVitalsMonitor: @unchecked Sendable {
     private var lastFPS: Double = 0
     #endif
 
-    private init() {}
+    private let logger: MoLogger
+    private let history: VitalsHistoryStore?
+
+    /// - Parameters:
+    ///   - logger: Receives one `.notice` entry per sample.
+    ///   - history: Keeps samples for the Diagnostics Hub's charts. `nil` to skip.
+    public init(logger: MoLogger, history: VitalsHistoryStore? = nil) {
+        self.logger = logger
+        self.history = history
+    }
 
     public var lastSample: Sample? {
         lock.lock()
@@ -93,14 +101,14 @@ public final class AppVitalsMonitor: @unchecked Sendable {
         lock.unlock()
 
         let memoryMB = Double(sample.memoryUsedBytes) / 1_048_576
-        SwiftMoLogger.notice("vitals", tag: .performance, metadata: [
+        logger.notice("vitals", tag: .performance, metadata: [
             "memory_mb": .double(memoryMB),
             "cpu_pct": .double(sample.cpuUsagePercent),
             "fps": .double(sample.fps),
             "thermal": .string(sample.thermalState),
             "battery": .double(sample.batteryLevel)
         ])
-        VitalsHistoryStore.shared.record(VitalsTick(
+        history?.record(VitalsTick(
             timestamp: sample.timestamp,
             memoryMB: memoryMB,
             cpuPercent: sample.cpuUsagePercent,

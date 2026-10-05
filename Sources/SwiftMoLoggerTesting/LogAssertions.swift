@@ -7,7 +7,7 @@ import SwiftMoLogger
 /// ```swift
 /// final class CheckoutTests: XCTestCase {
 ///     var logs: RecordingLogEngine!
-///     override func setUp() { logs = SwiftMoLogger.installRecorder() }
+///     override func setUp() { (log, logs) = MoLogger.recording() }
 ///
 ///     func testCheckoutFailureIsLogged() {
 ///         service.purchase(invalid: true)

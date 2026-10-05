@@ -14,10 +14,10 @@ import Foundation
 ///
 /// ```swift
 /// // In didFinishLaunching:
-/// let recorder = FlightRecorder()
+/// let recorder = FlightRecorder(environment: logging)
 /// recorder.start()
 /// if let session = recorder.crashedSession {
-///     SwiftMoLogger.warn("Recovered \(session.entries.count) entries from a crashed session")
+///     logging.logger.warning("Recovered \(session.entries.count) entries from a crashed session")
 ///     // Optionally feed back into the Diagnostics Hub or upload to a backend.
 /// }
 /// ```
@@ -40,18 +40,27 @@ public final class FlightRecorder: @unchecked Sendable {
     public let window: TimeInterval
     public let flushInterval: TimeInterval
 
+    private let environment: LogEnvironment
+    private let defaults: UserDefaults
     private let memory: MemoryLogEngine
     private let queue: DispatchQueue
     // `timer` and `recovered` are only touched on `queue`.
     private var timer: DispatchSourceTimer?
     private var recovered: Session?
 
+    /// - Parameters:
+    ///   - environment: The registry to record from and the stores to snapshot.
+    ///   - defaults: Where the "session is running" flag lives.
     public init(
+        environment: LogEnvironment,
         fileURL: URL? = nil,
         window: TimeInterval = 120,
         flushInterval: TimeInterval = 2,
-        capacity: Int = 1_000
+        capacity: Int = 1_000,
+        defaults: UserDefaults = .standard
     ) {
+        self.environment = environment
+        self.defaults = defaults
         self.fileURL = fileURL ?? FlightRecorder.defaultFileURL
         self.window = window
         self.flushInterval = flushInterval
@@ -72,12 +81,12 @@ public final class FlightRecorder: @unchecked Sendable {
         queue.sync {
             guard timer == nil else { return }
             if recovered == nil {
-                recovered = FlightRecorder.recoverLastSession(from: fileURL)
+                recovered = FlightRecorder.recoverLastSession(from: fileURL, defaults: defaults)
             }
             // Always register *this* recorder's private memory engine; it has
             // a unique id so it can't replace (or be replaced by) another
             // MemoryLogEngine in the registry.
-            SwiftMoLogger.addEngine(memory)
+            environment.registry.addEngine(memory)
             markSessionAlive(true)
             let timer = DispatchSource.makeTimerSource(queue: queue)
             timer.schedule(deadline: .now() + flushInterval, repeating: flushInterval)
@@ -94,7 +103,7 @@ public final class FlightRecorder: @unchecked Sendable {
             guard let timer else { return }
             timer.cancel()
             self.timer = nil
-            SwiftMoLogger.removeEngine(id: memory.engineID)
+            environment.registry.removeEngine(id: memory.engineID)
             markSessionAlive(false)
             try? FileManager.default.removeItem(at: fileURL)
         }
@@ -112,8 +121,11 @@ public final class FlightRecorder: @unchecked Sendable {
     ///
     /// Call this *before* any recorder's ``start()`` in the new process (which
     /// marks the new session as running), or read ``crashedSession`` instead.
-    public static func recoverLastSession(from fileURL: URL = FlightRecorder.defaultFileURL) -> Session? {
-        guard wasAlive(in: UserDefaults.standard) else { return nil }
+    public static func recoverLastSession(
+        from fileURL: URL = FlightRecorder.defaultFileURL,
+        defaults: UserDefaults = .standard
+    ) -> Session? {
+        guard wasAlive(in: defaults) else { return nil }
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601WithFractionalSeconds
@@ -136,7 +148,7 @@ public final class FlightRecorder: @unchecked Sendable {
     }
 
     private func markSessionAlive(_ alive: Bool) {
-        UserDefaults.standard.set(alive, forKey: FlightRecorder.aliveKey)
+        defaults.set(alive, forKey: FlightRecorder.aliveKey)
     }
 
     private func flushSync() {
@@ -148,10 +160,10 @@ public final class FlightRecorder: @unchecked Sendable {
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?",
             osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
             entries: entries,
-            breadcrumbs: SwiftMoLogger.breadcrumbs(),
-            networkEvents: NetworkEventStore.shared.snapshot().filter { $0.startedAt >= cutoff },
-            signpostEvents: SignpostEventStore.shared.snapshot().filter { $0.startedAt >= cutoff },
-            vitals: VitalsHistoryStore.shared.snapshot().filter { $0.timestamp >= cutoff }
+            breadcrumbs: environment.breadcrumbs.snapshot(),
+            networkEvents: environment.networkEvents.snapshot().filter { $0.startedAt >= cutoff },
+            signpostEvents: environment.signposts.snapshot().filter { $0.startedAt >= cutoff },
+            vitals: environment.vitals.snapshot().filter { $0.timestamp >= cutoff }
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds

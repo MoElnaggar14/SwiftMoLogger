@@ -2,8 +2,8 @@ import XCTest
 import SwiftMoLogger
 import SwiftMoLoggerTesting
 
-/// `MoLogger` tests use their own registry, so they never touch global state.
-final class MoLoggerTests: XCTestCase {
+/// `MoLogger` tests use their own registries.
+final class MoLoggerTests: LoggingTestCase {
     private func makeLogger() -> (MoLogger, RecordingLogEngine, EngineRegistry) {
         let registry = EngineRegistry(installDefaultSystemLogger: false)
         let recorder = RecordingLogEngine()
@@ -13,13 +13,12 @@ final class MoLoggerTests: XCTestCase {
 
     func testLogsToItsOwnRegistryOnly() {
         let (logger, recorder, _) = makeLogger()
-        let global = SwiftMoLogger.installRecorder()
-        defer { SwiftMoLogger.reset() }
+        let other = installRecorder()
 
         logger.info("isolated")
 
         XCTAssertEqual(recorder.recorded().map(\.message), ["isolated"])
-        XCTAssertFalse(global.recorded().contains { $0.message == "isolated" })
+        XCTAssertFalse(other.recorded().contains { $0.message == "isolated" })
     }
 
     func testChildLoggerAppliesTagAndMergesMetadata() throws {
@@ -65,13 +64,11 @@ final class MoLoggerTests: XCTestCase {
         XCTAssertEqual(entry.metadata["error_type"], .string("Boom"))
     }
 
-    func testStaticFacadeStillUsesSharedRegistry() {
-        let recorder = SwiftMoLogger.installRecorder()
-        defer { SwiftMoLogger.reset() }
+    func testForwardsSourceColumn() {
+        let (logger, recorder, _) = makeLogger()
 
-        SwiftMoLogger.info("through facade", column: 9)
+        logger.info("located", column: 9)
 
-        XCTAssertEqual(recorder.recorded().last?.message, "through facade")
         XCTAssertEqual(recorder.recorded().last?.source.column, 9)
     }
 

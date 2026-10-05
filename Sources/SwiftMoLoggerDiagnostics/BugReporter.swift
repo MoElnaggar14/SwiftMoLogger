@@ -23,11 +23,24 @@ public struct BugReporter: Sendable {
         public let info: String
     }
 
+    public let environment: LogEnvironment
     public let memoryEngine: MemoryLogEngine?
+    public let vitalsMonitor: AppVitalsMonitor?
     public let appName: String
 
-    public init(memoryEngine: MemoryLogEngine? = nil, appName: String = "App") {
+    /// - Parameters:
+    ///   - environment: Supplies breadcrumbs and the list of active engines.
+    ///   - memoryEngine: Recent entries to include as `logs.json`.
+    ///   - vitalsMonitor: Its last sample is included as `vitals.json`.
+    public init(
+        environment: LogEnvironment,
+        memoryEngine: MemoryLogEngine? = nil,
+        vitalsMonitor: AppVitalsMonitor? = nil,
+        appName: String = "App"
+    ) {
+        self.environment = environment
         self.memoryEngine = memoryEngine
+        self.vitalsMonitor = vitalsMonitor
         self.appName = appName
     }
 
@@ -46,7 +59,7 @@ public struct BugReporter: Sendable {
         encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
-        let breadcrumbs = SwiftMoLogger.breadcrumbs()
+        let breadcrumbs = environment.breadcrumbs.snapshot()
         try encoder.encode(breadcrumbs)
             .write(to: root.appendingPathComponent("breadcrumbs.json"))
 
@@ -60,7 +73,7 @@ public struct BugReporter: Sendable {
                 .write(to: root.appendingPathComponent("metadata.json"))
         }
 
-        if let sample = AppVitalsMonitor.shared.lastSample {
+        if let sample = vitalsMonitor?.lastSample {
             try encoder.encode(sample)
                 .write(to: root.appendingPathComponent("vitals.json"))
         }
@@ -88,8 +101,8 @@ public struct BugReporter: Sendable {
            let free = info[.systemFreeSize] as? Int64 {
             lines.append("Free disk: \(ByteCountFormatter.string(fromByteCount: free, countStyle: .file))")
         }
-        lines.append("Breadcrumbs: \(SwiftMoLogger.breadcrumbs().count)")
-        lines.append("Engines: \(SwiftMoLogger.allEngines().map(\.engineID).joined(separator: ", "))")
+        lines.append("Breadcrumbs: \(environment.breadcrumbs.snapshot().count)")
+        lines.append("Engines: \(environment.registry.allEngines().map(\.engineID).joined(separator: ", "))")
         return lines.joined(separator: "\n")
     }
 }

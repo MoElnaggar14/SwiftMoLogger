@@ -1,21 +1,20 @@
 import Foundation
 
-/// Process-wide broadcast of `LogEntry` values as an `AsyncSequence`.
+/// Broadcasts the entries of the registry it's added to as an `AsyncSequence`.
+/// ``LogEnvironment`` creates and registers one for you.
 ///
 /// Internally backed by `AsyncStream` continuations stored per subscriber.
 /// New entries are fanned out to every active subscriber without blocking the
 /// caller; back-pressure is bounded by per-subscriber buffer policy.
 ///
 /// ```swift
-/// let stream = LogStream.shared.subscribe(bufferSize: 256)
+/// let stream = environment.stream.subscribe(bufferSize: 256)
 /// for await entry in stream where entry.level >= .warning {
 ///     await reportToBackend(entry)
 /// }
 /// ```
 public final class LogStream: LogEngine, @unchecked Sendable {
-    public static let shared = LogStream()
-
-    public let engineID: String = "swiftmologger.stream"
+    public let engineID = "swiftmologger.stream.\(UUID().uuidString)"
     public let minimumLevel: LogLevel = .trace
 
     private var continuations: [UUID: AsyncStream<LogEntry>.Continuation] = [:]

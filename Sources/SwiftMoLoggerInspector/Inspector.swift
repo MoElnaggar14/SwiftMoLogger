@@ -16,7 +16,7 @@ import Network
 /// ```swift
 /// let sink = LiveSink()
 /// try sink.start()
-/// SwiftMoLogger.addEngine(sink)
+/// logging.registry.addEngine(sink)
 /// ```
 
 @main

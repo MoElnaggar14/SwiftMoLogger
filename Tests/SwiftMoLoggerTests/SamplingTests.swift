@@ -1,7 +1,7 @@
 import XCTest
 @testable import SwiftMoLogger
 
-final class SamplingTests: XCTestCase {
+final class SamplingTests: LoggingTestCase {
 
     func testUniformSamplingRespectsRate() {
         let memory = MemoryLogEngine(capacity: 10_000)

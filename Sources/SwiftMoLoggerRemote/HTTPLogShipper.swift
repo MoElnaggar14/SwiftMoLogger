@@ -58,13 +58,15 @@ public class HTTPLogShipper: LogEngine, @unchecked Sendable {
         engineID: String = "swiftmologger.remote.http",
         minimumLevel: LogLevel = .info,
         configuration: Configuration,
-        session: URLSession = .shared,
+        session: URLSession? = nil,
         body: @escaping BodyBuilder = HTTPLogShipper.defaultJSONBody
     ) {
         self.engineID = engineID
         self.minimumLevel = minimumLevel
         self.configuration = configuration
-        self.session = session
+        // A dedicated ephemeral session by default: no cookies or cache, and no
+        // NetworkLogger delegate, so shipped batches never produce new entries.
+        self.session = session ?? URLSession(configuration: .ephemeral)
         self.queue = DispatchQueue(label: "\(engineID).shipper", qos: .utility)
         self.buildBody = body
     }
@@ -115,7 +117,6 @@ public class HTTPLogShipper: LogEngine, @unchecked Sendable {
         }
 
         var request = URLRequest(url: configuration.endpoint)
-        request.excludeFromNetworkLogging()
         request.httpMethod = configuration.method
         request.httpBody = body
         for (key, value) in configuration.headers {

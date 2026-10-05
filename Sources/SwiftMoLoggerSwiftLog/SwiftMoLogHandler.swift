@@ -12,8 +12,8 @@ import SwiftMoLogger
 /// ```swift
 /// import SwiftMoLoggerSwiftLog
 ///
-/// // Once, at launch:
-/// SwiftMoLogHandler.bootstrap()
+/// // Once, at launch (your composition root):
+/// SwiftMoLogHandler.bootstrap(logger: logging.logger)
 ///
 /// // Anywhere, including inside third-party packages:
 /// let logger = Logger(label: "com.example.sync")
@@ -32,13 +32,13 @@ public struct SwiftMoLogHandler: LogHandler {
 
     /// - Parameters:
     ///   - label: The swift-log label (usually reverse-DNS).
-    ///   - logger: Where entries go. Defaults to the shared registry.
+    ///   - logger: Where entries go.
     ///   - logLevel: Lowest swift-log level forwarded. Libraries are chatty at
     ///     `.trace`/`.debug`, so the swift-log convention of `.info` is the default.
     ///   - metadataProvider: Contributes metadata to every entry (swift-log 1.5+).
     public init(
         label: String,
-        logger: MoLogger = .shared,
+        logger: MoLogger,
         logLevel: Logger.Level = .info,
         metadataProvider: Logger.MetadataProvider? = nil
     ) {
@@ -51,9 +51,11 @@ public struct SwiftMoLogHandler: LogHandler {
     /// Installs this handler as the process-wide swift-log backend.
     ///
     /// swift-log only allows bootstrapping once per process (it traps on a
-    /// second call), so call this exactly once, early in launch.
+    /// second call), so call this exactly once, early in launch. This is
+    /// swift-log's own process-wide hook; SwiftMoLogger itself keeps no
+    /// global state.
     public static func bootstrap(
-        logger: MoLogger = .shared,
+        logger: MoLogger,
         logLevel: Logger.Level = .info,
         metadataProvider: Logger.MetadataProvider? = nil
     ) {

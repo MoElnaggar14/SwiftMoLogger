@@ -3,9 +3,9 @@ import SwiftMoLogger
 
 /// Test-only engine that records every entry for later assertions.
 ///
-/// Replace the default ``SystemLogger`` with a `RecordingLogEngine` in
-/// `setUp` to drive XCTest assertions about *what* the system under test
-/// logged.
+/// Inject a logger from ``LogEnvironment/recording()`` or
+/// ``MoLogger/recording()`` into the system under test, then assert on
+/// *what* it logged.
 public final class RecordingLogEngine: LogEngine, @unchecked Sendable {
     public let engineID = "swiftmologger.testing.recording.\(UUID().uuidString)"
     public let minimumLevel: LogLevel = .trace
@@ -34,13 +34,29 @@ public final class RecordingLogEngine: LogEngine, @unchecked Sendable {
     }
 }
 
-public extension SwiftMoLogger {
-    /// One-shot helper for tests: replaces all registered engines with a
-    /// fresh ``RecordingLogEngine`` and returns it.
-    static func installRecorder() -> RecordingLogEngine {
+public extension LogEnvironment {
+    /// A fresh environment whose only engine (besides its stream) is a
+    /// ``RecordingLogEngine``. Nothing global is touched, so tests using it
+    /// can run in parallel.
+    ///
+    /// ```swift
+    /// let (logging, logs) = LogEnvironment.recording()
+    /// let service = CheckoutService(log: logging.logger)
+    /// service.pay(orderID: "42")
+    /// XCTAssertLogged(.info, contains: "Paying", in: logs)
+    /// ```
+    static func recording() -> (environment: LogEnvironment, recorder: RecordingLogEngine) {
+        let environment = LogEnvironment(registry: EngineRegistry(installDefaultSystemLogger: false))
         let recorder = RecordingLogEngine()
-        EngineRegistry.shared.removeAllEngines()
-        EngineRegistry.shared.addEngine(recorder)
-        return recorder
+        environment.registry.addEngine(recorder)
+        return (environment, recorder)
+    }
+}
+
+public extension MoLogger {
+    /// A logger bound to its own registry, plus the recorder capturing its entries.
+    static func recording() -> (logger: MoLogger, recorder: RecordingLogEngine) {
+        let (environment, recorder) = LogEnvironment.recording()
+        return (environment.logger, recorder)
     }
 }

@@ -3,6 +3,9 @@ import Foundation
 /// Thread-safe registry that owns the list of active ``LogEngine`` instances
 /// and dispatches every ``LogEntry`` to each of them.
 ///
+/// There is no shared instance: create one (usually through
+/// ``LogEnvironment``) at your composition root and inject it.
+///
 /// Implementation notes:
 /// - Uses an unfair lock rather than a concurrent `DispatchQueue` because
 ///   reads dominate (one read per log call) and the critical section is tiny;
@@ -11,8 +14,6 @@ import Foundation
 /// - Ambient context is `@TaskLocal` (see ``LogContext``) so concurrent
 ///   `Task`s never trample each other's context.
 public final class EngineRegistry: @unchecked Sendable {
-    public static let shared = EngineRegistry()
-
     private var engines: ContiguousArray<any LogEngine> = []
     private let lock = UnfairLock()
     private var globalMinimumLevel: LogLevel = .trace

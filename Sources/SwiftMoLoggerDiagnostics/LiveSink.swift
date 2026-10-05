@@ -12,9 +12,9 @@ import SwiftMoLogger
 ///
 /// ```swift
 /// #if DEBUG
-/// let sink = LiveSink()
+/// let sink = LiveSink(statusLogger: logging.logger)
 /// try sink.start()
-/// SwiftMoLogger.addEngine(sink)
+/// logging.registry.addEngine(sink)
 /// #endif
 /// ```
 public final class LiveSink: LogEngine, @unchecked Sendable {
@@ -31,12 +31,16 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
     private var listener: NWListener?
     private let lock = UnfairLock()
     private var clients: [NWConnection] = []
+    private let statusLogger: MoLogger?
 
+    /// - Parameter statusLogger: Receives "ready" / "failed" notices about the listener.
     public init(
         port: NWEndpoint.Port = .any,
         serviceName: String? = nil,
-        minimumLevel: LogLevel = .trace
+        minimumLevel: LogLevel = .trace,
+        statusLogger: MoLogger? = nil
     ) {
+        self.statusLogger = statusLogger
         self.port = port
         self.minimumLevel = minimumLevel
         self.serviceName = serviceName ?? Bundle.main.bundleIdentifier ?? "SwiftMoLogger"
@@ -49,10 +53,10 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
         let parameters = NWParameters.tcp
         let listener = try NWListener(using: parameters, on: port)
         listener.service = NWListener.Service(name: serviceName, type: LiveSink.serviceType)
-        listener.stateUpdateHandler = { state in
+        listener.stateUpdateHandler = { [statusLogger] state in
             switch state {
-            case .ready: SwiftMoLogger.notice("LiveSink ready", tag: .Development.debug)
-            case .failed(let error): SwiftMoLogger.error("LiveSink failed: \(error)", tag: .Development.debug)
+            case .ready: statusLogger?.notice("LiveSink ready", tag: .Development.debug)
+            case .failed(let error): statusLogger?.error("LiveSink failed: \(error)", tag: .Development.debug)
             default: break
             }
         }

@@ -1,7 +1,7 @@
 import XCTest
 @testable import SwiftMoLogger
 
-final class TraceContextTests: XCTestCase {
+final class TraceContextTests: LoggingTestCase {
 
     func testGenerateProducesValidTraceparent() {
         let context = TraceContext.generate()
@@ -33,15 +33,14 @@ final class TraceContextTests: XCTestCase {
     }
 
     func testWithTraceStampsLogEntries() {
-        SwiftMoLogger.reset()
         let memory = MemoryLogEngine()
-        SwiftMoLogger.addEngine(memory)
+        registry.addEngine(memory)
         let context = TraceContext.generate()
 
-        SwiftMoLogger.withTrace(context) {
-            SwiftMoLogger.info("in trace")
+        context.run {
+            log.info("in trace")
         }
-        SwiftMoLogger.info("outside trace")
+        log.info("outside trace")
 
         let entries = memory.snapshot()
         let inside = entries.first { $0.message == "in trace" }
@@ -51,7 +50,7 @@ final class TraceContextTests: XCTestCase {
     }
 }
 
-final class ErrorGroupingEngineTests: XCTestCase {
+final class ErrorGroupingEngineTests: LoggingTestCase {
 
     func testIdenticalShapeCollapses() {
         let memory = MemoryLogEngine()
@@ -92,15 +91,14 @@ final class ErrorGroupingEngineTests: XCTestCase {
     }
 }
 
-final class FlightRecorderTests: XCTestCase {
+final class FlightRecorderTests: LoggingTestCase {
 
     override func setUp() {
         super.setUp()
         // Reset the global registry so other suites' leftover engines or
         // raised `minimumLevel` don't suppress the entries this recorder
         // is supposed to capture.
-        SwiftMoLogger.reset()
-        SwiftMoLogger.minimumLevel = .trace
+        registry.minimumLevel = .trace
     }
 
     func testFlushWritesJSONFile() throws {
@@ -108,9 +106,9 @@ final class FlightRecorderTests: XCTestCase {
             .appendingPathComponent("fr-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: tmpURL) }
 
-        let recorder = FlightRecorder(fileURL: tmpURL, window: 60, flushInterval: 60)
+        let recorder = FlightRecorder(environment: environment, fileURL: tmpURL, window: 60, flushInterval: 60)
         recorder.start()
-        SwiftMoLogger.info("flight test")
+        log.info("flight test")
         recorder.flush()
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: tmpURL.path))
@@ -126,9 +124,9 @@ final class FlightRecorderTests: XCTestCase {
     func testCleanStopRemovesArtifact() {
         let tmpURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("fr-stop-\(UUID().uuidString).json")
-        let recorder = FlightRecorder(fileURL: tmpURL, window: 60, flushInterval: 60)
+        let recorder = FlightRecorder(environment: environment, fileURL: tmpURL, window: 60, flushInterval: 60)
         recorder.start()
-        SwiftMoLogger.info("will be wiped")
+        log.info("will be wiped")
         recorder.flush()
         recorder.stop()
         XCTAssertFalse(FileManager.default.fileExists(atPath: tmpURL.path))
