@@ -8,6 +8,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 A correctness release. No breaking API changes; see "Behaviour changes".
 
+### Added
+- **`MoLogger`**, an injectable logger value: a registry, a default tag and bound metadata, with `with(tag:)` / `with(metadata:)` for child loggers. Components can receive their logger instead of reaching for a global, and tests can use isolated registries and run in parallel. The static API now delegates to `MoLogger.shared`.
+- **`SwiftMoLoggerSwiftLog`** product: `SwiftMoLogHandler` routes swift-log `Logger` calls (SwiftNIO, AsyncHTTPClient, gRPC, AWS SDK, …) into SwiftMoLogger engines, with label tags, structured metadata and metadata providers.
+
 ### Fixed
 - **Locks were undefined behaviour.** Thirteen types took `&lock` on a stored `os_unfair_lock_s`. Swift doesn't guarantee a stable address for that, so the lock could silently become a no-op. All of them now use a heap-allocated `UnfairLock`.
 - **Engines replaced each other.** `MemoryLogEngine` and `RecordingLogEngine` had fixed IDs, so the Flight Recorder's memory engine swapped out yours (or vice versa), and the Diagnostics Hub's Logs tab stayed empty when you'd already registered one. IDs are now unique per instance. Pass `id:` to opt back into de-duplication.

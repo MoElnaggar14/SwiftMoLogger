@@ -108,6 +108,7 @@ targets: [
         .product(name: "SwiftMoLoggerDiagnostics", package: "SwiftMoLogger"),
         .product(name: "SwiftMoLoggerTesting", package: "SwiftMoLogger"),
         .product(name: "SwiftMoLoggerSugar", package: "SwiftMoLogger"),
+        .product(name: "SwiftMoLoggerSwiftLog", package: "SwiftMoLogger"),
     ])
 ]
 ```
@@ -305,6 +306,45 @@ let service = APIService()
 service.logInfo("hit")           // → automatically tagged [API]
 service.logError(networkError)   // → tag + structured error metadata
 ```
+
+### Injecting a logger
+
+The static API is the quickest way in. When a component should *receive* its
+logger (for testability, or to keep a framework's logs separate from the host
+app's), use `MoLogger`. It's a small `Sendable` value holding a registry, a
+default tag and bound metadata:
+
+```swift
+final class CheckoutService {
+    private let log: MoLogger
+
+    init(log: MoLogger = .shared) {
+        self.log = log.with(tag: .business).with(metadata: ["component": "checkout"])
+    }
+
+    func pay(orderID: String) {
+        log.info("Paying", metadata: ["order_id": .string(orderID)])
+    }
+}
+```
+
+`SwiftMoLogger.info(…)` is exactly `MoLogger.shared.info(…)`.
+
+### swift-log interop
+
+SwiftNIO, AsyncHTTPClient, gRPC, the AWS SDK and much of the server/SPM
+ecosystem log through [swift-log](https://github.com/apple/swift-log). Route
+all of it into your engines with one line at launch:
+
+```swift
+import SwiftMoLoggerSwiftLog
+
+SwiftMoLogHandler.bootstrap()             // once per process
+Logger(label: "com.example.sync").info("Synced", metadata: ["items": "42"])
+```
+
+Entries are tagged with the logger's label (domain `swiftlog.<label>`), and
+swift-log metadata keeps its structure. Metadata providers are supported.
 
 ---
 
@@ -562,6 +602,16 @@ final class CheckoutTests: XCTestCase {
 ```
 
 `RecordingLogEngine` captures everything; assertions are simple, scoped to a single test, and zero-config.
+
+To run suites in parallel, skip the global registry entirely: give the code
+under test a `MoLogger` bound to its own registry.
+
+```swift
+let registry = EngineRegistry(installDefaultSystemLogger: false)
+let logs = RecordingLogEngine()
+registry.addEngine(logs)
+let service = CheckoutService(log: MoLogger(registry: registry))
+```
 
 ---
 

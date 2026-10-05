@@ -19,6 +19,7 @@ let package = Package(
         .library(name: "SwiftMoLoggerDiagnostics", targets: ["SwiftMoLoggerDiagnostics"]),
         .library(name: "SwiftMoLoggerTesting", targets: ["SwiftMoLoggerTesting"]),
         .library(name: "SwiftMoLoggerSugar", targets: ["SwiftMoLoggerSugar"]),
+        .library(name: "SwiftMoLoggerSwiftLog", targets: ["SwiftMoLoggerSwiftLog"]),
         .executable(name: "swiftmologger-inspector", targets: ["SwiftMoLoggerInspector"]),
     ],
     dependencies: [
@@ -26,6 +27,8 @@ let package = Package(
         // swift-syntax version that conflicts with other packages in an app.
         // CI builds against both the pinned and the newest resolvable version.
         .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.0.0"..<"603.0.0"),
+        // Only linked by the SwiftMoLoggerSwiftLog product.
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
     ],
     targets: [
         .target(
@@ -57,6 +60,13 @@ let package = Package(
             name: "SwiftMoLoggerSugar",
             dependencies: ["SwiftMoLogger", "SwiftMoLoggerMacros"]
         ),
+        .target(
+            name: "SwiftMoLoggerSwiftLog",
+            dependencies: [
+                "SwiftMoLogger",
+                .product(name: "Logging", package: "swift-log"),
+            ]
+        ),
         .executableTarget(
             name: "SwiftMoLoggerInspector",
             dependencies: []
@@ -85,6 +95,10 @@ let package = Package(
         .testTarget(
             name: "SwiftMoLoggerRemoteTests",
             dependencies: ["SwiftMoLoggerRemote"]
+        ),
+        .testTarget(
+            name: "SwiftMoLoggerSwiftLogTests",
+            dependencies: ["SwiftMoLoggerSwiftLog", "SwiftMoLoggerTesting"]
         ),
         .testTarget(
             name: "SwiftMoLoggerMacrosTests",

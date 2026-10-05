@@ -29,16 +29,16 @@ public enum SwiftMoLogger {
         line: Int = #line,
         column: Int = #column
     ) {
-        let registry = EngineRegistry.shared
-        guard level >= registry.minimumLevel else { return }
-        let entry = LogEntry(
-            level: level,
-            message: message(),
+        MoLogger.shared.log(
+            level,
+            message(),
             tag: tag,
             metadata: metadata,
-            source: SourceLocation(file: file, function: function, line: line, column: column)
+            file: file,
+            function: function,
+            line: line,
+            column: column
         )
-        registry.dispatch(entry)
     }
 
     // MARK: - Level helpers
