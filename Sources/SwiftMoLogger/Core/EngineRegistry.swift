@@ -22,6 +22,8 @@ public final class EngineRegistry: @unchecked Sendable {
     /// protected wherever it sits in the list (and nothing else is protected
     /// by accident once it's gone).
     private var defaultSystemLogger: SystemLogger?
+    /// Engines re-added by ``reset()`` (see ``addPersistentEngine(_:)``).
+    private var persistentEngines: [any LogEngine] = []
 
     public init(installDefaultSystemLogger: Bool = true) {
         if installDefaultSystemLogger {
@@ -110,19 +112,35 @@ public final class EngineRegistry: @unchecked Sendable {
         return engines.count
     }
 
-    /// Reset to the default system logger only.
+    /// Adds `engine` and keeps it across ``reset()``. ``LogEnvironment`` uses
+    /// this for its stream, so subscribers stay connected through a reset.
+    public func addPersistentEngine(_ engine: any LogEngine) {
+        lock.lock()
+        defer { lock.unlock() }
+        persistentEngines.removeAll { $0.engineID == engine.engineID }
+        persistentEngines.append(engine)
+        if let index = engines.firstIndex(where: { $0.engineID == engine.engineID }) {
+            engines[index] = engine
+        } else {
+            engines.append(engine)
+        }
+    }
+
+    /// Back to a fresh state: the default system logger plus any persistent
+    /// engines (such as a ``LogEnvironment``'s stream).
     public func reset() {
         lock.lock()
         defer { lock.unlock() }
         engines.removeAll(keepingCapacity: true)
         let logger = SystemLogger()
         engines.append(logger)
+        engines.append(contentsOf: persistentEngines)
         defaultSystemLogger = logger
         globalMinimumLevel = .trace
     }
 
-    /// Drop all engines. Used by tests; production code should prefer
-    /// ``reset()``.
+    /// Drop every engine, persistent ones included (``reset()`` brings those
+    /// back). Mostly for tests; production code should prefer ``reset()``.
     public func removeAllEngines() {
         lock.lock()
         defer { lock.unlock() }

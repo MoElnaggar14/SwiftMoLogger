@@ -60,6 +60,11 @@ public final class HubViewModel: ObservableObject {
         environment.registry.addEngine(memoryEngine)
     }
 
+    deinit {
+        // Each Hub registers its own memory engine; don't leave it behind.
+        environment.registry.removeEngine(id: memoryEngine.engineID)
+    }
+
     public func start() {
         guard task == nil else { return }
         let interval = refreshInterval

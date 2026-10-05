@@ -172,7 +172,7 @@ final class CorrectnessTests: LoggingTestCase {
         recorder.start()
         recorder.stop()
 
-        XCTAssertFalse(defaults.bool(forKey: "SwiftMoLogger.FlightRecorder.alive"))
+        XCTAssertFalse(defaults.bool(forKey: FlightRecorder.aliveKey(for: url)))
         XCTAssertNil(recorder.crashedSession)
     }
 
@@ -209,6 +209,95 @@ final class CorrectnessTests: LoggingTestCase {
         let persisted = try String(contentsOf: url, encoding: .utf8)
         XCTAssertFalse(persisted.contains("admin@corp.com"))
         recorder.stop()
+    }
+
+    func testFlightRecorderRedactsBreadcrumbsAndNetworkEvents() throws {
+        let url = temporaryURL("flight-redacted-extras.json")
+        let recorder = FlightRecorder(
+            environment: environment,
+            fileURL: url,
+            flushInterval: 60,
+            defaults: isolatedDefaults(),
+            redactor: Redactor()
+        )
+        environment.breadcrumbs.record("emailed admin@corp.com", category: .userAction)
+        environment.networkEvents.record(NetworkEvent(
+            startedAt: Date(),
+            endedAt: Date(),
+            method: "GET",
+            url: URL(string: "https://api.example.com/v1/me?token=s3cr3t-value")!,
+            statusCode: 200,
+            responseBytes: 0,
+            requestBytes: 0
+        ))
+        recorder.start()
+        recorder.flush()
+
+        let persisted = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertFalse(persisted.contains("admin@corp.com"))
+        XCTAssertFalse(persisted.contains("s3cr3t-value"))
+        XCTAssertTrue(persisted.contains("api.example.com"))
+        recorder.stop()
+    }
+
+    func testFlightRecordersDoNotShareTheirAliveFlag() {
+        let defaults = isolatedDefaults()
+        let first = FlightRecorder(environment: environment, fileURL: temporaryURL("a.json"), flushInterval: 60, defaults: defaults)
+        let second = FlightRecorder(environment: environment, fileURL: temporaryURL("b.json"), flushInterval: 60, defaults: defaults)
+
+        first.start()
+        second.start()
+        first.stop()
+
+        XCTAssertTrue(defaults.bool(forKey: FlightRecorder.aliveKey(for: second.fileURL)))
+        second.stop()
+    }
+
+    func testReleasedFlightRecorderRemovesItsEngine() {
+        let baseline = registry.engineCount
+        do {
+            let recorder = FlightRecorder(
+                environment: environment,
+                fileURL: temporaryURL("released.json"),
+                flushInterval: 60,
+                defaults: isolatedDefaults()
+            )
+            recorder.start()
+            XCTAssertEqual(registry.engineCount, baseline + 1)
+        }
+        XCTAssertEqual(registry.engineCount, baseline)
+    }
+
+    // MARK: - Registry reset
+
+    func testResetKeepsTheEnvironmentStream() async {
+        registry.reset()
+        let stream = environment.stream.subscribe(bufferSize: 4)
+        log.info("after reset")
+
+        var iterator = stream.makeAsyncIterator()
+        let first = await iterator.next()
+        XCTAssertEqual(first?.message, "after reset")
+    }
+
+    // MARK: - Shared log files
+
+    func testTwoEnginesOnOneFileKeepEveryLineIntact() throws {
+        let url = temporaryURL("shared.log")
+        let first = try FileLogEngine(fileURL: url, maxFileSizeBytes: 1_000_000, minimumLevel: .trace)
+        let second = try FileLogEngine(fileURL: url, maxFileSizeBytes: 1_000_000, minimumLevel: .trace)
+
+        for index in 0..<50 {
+            (index.isMultiple(of: 2) ? first : second).log(LogEntry(level: .info, message: "line-\(index)"))
+        }
+        first.flush()
+        second.flush()
+
+        let lines = try String(contentsOf: url, encoding: .utf8).split(separator: "\n")
+        XCTAssertEqual(lines.count, 50)
+        for line in lines {
+            XCTAssertNoThrow(try JSONSerialization.jsonObject(with: Data(line.utf8)))
+        }
     }
 
     // MARK: - Error grouping

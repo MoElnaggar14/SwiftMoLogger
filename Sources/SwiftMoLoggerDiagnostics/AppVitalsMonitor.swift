@@ -37,6 +37,7 @@ public final class AppVitalsMonitor: @unchecked Sendable {
     private var frameCount: Int = 0
     private var fpsStart: CFTimeInterval = 0
     private var lastFPS: Double = 0
+    private var displayLinkGeneration = 0
     #endif
 
     private let logger: MoLogger
@@ -59,7 +60,14 @@ public final class AppVitalsMonitor: @unchecked Sendable {
     public func start(interval: TimeInterval = 10) {
         stop()
         #if canImport(QuartzCore) && (os(iOS) || os(tvOS))
+        let generation = lock.withLock { () -> Int in
+            displayLinkGeneration += 1
+            return displayLinkGeneration
+        }
         DispatchQueue.main.async {
+            // A stop() (or newer start()) that ran before this block wins.
+            guard self.lock.withLock({ self.displayLinkGeneration == generation }) else { return }
+            self.displayLink?.invalidate()
             self.fpsStart = CACurrentMediaTime()
             self.frameCount = 0
             self.displayLink = CADisplayLink(target: self, selector: #selector(self.tickFrame))
@@ -80,8 +88,11 @@ public final class AppVitalsMonitor: @unchecked Sendable {
         timer?.cancel()
         timer = nil
         #if canImport(QuartzCore) && (os(iOS) || os(tvOS))
-        displayLink?.invalidate()
-        displayLink = nil
+        lock.withLock { displayLinkGeneration += 1 }
+        DispatchQueue.main.async {
+            self.displayLink?.invalidate()
+            self.displayLink = nil
+        }
         #endif
     }
 

@@ -77,7 +77,7 @@ final class CheckoutService {
 | `MoLogger.shared`, `EngineRegistry.shared` | `environment.logger`, `environment.registry` |
 | `SwiftMoLogger.addEngine / removeEngine / allEngines / engineCount` | `registry.addEngine / removeEngine / allEngines / engineCount` |
 | `SwiftMoLogger.minimumLevel` | `registry.minimumLevel` |
-| `SwiftMoLogger.reset()` | create a new `LogEnvironment` (or `registry.reset()`) |
+| `SwiftMoLogger.reset()` | `registry.reset()` (keeps the environment's stream) or a new `LogEnvironment` |
 | `SwiftMoLogger.enableRedaction(at:)` | `registry.enableRedaction(at:)` |
 | `SwiftMoLogger.withContext(meta) { … }` | `LogContext.with(meta) { … }` |
 | `SwiftMoLogger.currentContext` | `LogContext.current` |

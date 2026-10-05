@@ -31,7 +31,8 @@ public struct LogEnvironment: Sendable {
     public let registry: EngineRegistry
     /// A logger bound to ``registry``. Derive tagged children with ``MoLogger/with(tag:)``.
     public let logger: MoLogger
-    /// Live `AsyncStream` of every entry, already registered with ``registry``.
+    /// Live `AsyncStream` of every entry. Registered with ``registry`` as a
+    /// persistent engine, so it survives ``EngineRegistry/reset()``.
     public let stream: LogStream
     public let breadcrumbs: BreadcrumbStore
     public let networkEvents: NetworkEventStore
@@ -54,7 +55,7 @@ public struct LogEnvironment: Sendable {
         self.networkEvents = networkEvents
         self.signposts = signposts
         self.vitals = vitals
-        registry.addEngine(stream)
+        registry.addPersistentEngine(stream)
     }
 
     /// Measures spans, logging through ``logger`` and recording into ``signposts``.

@@ -42,6 +42,22 @@ final class NetworkLoggingTests: XCTestCase {
         XCTAssertFalse(environment.breadcrumbs.snapshot().isEmpty)
     }
 
+    func testPerTaskDelegateStillLogsTheRequest() async throws {
+        let (environment, recorder) = LogEnvironment.recording()
+        let network = NetworkLogger(environment: environment)
+        // No session delegate: only the per-task delegate sees the task.
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+
+        _ = try? await session.data(from: URL(string: "http://invalid.invalid/")!, delegate: network)
+
+        for _ in 0..<100 where recorder.recorded().filter({ $0.message.hasPrefix("HTTP") }).count < 2 {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        let messages = recorder.recorded().map(\.message).filter { $0.hasPrefix("HTTP") }
+        XCTAssertEqual(messages, ["HTTP request", "HTTP failure"])
+    }
+
     func testTraceparentHeaderOnlyInsideATrace() {
         var outside = URLRequest(url: URL(string: "https://example.com")!)
         outside.addTraceparentHeader()

@@ -33,6 +33,12 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
     private let breadcrumbs: BreadcrumbStore?
     private let sensitiveHeaders: Set<String>
 
+    /// Tasks whose request was already logged by `didCreateTask`. That callback
+    /// only reaches session-level delegates, so tasks using a per-task delegate
+    /// (`session.data(for:delegate:)`) get their request logged with the outcome.
+    private let lock = UnfairLock()
+    private var announcedTasks: Set<ObjectIdentifier> = []
+
     /// - Parameters:
     ///   - logger: Receives request and response entries. Untagged entries get `.api`.
     ///   - events: Records each task for the Diagnostics Hub. `nil` to skip.
@@ -58,7 +64,12 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
     // MARK: - URLSessionTaskDelegate
 
     public func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
-        guard let request = task.currentRequest ?? task.originalRequest else { return }
+        lock.withLock { _ = announcedTasks.insert(ObjectIdentifier(task)) }
+        logRequest(of: task)
+    }
+
+    private func logRequest(of task: URLSessionTask) {
+        guard let request = task.originalRequest ?? task.currentRequest else { return }
         logger.info("HTTP request", metadata: [
             "http.method": .string(request.httpMethod ?? "GET"),
             "http.url": .string(request.url?.absoluteString ?? "?"),
@@ -77,6 +88,9 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
         task: URLSessionTask,
         didFinishCollecting metrics: URLSessionTaskMetrics
     ) {
+        let announced = lock.withLock { announcedTasks.remove(ObjectIdentifier(task)) != nil }
+        if !announced { logRequest(of: task) }
+
         let error = task.error
         let request = task.originalRequest
         let url = task.response?.url ?? request?.url ?? URL(fileURLWithPath: "/")

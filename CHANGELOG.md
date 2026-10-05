@@ -25,6 +25,15 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - `FlightRecorder(redactor:)`: redacts entries before they're persisted, so the crash file never holds raw secrets or PII.
 - `FlightRecorder(defaults:)` / `recoverLastSession(from:defaults:)`, so tests and app groups can supply their own `UserDefaults`.
 
+### Fixed (found in review of the 4.0 changes)
+- **Hub leaked memory engines.** Each `HubViewModel` left its memory engine registered after it went away; it now removes it.
+- **Requests weren't logged on the per-task delegate path.** With `session.data(for:delegate:)`, the request was never logged; it's now logged together with the outcome.
+- **`FlightRecorder(redactor:)` only redacted entries.** It now also redacts breadcrumbs and network-event errors, and drops URL query strings.
+- **Recorders could mark each other's sessions as clean.** Each recorder now keeps its own "session alive" flag (keyed by file), and a released recorder unregisters its engine.
+- **`registry.reset()` disconnected `LogEnvironment.stream`.** The stream is now a persistent engine (`EngineRegistry.addPersistentEngine(_:)`), so it survives a reset.
+- **Two `FileLogEngine`s on one file could interleave bytes.** Files are now opened in append mode.
+- **`AppVitalsMonitor` could leak a running display link** when `stop()` raced `start()`.
+
 ### Changed
 - `SwiftMoLogHandler` implements swift-log's `log(event:)` (swift-log 1.12+), and errors passed to swift-log become `error_type` / `error` metadata.
 - CI builds the example app.

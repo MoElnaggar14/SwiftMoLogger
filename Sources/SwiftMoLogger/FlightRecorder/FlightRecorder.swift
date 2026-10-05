@@ -45,6 +45,8 @@ public final class FlightRecorder: @unchecked Sendable {
     private let memory: MemoryLogEngine
     /// What's registered with the registry: `memory`, possibly behind a redactor.
     private let recordingEngine: any LogEngine
+    private let redactor: Redactor?
+    private let aliveKey: String
     private let queue: DispatchQueue
     // `timer` and `recovered` are only touched on `queue`.
     private var timer: DispatchSourceTimer?
@@ -53,8 +55,9 @@ public final class FlightRecorder: @unchecked Sendable {
     /// - Parameters:
     ///   - environment: The registry to record from and the stores to snapshot.
     ///   - defaults: Where the "session is running" flag lives.
-    ///   - redactor: Redacts entries before they're kept, so the file on disk
-    ///     never holds raw secrets or PII. `nil` keeps entries as logged.
+    ///   - redactor: Redacts everything before it's written (entries, breadcrumbs,
+    ///     and network events, whose URLs also lose their query string), so the
+    ///     file on disk never holds raw secrets or PII. `nil` keeps data as captured.
     public init(
         environment: LogEnvironment,
         fileURL: URL? = nil,
@@ -72,6 +75,8 @@ public final class FlightRecorder: @unchecked Sendable {
         let memory = MemoryLogEngine(capacity: capacity)
         self.memory = memory
         self.recordingEngine = redactor.map { RedactingLogEngine(wrapping: memory, redactor: $0) } ?? memory
+        self.redactor = redactor
+        self.aliveKey = FlightRecorder.aliveKey(for: self.fileURL)
         self.queue = DispatchQueue(label: "swiftmologger.flightrecorder", qos: .utility)
     }
 
@@ -132,7 +137,7 @@ public final class FlightRecorder: @unchecked Sendable {
         from fileURL: URL = FlightRecorder.defaultFileURL,
         defaults: UserDefaults = .standard
     ) -> Session? {
-        guard wasAlive(in: defaults) else { return nil }
+        guard defaults.bool(forKey: aliveKey(for: fileURL)) else { return nil }
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601WithFractionalSeconds
@@ -148,14 +153,53 @@ public final class FlightRecorder: @unchecked Sendable {
         return dir.appendingPathComponent("flight-recorder.json")
     }()
 
-    private static let aliveKey = "SwiftMoLogger.FlightRecorder.alive"
-
-    private static func wasAlive(in defaults: UserDefaults) -> Bool {
-        defaults.bool(forKey: aliveKey)
+    /// One flag per file, so independent recorders (two environments, an app
+    /// and a framework) can't mark each other's sessions as clean.
+    static func aliveKey(for fileURL: URL) -> String {
+        "SwiftMoLogger.FlightRecorder.alive.\(fileURL.standardizedFileURL.path)"
     }
 
     private func markSessionAlive(_ alive: Bool) {
-        defaults.set(alive, forKey: FlightRecorder.aliveKey)
+        defaults.set(alive, forKey: aliveKey)
+    }
+
+    deinit {
+        // A recorder released without stop() shouldn't leave its engine behind.
+        environment.registry.removeEngine(id: recordingEngine.engineID)
+    }
+
+    private func redacted(_ crumb: Breadcrumb) -> Breadcrumb {
+        guard let redactor else { return crumb }
+        return Breadcrumb(
+            id: crumb.id,
+            timestamp: crumb.timestamp,
+            category: crumb.category,
+            message: redactor.redact(crumb.message).output,
+            metadata: redactor.redact(crumb.metadata)
+        )
+    }
+
+    private func redacted(_ event: NetworkEvent) -> NetworkEvent {
+        guard let redactor else { return event }
+        return NetworkEvent(
+            id: event.id,
+            startedAt: event.startedAt,
+            endedAt: event.endedAt,
+            method: event.method,
+            url: Self.strippingQuery(event.url),
+            statusCode: event.statusCode,
+            responseBytes: event.responseBytes,
+            requestBytes: event.requestBytes,
+            errorDescription: event.errorDescription.map { redactor.redact($0).output }
+        )
+    }
+
+    /// Query strings routinely carry tokens; keep scheme, host and path only.
+    private static func strippingQuery(_ url: URL) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        components.query = nil
+        components.fragment = nil
+        return components.url ?? url
     }
 
     private func flushSync() {
@@ -167,8 +211,8 @@ public final class FlightRecorder: @unchecked Sendable {
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?",
             osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
             entries: entries,
-            breadcrumbs: environment.breadcrumbs.snapshot(),
-            networkEvents: environment.networkEvents.snapshot().filter { $0.startedAt >= cutoff },
+            breadcrumbs: environment.breadcrumbs.snapshot().map(redacted),
+            networkEvents: environment.networkEvents.snapshot().filter { $0.startedAt >= cutoff }.map(redacted),
             signpostEvents: environment.signposts.snapshot().filter { $0.startedAt >= cutoff },
             vitals: environment.vitals.snapshot().filter { $0.timestamp >= cutoff }
         )

@@ -41,9 +41,7 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
         encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
 
         try Self.ensureFileExists(at: fileURL)
-        let handle = try FileHandle(forWritingTo: fileURL)
-        try handle.seekToEnd()
-        self.handle = handle
+        self.handle = try Self.openForAppending(fileURL)
         self.currentSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0
     }
 
@@ -135,13 +133,21 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
     private func reopenActiveFile() {
         do {
             try Self.ensureFileExists(at: fileURL)
-            let newHandle = try FileHandle(forWritingTo: fileURL)
-            try newHandle.seekToEnd()
-            handle = newHandle
+            handle = try Self.openForAppending(fileURL)
             currentSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0
         } catch {
             NSLog("FileLogEngine could not reopen %@: %@", fileURL.path, String(describing: error))
         }
+    }
+
+    /// Opens with `O_APPEND`, so every write lands at the current end of the
+    /// file even if another engine or process appends to it too.
+    private static func openForAppending(_ url: URL) throws -> FileHandle {
+        let descriptor = open(url.path, O_WRONLY | O_APPEND | O_CREAT, 0o644)
+        guard descriptor >= 0 else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
+        }
+        return FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
     }
 
     private static func ensureFileExists(at url: URL) throws {

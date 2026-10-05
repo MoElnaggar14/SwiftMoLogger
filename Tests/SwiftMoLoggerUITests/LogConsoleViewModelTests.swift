@@ -66,6 +66,16 @@ final class LogConsoleViewModelTests: XCTestCase {
         XCTAssertFalse(model.entries.contains { $0.message == "dropped-while-paused" })
     }
 
+    func testReleasedHubRemovesItsMemoryEngine() {
+        let baseline = environment.registry.engineCount
+        do {
+            let hub = HubViewModel(environment: environment)
+            XCTAssertEqual(environment.registry.engineCount, baseline + 1)
+            _ = hub
+        }
+        XCTAssertEqual(environment.registry.engineCount, baseline)
+    }
+
     func testBufferLimitTrimsOldest() async {
         let model = makeModel(bufferLimit: 5)
         for index in 0..<20 {
