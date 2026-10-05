@@ -9,7 +9,7 @@ import Testing
 struct ToolHandlerTests {
     func text(_ result: CallTool.Result) -> String {
         result.content.compactMap { content in
-            if case let .text(text) = content { return text }
+            if case let .text(text, _, _) = content { return text }
             return nil
         }.joined(separator: "\n")
     }

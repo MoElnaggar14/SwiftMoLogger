@@ -128,7 +128,7 @@ public struct ToolHandler: Sendable {
     private func listDevices() async throws -> CallTool.Result {
         let devices = await hub.devicesSummary()
         guard !devices.isEmpty else {
-            return .init(content: [.text("""
+            return .init(content: [.plain("""
             No devices found. Run a Debug build that starts LiveSink, on the same Wi-Fi as this Mac, \
             with NSLocalNetworkUsageDescription and NSBonjourServices (_swiftmologger._tcp) in its Info.plist.
             """)])
@@ -141,7 +141,7 @@ public struct ToolHandler: Sendable {
             }
             return line
         }
-        return try .init(content: [.text(lines.joined(separator: "\n"))], structuredContent: DevicesOutput(devices: devices))
+        return try .init(content: [.plain(lines.joined(separator: "\n"))], structuredContent: DevicesOutput(devices: devices))
     }
 
     private func searchLogs(_ arguments: [String: Value], now: Date) async throws -> CallTool.Result {
@@ -151,7 +151,7 @@ public struct ToolHandler: Sendable {
         if text.isEmpty { text = "No matching entries." }
         if result.truncated { text += "\n(more entries matched; showing the newest \(result.entries.count))" }
         return try .init(
-            content: [.text(text)],
+            content: [.plain(text)],
             structuredContent: SearchOutput(
                 entries: result.entries.map(EntryOutput.init),
                 nextSeq: result.nextSeq,
@@ -174,7 +174,7 @@ public struct ToolHandler: Sendable {
         lines.append("    source: \(entry.source.file):\(entry.source.line) \(entry.source.function), thread \(entry.threadName)")
         lines += found.after.map { "  " + Rendering.line($0) }
         return try .init(
-            content: [.text(lines.joined(separator: "\n"))],
+            content: [.plain(lines.joined(separator: "\n"))],
             structuredContent: EntryDetailOutput(
                 entry: EntryOutput(found.entry),
                 before: found.before.map(EntryOutput.init),
@@ -190,12 +190,12 @@ public struct ToolHandler: Sendable {
         let timeout = min(max(arguments["timeout_s"]?.intValue ?? 60, 1), 120)
         guard let stored = await hub.waitFor(query, timeout: .seconds(timeout)) else {
             return try .init(
-                content: [.text("Timed out after \(timeout) s with no matching entry.")],
+                content: [.plain("Timed out after \(timeout) s with no matching entry.")],
                 structuredContent: WaitOutput(entry: nil, timedOut: true)
             )
         }
         return try .init(
-            content: [.text(Rendering.line(stored, showDevice: true))],
+            content: [.plain(Rendering.line(stored, showDevice: true))],
             structuredContent: WaitOutput(entry: EntryOutput(stored), timedOut: false)
         )
     }
@@ -220,7 +220,7 @@ public struct ToolHandler: Sendable {
                 let duration = request.durationMS.map { "\(Int($0)) ms" } ?? ""
                 return "#\(request.seq) \(request.method) \(request.url) → \(outcome) \(duration)"
             }.joined(separator: "\n")
-        return try .init(content: [.text(text)], structuredContent: RequestsOutput(requests: requests))
+        return try .init(content: [.plain(text)], structuredContent: RequestsOutput(requests: requests))
     }
 
     // MARK: - Arguments
@@ -249,7 +249,7 @@ public struct ToolHandler: Sendable {
     }
 
     private func failure(_ message: String) -> CallTool.Result {
-        .init(content: [.text(message)], isError: true)
+        .init(content: [.plain(message)], isError: true)
     }
 }
 
@@ -312,4 +312,11 @@ struct EntryDetailOutput: Codable, Sendable {
 struct WaitOutput: Codable, Sendable {
     let entry: EntryOutput?
     let timedOut: Bool
+}
+
+extension Tool.Content {
+    /// Plain text with no annotations or metadata.
+    static func plain(_ text: String) -> Self {
+        .text(text: text, annotations: nil, _meta: nil)
+    }
 }
