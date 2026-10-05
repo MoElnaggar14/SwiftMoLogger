@@ -57,6 +57,7 @@ final class PerformanceBenchmarks: LoggingTestCase {
         registry.addEngine(memory)
         let queues = 8
         let perQueue = 2_000
+        let log = self.log
 
         measure(metrics: [XCTClockMetric()]) {
             let group = DispatchGroup()

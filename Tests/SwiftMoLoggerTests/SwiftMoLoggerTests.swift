@@ -215,6 +215,7 @@ final class SwiftMoLoggerTests: LoggingTestCase {
 
         let iterations = 200
         let queues = 8
+        let log = self.log
         let expectation = expectation(description: "concurrent")
         expectation.expectedFulfillmentCount = queues
 
