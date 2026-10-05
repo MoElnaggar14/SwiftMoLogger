@@ -1,7 +1,7 @@
 # SwiftMoLogger
 
 > **The logging package iOS teams wish they'd written.**
-> Structured, multi-engine, Swift-Concurrency-native — with an in-app Instruments dashboard, zero-config live tail to your Mac, automatic PII redaction, Sentry/Datadog/Loki shippers, and Swift Macros. All in one package, all opt-in.
+> Structured, multi-engine, Swift-Concurrency-native — with an in-app Instruments dashboard, zero-config live tail to your Mac, opt-in PII redaction, Sentry/Datadog/Loki shippers, and Swift Macros. All in one package, all opt-in.
 
 [![Swift](https://img.shields.io/badge/Swift-6.0_→_6.4-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/iOS_16_•_macOS_13_•_tvOS_16_•_watchOS_9-lightgrey.svg)](https://developer.apple.com)
@@ -86,7 +86,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 - [Performance](#performance)
 - [Testing](#testing)
 - [Comparison](#comparison)
-- [Migration from v2](#migration-from-v2)
+- [Upgrading](#upgrading)
 - [Development model (GitFlow)](#development-model-gitflow)
 - [📚 Article series](#-article-series)
 - [Xcode code snippets](#xcode-code-snippets)
@@ -579,11 +579,11 @@ Backed by `@TaskLocal`, so concurrent tasks see their own trace.
 ## Flight recorder — black box for crashes
 
 ```swift
-let recorder = FlightRecorder(environment: logging, window: 120, flushInterval: 2)
+let recorder = FlightRecorder(environment: logging)   // 2-minute window, flushed every 5 s
 recorder.start()
 ```
 
-Persists a rolling 2-minute window of every signal flowing through the environment (logs, breadcrumbs, network, signposts, vitals) to disk every 2 seconds. On next launch:
+Persists a rolling 2-minute window of every signal flowing through the environment (logs, breadcrumbs, network, signposts, vitals) to a small file in Caches. It only writes when something new was recorded, and it flushes when the app moves to the background. Pass `redactor:` to scrub entries, breadcrumbs and network events (URL queries are dropped) before anything touches the disk. On next launch:
 
 ```swift
 if let session = recorder.crashedSession {
@@ -592,7 +592,7 @@ if let session = recorder.crashedSession {
 }
 ```
 
-`crashedSession` is non-nil **only** when the previous run never had a clean `stop()`. That is almost always a crash, OOM, or watchdog kill. `start()` captures it before marking the new session as running, so it's safe to read at any point. The exact signals you wish you'd had, after the fact.
+`crashedSession` is non-nil **only** when the previous run died while it was running in the foreground: a crash, an out-of-memory kill or a watchdog kill. Going to the background marks the session clean, because iOS terminates suspended apps without warning and a user swiping the app away isn't a crash (the trade-off: a crash while running in the background isn't reported either). `start()` captures the previous session before marking the new one as running, so it's safe to read at any point. The exact signals you wish you'd had, after the fact.
 
 Pair it with MetricKit (iOS / macOS) for the crash, hang and diagnostic payloads the OS delivers on the next launch:
 
@@ -761,21 +761,21 @@ final class CheckoutTests: XCTestCase {
 | App vitals (CPU/FPS/mem) | ✅ | ❌ | ❌ | ❌ |
 | Swift Macros | ✅ | ❌ | ❌ | ❌ |
 | `XCTAssertLogged` | ✅ | ❌ | ❌ | ❌ |
-| Privacy manifest | ✅ | n/a | ❌ | ❌ |
 | Task-local context | ✅ | ❌ | ❌ | ❌ |
 | W3C `traceparent` propagation | ✅ | ❌ | ❌ | ❌ |
 | Flight recorder | ✅ | ❌ | ❌ | ❌ |
 | Smart error grouping | ✅ | ❌ | ❌ | ❌ |
 | Xcode code snippets bundled | ✅ | ❌ | ❌ | ❌ |
-| Hot path (no engines) | **~140 ns** | ~120 ns | ~3 µs | ~2 µs |
+
+Spotted something out of date for another library? Please open an issue. For SwiftMoLogger's own numbers, see [PERFORMANCE.md](PERFORMANCE.md).
 
 ---
 
-## Migration from v2
+## Upgrading
 
-> **Upgrading from 3.x?** 4.0 removes every singleton and the static `SwiftMoLogger.*` facade in favour of one injected `LogEnvironment`. The upgrade is mechanical: **[MIGRATION.md](MIGRATION.md)** maps every 3.x call to its 4.0 equivalent.
+**From 3.x:** 4.0 removes every singleton and the static `SwiftMoLogger.*` facade in favour of one injected `LogEnvironment`. The upgrade is mechanical: **[MIGRATION.md](MIGRATION.md)** maps every 3.x call to its 4.0 equivalent.
 
-Coming from v2, the table below shows each v2 concept and where it lives now (4.0 API):
+**From v2:** the table below shows each v2 concept and where it lives now (4.0 API):
 
 | v2 | Now (4.0) | Notes |
 |---|---|---|
@@ -809,16 +809,14 @@ Branch policy is enforced by `.github/workflows/gitflow.yml`. Full procedure →
 
 ## 📚 Article series
 
-A 5-part deep-dive on the rewrite, the design choices, and the production playbook. Read in order or jump to whichever is on fire for you today.
-
-> **Written for 3.x.** The articles explain the design, and their code uses the 3.x API (`SwiftMoLogger.info`, `.shared` stores, `LogSignpost`). For 4.0 code, inject a `LogEnvironment` as shown in this README and see [MIGRATION.md](MIGRATION.md) for the mapping.
+A five-part deep dive into the design choices and the production playbook. Every sample uses the 4.0 API. Read in order, or jump to whichever is on fire for you today.
 
 | # | Title | What you'll learn |
 |---|---|---|
-| 1 | [Why I rewrote iOS logging from scratch](Articles/01-why-rewrite.md) | The shortcomings of `print` / `os.Logger` / SwiftyBeaver, and the design principles behind v3 |
-| 2 | [Sub-µs logging: the performance design](Articles/02-performance.md) | Why the hot path is ~140 ns — locking choices, autoclosure tricks, allocation budgets |
-| 3 | [Instruments in your app: building Diagnostics Hub](Articles/03-diagnostics-hub.md) | How the timeline + waterfall + flame graph + vitals charts compose |
-| 4 | [Zero-config debugging with Bonjour and Swift Macros](Articles/04-bonjour-and-macros.md) | The Mac CLI live tail, the macros target, and the dev-experience wins |
+| 1 | [Why I rewrote iOS logging from scratch](Articles/01-why-rewrite.md) | Where `print`, `os.Logger` and classic loggers fall short, and the principles behind 4.0 |
+| 2 | [Sub-µs logging: the performance design](Articles/02-performance.md) | Locking, autoclosures, allocation budget and engine fan-out |
+| 3 | [Instruments in your app: building the Diagnostics Hub](Articles/03-diagnostics-hub.md) | How the timeline, waterfall, flame graph and vitals charts compose |
+| 4 | [Zero-config debugging with Bonjour and Swift Macros](Articles/04-bonjour-and-macros.md) | The Mac live tail, keeping it debug-only, and the macros |
 | 5 | [The production playbook: tracing, redaction, flight recorder](Articles/05-production-playbook.md) | The features that save you on the 3 AM call |
 
 Series index: [Articles/README.md](Articles/README.md).
