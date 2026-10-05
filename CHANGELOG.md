@@ -46,7 +46,7 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - CI builds the example app.
 - `HTTPLogShipper` uses its own ephemeral `URLSession` by default (no cookies or cache; never observed by a `NetworkLogger`).
 
-## [3.1.0] — Unreleased
+## [3.1.0] — Not released separately; every fix ships in 4.0.0
 
 A correctness release. No breaking API changes; see "Behaviour changes".
 
