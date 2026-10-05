@@ -134,7 +134,7 @@ public final class AppVitalsMonitor: @unchecked Sendable {
             }
             vm_deallocate(
                 mach_task_self_,
-                vm_address_t(bitPattern: threads),
+                vm_address_t(UInt(bitPattern: threads)),
                 vm_size_t(threadCount) * vm_size_t(MemoryLayout<thread_t>.size)
             )
         }
