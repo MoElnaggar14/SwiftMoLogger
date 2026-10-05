@@ -21,9 +21,12 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - `LogContext.with(_:operation:)` and `TraceContext.run(_:)` for task-local scoping.
 - `URLRequest.addTraceparentHeader()`.
 - `LogEnvironment.recording()` / `MoLogger.recording()` for isolated, parallel-safe tests.
+- `FlightRecorder(redactor:)`: redacts entries before they're persisted, so the crash file never holds raw secrets or PII.
 - `FlightRecorder(defaults:)` / `recoverLastSession(from:defaults:)`, so tests and app groups can supply their own `UserDefaults`.
 
 ### Changed
+- `SwiftMoLogHandler` implements swift-log's `log(event:)` (swift-log 1.12+), and errors passed to swift-log become `error_type` / `error` metadata.
+- CI builds the example app.
 - `HTTPLogShipper` uses its own ephemeral `URLSession` by default (no cookies or cache; never observed by a `NetworkLogger`).
 
 ## [3.1.0] — Unreleased

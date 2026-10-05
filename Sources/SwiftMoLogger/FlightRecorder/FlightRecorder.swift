@@ -43,6 +43,8 @@ public final class FlightRecorder: @unchecked Sendable {
     private let environment: LogEnvironment
     private let defaults: UserDefaults
     private let memory: MemoryLogEngine
+    /// What's registered with the registry: `memory`, possibly behind a redactor.
+    private let recordingEngine: any LogEngine
     private let queue: DispatchQueue
     // `timer` and `recovered` are only touched on `queue`.
     private var timer: DispatchSourceTimer?
@@ -51,20 +53,25 @@ public final class FlightRecorder: @unchecked Sendable {
     /// - Parameters:
     ///   - environment: The registry to record from and the stores to snapshot.
     ///   - defaults: Where the "session is running" flag lives.
+    ///   - redactor: Redacts entries before they're kept, so the file on disk
+    ///     never holds raw secrets or PII. `nil` keeps entries as logged.
     public init(
         environment: LogEnvironment,
         fileURL: URL? = nil,
         window: TimeInterval = 120,
         flushInterval: TimeInterval = 2,
         capacity: Int = 1_000,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        redactor: Redactor? = nil
     ) {
         self.environment = environment
         self.defaults = defaults
         self.fileURL = fileURL ?? FlightRecorder.defaultFileURL
         self.window = window
         self.flushInterval = flushInterval
-        self.memory = MemoryLogEngine(capacity: capacity)
+        let memory = MemoryLogEngine(capacity: capacity)
+        self.memory = memory
+        self.recordingEngine = redactor.map { RedactingLogEngine(wrapping: memory, redactor: $0) } ?? memory
         self.queue = DispatchQueue(label: "swiftmologger.flightrecorder", qos: .utility)
     }
 
@@ -86,7 +93,7 @@ public final class FlightRecorder: @unchecked Sendable {
             // Always register *this* recorder's private memory engine; it has
             // a unique id so it can't replace (or be replaced by) another
             // MemoryLogEngine in the registry.
-            environment.registry.addEngine(memory)
+            environment.registry.addEngine(recordingEngine)
             markSessionAlive(true)
             let timer = DispatchSource.makeTimerSource(queue: queue)
             timer.schedule(deadline: .now() + flushInterval, repeating: flushInterval)
@@ -103,7 +110,7 @@ public final class FlightRecorder: @unchecked Sendable {
             guard let timer else { return }
             timer.cancel()
             self.timer = nil
-            environment.registry.removeEngine(id: memory.engineID)
+            environment.registry.removeEngine(id: recordingEngine.engineID)
             markSessionAlive(false)
             try? FileManager.default.removeItem(at: fileURL)
         }

@@ -67,6 +67,24 @@ jobs:
             -destination "${{ matrix.destination }}" \
             CODE_SIGNING_ALLOWED=NO -quiet
 
+  example-app:
+    name: Build example app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project ExampleApp/SwiftMoLoggerExample.xcodeproj \
+            -scheme SwiftMoLoggerExample \
+            -destination 'generic/platform=iOS Simulator' \
+            -skipMacroValidation -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO -quiet
+
   lint:
     name: SwiftLint
     runs-on: macos-15

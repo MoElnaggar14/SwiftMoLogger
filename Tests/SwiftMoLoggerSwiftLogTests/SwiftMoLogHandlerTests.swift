@@ -69,6 +69,14 @@ final class SwiftMoLogHandlerTests: XCTestCase {
         XCTAssertEqual(recorder.recorded().last?.metadata["trace_id"], .string("t-1"))
     }
 
+    func testSwiftLogErrorsBecomeErrorMetadata() throws {
+        struct Timeout: Error {}
+        makeLogger().error("Request failed", error: Timeout())
+
+        let metadata = try XCTUnwrap(recorder.recorded().last?.metadata)
+        XCTAssertEqual(metadata["error_type"], .string("Timeout"))
+    }
+
     func testLevelMappingCoversEveryLevel() {
         let mapped = Logger.Level.allCases.map(LogLevel.init(swiftLog:))
         XCTAssertEqual(mapped, [.trace, .debug, .info, .notice, .warning, .error, .critical])

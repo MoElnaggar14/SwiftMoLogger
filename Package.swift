@@ -28,7 +28,7 @@ let package = Package(
         // CI builds against both the pinned and the newest resolvable version.
         .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.0.0"..<"603.0.0"),
         // Only linked by the SwiftMoLoggerSwiftLog product.
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.12.0"),
     ],
     targets: [
         .target(

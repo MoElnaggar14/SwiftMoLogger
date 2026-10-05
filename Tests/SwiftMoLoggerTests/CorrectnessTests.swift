@@ -193,6 +193,24 @@ final class CorrectnessTests: LoggingTestCase {
         crashed.stop()
     }
 
+    func testFlightRecorderCanRedactBeforePersisting() throws {
+        let url = temporaryURL("flight-redacted.json")
+        let recorder = FlightRecorder(
+            environment: environment,
+            fileURL: url,
+            flushInterval: 60,
+            defaults: isolatedDefaults(),
+            redactor: Redactor()
+        )
+        recorder.start()
+        log.info("contact admin@corp.com")
+        recorder.flush()
+
+        let persisted = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertFalse(persisted.contains("admin@corp.com"))
+        recorder.stop()
+    }
+
     // MARK: - Error grouping
 
     func testErrorGroupingIsBounded() {

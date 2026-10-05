@@ -74,34 +74,29 @@ public struct SwiftMoLogHandler: LogHandler {
         set { metadata[key] = newValue }
     }
 
-    // swiftlint:disable:next function_parameter_count
-    public func log(
-        level: Logger.Level,
-        message: Logger.Message,
-        metadata explicit: Logger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt
-    ) {
+    public func log(event: LogEvent) {
         // Precedence, lowest to highest: handler metadata, provider, call site.
         var merged = metadata
         if let provided = metadataProvider?.get() {
             merged.merge(provided) { _, new in new }
         }
-        if let explicit {
+        if let explicit = event.metadata {
             merged.merge(explicit) { _, new in new }
         }
         var converted = LogMetadata(merged.mapValues(LogMetadataValue.init(swiftLog:)))
-        converted["logger.source"] = .string(source)
+        converted["logger.source"] = .string(event.source)
+        if let error = event.error {
+            converted["error_type"] = .string(String(describing: type(of: error)))
+            converted["error"] = .string(String(describing: error))
+        }
 
         logger.log(
-            LogLevel(swiftLog: level),
-            message.description,
+            LogLevel(swiftLog: event.level),
+            event.message.description,
             metadata: converted,
-            file: file,
-            function: function,
-            line: Int(line),
+            file: event.file,
+            function: event.function,
+            line: Int(event.line),
             column: 0
         )
     }

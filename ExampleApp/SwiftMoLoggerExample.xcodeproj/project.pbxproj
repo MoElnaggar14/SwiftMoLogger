@@ -138,7 +138,7 @@
 			);
 			mainGroup = E501A1001A2B3C4D5E6F78916;
 			packageReferences = (
-				A53A39472E7CBE46008318BB /* XCLocalSwiftPackageReference "../../SwiftMoLogger" */,
+				A53A39472E7CBE46008318BB /* XCLocalSwiftPackageReference ".." */,
 			);
 			productRefGroup = E501A1001A2B3C4D5E6F78918 /* Products */;
 			projectDirPath = "";
@@ -379,9 +379,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A53A39472E7CBE46008318BB /* XCLocalSwiftPackageReference "../../SwiftMoLogger" */ = {
+		A53A39472E7CBE46008318BB /* XCLocalSwiftPackageReference ".." */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../SwiftMoLogger;
+			relativePath = ..;
 		};
 /* End XCLocalSwiftPackageReference section */
 
