@@ -152,6 +152,14 @@ logging.registry.addEngine(sink)
 
 For the flight recorder, MetricKit, tracing, breadcrumbs, signposts, task-local context, swift-log and macros, read [references/features.md](references/features.md).
 
+**Reading a running app's logs yourself.** If the `swiftmologger` MCP server is connected (its tools are `list_devices`, `search_logs`, `get_entry`, `wait_for` and `network_requests`), use it to debug instead of asking the user to paste console output:
+1. Call `list_devices`.
+2. Call `search_logs` with `min_level: "warning"` and `since: "5m"`.
+3. Call `get_entry` with `context` on the interesting entry.
+4. Use `wait_for` while the user reproduces the bug.
+
+It only sees debug builds that run `LiveSink`. Setup is in `Tools/swiftmologger-mcp/README.md` in the SwiftMoLogger repository.
+
 ### 7. Testing
 
 Give each test its own environment and inject it, so tests never share state and can run in parallel:
