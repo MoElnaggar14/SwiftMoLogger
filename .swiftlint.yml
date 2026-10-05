@@ -79,6 +79,10 @@ disabled_rules:
   - todo # Allow TODO comments for development
 
 # Configure specific rules
+empty_count:
+  # Ring buffers keep an `Int` named `count`; only flag `collection.count`.
+  only_after_dot: true
+
 line_length:
   warning: 120
   error: 140

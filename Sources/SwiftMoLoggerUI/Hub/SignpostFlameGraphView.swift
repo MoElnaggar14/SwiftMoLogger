@@ -25,11 +25,14 @@ public struct SignpostFlameGraphView: View {
                     GeometryReader { geo in
                         ZStack(alignment: .topLeading) {
                             backgroundGrid(width: geo.size.width)
+                                .accessibilityHidden(true)
                             ForEach(spans) { span in
                                 spanRect(span: span, lane: layout[span.id] ?? 0, totalWidth: geo.size.width)
                             }
                         }
                         .frame(width: geo.size.width, height: CGFloat(lanes) * 24)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel("Signpost flame graph")
                     }
                     .frame(minHeight: CGFloat(lanes) * 24 + 16)
                     .padding(8)
@@ -41,12 +44,13 @@ public struct SignpostFlameGraphView: View {
     private var placeholder: some View {
         VStack(spacing: 8) {
             Image(systemName: "waveform.path.ecg")
-                .font(.system(size: 36))
+                .font(.largeTitle)
                 .foregroundColor(.secondary)
+                .accessibilityHidden(true)
             Text("No signposts in window")
                 .font(.callout)
                 .foregroundColor(.secondary)
-            Text("Wrap code in LogSignpost.measure(\"name\") { … }")
+            Text("Wrap code in signposter.measure(\"name\") { … }")
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
@@ -76,6 +80,12 @@ public struct SignpostFlameGraphView: View {
         let duration = max(span.durationSeconds, 0.0005) / totalSpan
         let width = max(6, totalWidth * CGFloat(duration))
         return HStack(spacing: 4) {
+            if isSlow(span) {
+                // Non-colour cue for the slowest (red) spans.
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundColor(.white)
+            }
             Text(span.name)
                 .font(.caption2.monospaced())
                 .lineLimit(1)
@@ -87,12 +97,27 @@ public struct SignpostFlameGraphView: View {
         .padding(.horizontal, 4)
         .frame(width: width, height: 20)
         .background(color(for: span).cornerRadius(3))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spokenSummary(for: span))
         .offset(x: totalWidth * CGFloat(startOffset), y: CGFloat(lane) * 24)
+    }
+
+    private func isSlow(_ span: SignpostEvent) -> Bool {
+        span.durationSeconds > 0.25
+    }
+
+    /// Spoken span summary, e.g. "decodeFeed, 120 milliseconds, starts 1.25 seconds into the window".
+    private func spokenSummary(for span: SignpostEvent) -> String {
+        let offset = max(0, span.startedAt.timeIntervalSince(model.windowStart))
+        var summary: String = "\(span.name), \(Int(span.durationSeconds * 1000)) milliseconds, "
+            + "starts \(String(format: "%.2f", offset)) seconds into the window"
+        if isSlow(span) { summary += ", slow" }
+        return summary
     }
 
     private func color(for span: SignpostEvent) -> Color {
         let duration = span.durationSeconds
-        if duration > 0.25 { return .red }
+        if isSlow(span) { return .red }
         if duration > 0.05 { return .orange }
         return .blue
     }

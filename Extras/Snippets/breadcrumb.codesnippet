@@ -7,7 +7,7 @@
     <key>IDECodeSnippetCompletionScopes</key>
     <array><string>All</string></array>
     <key>IDECodeSnippetContents</key>
-    <string>SwiftMoLogger.breadcrumb("&lt;#what happened#&gt;", category: .&lt;#userAction#&gt;)</string>
+    <string>breadcrumbs.record("&lt;#what happened#&gt;", category: .&lt;#userAction#&gt;)</string>
     <key>IDECodeSnippetIdentifier</key>
     <string>com.swiftmologger.breadcrumb</string>
     <key>IDECodeSnippetLanguage</key>

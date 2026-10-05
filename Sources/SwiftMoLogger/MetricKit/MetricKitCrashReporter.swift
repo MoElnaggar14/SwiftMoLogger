@@ -22,54 +22,57 @@ public protocol HangReportDelegate: AnyObject, Sendable {
 ///
 /// Usage:
 /// ```swift
-/// let reporter = MetricKitCrashReporter()
+/// let reporter = MetricKitCrashReporter(logger: environment.logger)
 /// reporter.startMonitoring()
 /// ```
 public final class MetricKitCrashReporter: NSObject {
+    private let logger: MoLogger
     private var isMonitoring = false
 
     public weak var crashReportDelegate: CrashReportDelegate?
     public weak var hangReportDelegate: HangReportDelegate?
 
-    public override init() {
+    /// - Parameter logger: Receives crash, hang and diagnostic summaries.
+    public init(logger: MoLogger) {
+        self.logger = logger
         super.init()
     }
 
     public func startMonitoring() {
         guard !isMonitoring else {
-            SwiftMoLogger.warn("MetricKit monitoring already active", tag: .crash)
+            logger.warning("MetricKit monitoring already active", tag: .crash)
             return
         }
         MXMetricManager.shared.add(self)
         isMonitoring = true
-        SwiftMoLogger.info("MetricKit monitoring started", tag: .crash)
+        logger.info("MetricKit monitoring started", tag: .crash)
     }
 
     public func stopMonitoring() {
         guard isMonitoring else {
-            SwiftMoLogger.warn("MetricKit monitoring not active", tag: .crash)
+            logger.warning("MetricKit monitoring not active", tag: .crash)
             return
         }
         MXMetricManager.shared.remove(self)
         isMonitoring = false
-        SwiftMoLogger.info("MetricKit monitoring stopped", tag: .crash)
+        logger.info("MetricKit monitoring stopped", tag: .crash)
     }
 
     /// Force a fatal crash for end-to-end MetricKit pipeline validation.
     /// Now public (was internal in v2 despite being documented as public).
     public func triggerTestCrash() {
         #if DEBUG
-        SwiftMoLogger.warn("Triggering test crash for validation", tag: .crash)
+        logger.warning("Triggering test crash for validation", tag: .crash)
         fatalError("Test crash for MetricKit validation")
         #else
-        SwiftMoLogger.warn("Test crashes only available in DEBUG builds", tag: .crash)
+        logger.warning("Test crashes only available in DEBUG builds", tag: .crash)
         #endif
     }
 }
 
 extension MetricKitCrashReporter: MXMetricManagerSubscriber {
     public func didReceive(_ payloads: [MXDiagnosticPayload]) {
-        SwiftMoLogger.info(
+        logger.info(
             "Received \(payloads.count) diagnostic payload(s)",
             tag: .crash,
             metadata: ["payload_count": .int(Int64(payloads.count))]
@@ -107,13 +110,13 @@ private extension MetricKitCrashReporter {
         if let signal = diagnostic.signal {
             metadata["signal"] = .int(Int64(truncating: signal))
         }
-        SwiftMoLogger.critical("🚨 CRASH DETECTED", tag: .crash, metadata: metadata)
+        logger.critical("🚨 CRASH DETECTED", tag: .crash, metadata: metadata)
     }
 
     func analyzeCrashCallStack(_ callStackTree: MXCallStackTree) {
         let callStackData = callStackTree.jsonRepresentation()
         guard let jsonString = String(data: callStackData, encoding: .utf8) else {
-            SwiftMoLogger.error("Unable to decode call stack", tag: .crash)
+            logger.error("Unable to decode call stack", tag: .crash)
             return
         }
         printCrashPatternHints(in: jsonString)
@@ -135,7 +138,7 @@ private extension MetricKitCrashReporter {
 
     func handleHangDiagnostics(_ diagnostics: [MXHangDiagnostic]) {
         for diagnostic in diagnostics {
-            SwiftMoLogger.warn(
+            logger.warning(
                 "🐌 HANG detected",
                 tag: .performance,
                 metadata: ["hang_duration_ms": .double(diagnostic.hangDuration.converted(to: .milliseconds).value)]
@@ -175,11 +178,11 @@ private extension MetricKitCrashReporter {
 
     func printCrashPatternHints(in callStackJSON: String) {
         if callStackJSON.contains("EXC_BAD_ACCESS") {
-            SwiftMoLogger.warn("Memory access issue — likely deallocated memory", tag: .crash)
+            logger.warning("Memory access issue — likely deallocated memory", tag: .crash)
         } else if callStackJSON.contains("EXC_BREAKPOINT") {
-            SwiftMoLogger.warn("Assertion failure or unhandled Swift error", tag: .crash)
+            logger.warning("Assertion failure or unhandled Swift error", tag: .crash)
         } else if callStackJSON.contains("EXC_CRASH") {
-            SwiftMoLogger.warn("Process terminated — memory pressure or timeout", tag: .crash)
+            logger.warning("Process terminated — memory pressure or timeout", tag: .crash)
         }
     }
 
@@ -202,7 +205,7 @@ private extension MetricKitCrashReporter {
             }
         }
         if !userBinaries.isEmpty {
-            SwiftMoLogger.info(
+            logger.info(
                 "User binaries in crash",
                 tag: .crash,
                 metadata: ["binaries": .string(userBinaries.sorted().joined(separator: ", "))]

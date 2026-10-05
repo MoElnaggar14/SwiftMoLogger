@@ -1,6 +1,6 @@
 import Foundation
 
-/// A finished signpost span, captured by ``LogSignpost``.
+/// A finished signpost span, recorded by ``Signposter``.
 public struct SignpostEvent: Sendable, Hashable, Codable, Identifiable {
     public let id: UUID
     public let name: String
@@ -25,13 +25,11 @@ public struct SignpostEvent: Sendable, Hashable, Codable, Identifiable {
 
 /// Bounded ring buffer of finished signpost spans.
 public final class SignpostEventStore: @unchecked Sendable {
-    public static let shared = SignpostEventStore()
-
     public let capacity: Int
     private var buffer: [SignpostEvent?]
     private var head = 0
     private var count = 0
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
 
     public init(capacity: Int = 500) {
         precondition(capacity > 0)
@@ -40,16 +38,16 @@ public final class SignpostEventStore: @unchecked Sendable {
     }
 
     public func record(_ event: SignpostEvent) {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         buffer[head] = event
         head = (head + 1) % capacity
         if count < capacity { count += 1 }
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
     }
 
     public func snapshot() -> [SignpostEvent] {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         guard count > 0 else { return [] }
         var out: [SignpostEvent] = []
         out.reserveCapacity(count)
@@ -63,9 +61,9 @@ public final class SignpostEventStore: @unchecked Sendable {
     }
 
     public func clear() {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         for index in 0..<capacity { buffer[index] = nil }
         head = 0; count = 0
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
     }
 }

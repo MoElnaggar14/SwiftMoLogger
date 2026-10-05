@@ -1,14 +1,11 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@AutoLog` — member attribute that wraps every public/internal method in
-/// a `final class` or `actor` with automatic entry / exit / throw logging.
+/// `@AutoLog` adds a `__autoLog()` helper to a class or actor. A method that
+/// calls it logs a `trace` entry ("→ <method>") through the type's `logger`.
 ///
-/// This is a `memberAttribute` macro: it walks the type's declarations and
-/// emits a marker attribute on each method. A future pass could also rewrite
-/// the bodies; for now we keep the diagnostic surface small by emitting a
-/// `trace`-level log entry at the start of every method via a synthesised
-/// `__autolog_<method>` helper that the method body can opt into.
+/// The `memberAttribute` role currently adds nothing (methods are not
+/// rewritten), so only methods that call `__autoLog()` are logged.
 public struct AutoLogMacro: MemberMacro, MemberAttributeMacro {
 
     // MARK: - MemberAttributeMacro
@@ -36,6 +33,8 @@ public struct AutoLogMacro: MemberMacro, MemberAttributeMacro {
         }
         guard !methods.isEmpty else { return [] }
 
+        // The type supplies its own injected `logger: MoLogger` property; the
+        // helper logs through it, so there's no global logger involved.
         // Emit a single helper that the method bodies can call manually
         // (e.g. `__autoLog("purchase")`). Body rewriting via macros is still
         // an evolving area in Swift — keeping the surface minimal avoids
@@ -47,7 +46,7 @@ public struct AutoLogMacro: MemberMacro, MemberAttributeMacro {
         fileprivate func __autoLog(_ method: String = #function,
                                    file: String = #fileID,
                                    line: Int = #line) {
-            SwiftMoLogger.trace("→ \\(method)", tag: .Development.debug, file: file, function: method, line: line)
+            logger.trace("→ \\(method)", tag: .Development.debug, file: file, function: method, line: line)
         }
         """
         return [helper]

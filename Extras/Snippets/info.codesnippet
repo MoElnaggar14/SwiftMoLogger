@@ -7,7 +7,7 @@
     <key>IDECodeSnippetCompletionScopes</key>
     <array><string>All</string></array>
     <key>IDECodeSnippetContents</key>
-    <string>SwiftMoLogger.info("&lt;#message#&gt;", tag: .&lt;#tag#&gt;, metadata: ["&lt;#key#&gt;": .string("&lt;#value#&gt;")])</string>
+    <string>logger.info("&lt;#message#&gt;", tag: .&lt;#tag#&gt;, metadata: ["&lt;#key#&gt;": .string("&lt;#value#&gt;")])</string>
     <key>IDECodeSnippetIdentifier</key>
     <string>com.swiftmologger.info</string>
     <key>IDECodeSnippetLanguage</key>

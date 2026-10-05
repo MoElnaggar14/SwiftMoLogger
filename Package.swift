@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 import CompilerPluginSupport
 
@@ -9,7 +9,8 @@ let package = Package(
         .iOS(.v16),
         .macOS(.v13),
         .tvOS(.v16),
-        .watchOS(.v9)
+        .watchOS(.v9),
+        .visionOS(.v1)
     ],
     products: [
         .library(name: "SwiftMoLogger", targets: ["SwiftMoLogger"]),
@@ -19,11 +20,16 @@ let package = Package(
         .library(name: "SwiftMoLoggerDiagnostics", targets: ["SwiftMoLoggerDiagnostics"]),
         .library(name: "SwiftMoLoggerTesting", targets: ["SwiftMoLoggerTesting"]),
         .library(name: "SwiftMoLoggerSugar", targets: ["SwiftMoLoggerSugar"]),
+        .library(name: "SwiftMoLoggerSwiftLog", targets: ["SwiftMoLoggerSwiftLog"]),
         .executable(name: "swiftmologger-inspector", targets: ["SwiftMoLoggerInspector"]),
     ],
     dependencies: [
-        // Wide range covers swift-syntax 509 (Swift 5.9) through 600 (Swift 6.x).
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.0.0"..<"601.0.0"),
+        // Wide range (Swift 5.9 through 6.4) so the macro target never forces a
+        // swift-syntax version that conflicts with other packages in an app.
+        // CI builds against both the pinned and the newest resolvable version.
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.0.0"..<"605.0.0"),
+        // Only linked by the SwiftMoLoggerSwiftLog product.
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.12.0"),
     ],
     targets: [
         .target(
@@ -45,7 +51,8 @@ let package = Package(
         ),
         .target(
             name: "SwiftMoLoggerDiagnostics",
-            dependencies: ["SwiftMoLogger"]
+            dependencies: ["SwiftMoLogger"],
+            resources: [.copy("PrivacyInfo.xcprivacy")]
         ),
         .target(
             name: "SwiftMoLoggerTesting",
@@ -55,9 +62,17 @@ let package = Package(
             name: "SwiftMoLoggerSugar",
             dependencies: ["SwiftMoLogger", "SwiftMoLoggerMacros"]
         ),
+        .target(
+            name: "SwiftMoLoggerSwiftLog",
+            dependencies: [
+                "SwiftMoLogger",
+                .product(name: "Logging", package: "swift-log"),
+            ]
+        ),
         .executableTarget(
             name: "SwiftMoLoggerInspector",
-            dependencies: []
+            dependencies: [],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .macro(
             name: "SwiftMoLoggerMacros",
@@ -70,26 +85,37 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftMoLoggerTests",
-            dependencies: ["SwiftMoLogger", "SwiftMoLoggerTesting"]
+            dependencies: ["SwiftMoLogger", "SwiftMoLoggerTesting"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "SwiftMoLoggerUITests",
-            dependencies: ["SwiftMoLoggerUI"]
+            dependencies: ["SwiftMoLoggerUI"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "SwiftMoLoggerNetworkTests",
-            dependencies: ["SwiftMoLoggerNetwork", "SwiftMoLoggerTesting"]
+            dependencies: ["SwiftMoLoggerNetwork", "SwiftMoLoggerTesting"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "SwiftMoLoggerRemoteTests",
-            dependencies: ["SwiftMoLoggerRemote"]
+            dependencies: ["SwiftMoLoggerRemote"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
+            name: "SwiftMoLoggerSwiftLogTests",
+            dependencies: ["SwiftMoLoggerSwiftLog", "SwiftMoLoggerTesting"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "SwiftMoLoggerMacrosTests",
             dependencies: [
                 "SwiftMoLoggerMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
-            ]
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )

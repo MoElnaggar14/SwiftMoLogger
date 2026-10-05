@@ -6,8 +6,8 @@ import SwiftMoLogger
 import Combine
 #endif
 
-/// Observable view-model that streams `LogEntry` values out of
-/// ``SwiftMoLogger`` for SwiftUI consumption.
+/// Observable view-model that streams `LogEntry` values out of a
+/// ``LogStream`` for SwiftUI consumption.
 ///
 /// Lives off the main actor: ingestion runs on a detached task and only
 /// hops to `@MainActor` to publish batched updates so the SwiftUI layer
@@ -20,20 +20,23 @@ public final class LogConsoleViewModel: ObservableObject {
     @Published public var isPaused: Bool = false
 
     public let bufferLimit: Int
+    private let source: LogStream
     private var ingestionTask: Task<Void, Never>?
 
-    public init(bufferLimit: Int = 2_000) {
+    /// - Parameter stream: Where entries come from, typically `environment.stream`.
+    public init(stream: LogStream, bufferLimit: Int = 2_000) {
+        self.source = stream
         self.bufferLimit = bufferLimit
     }
 
     public func start() {
         guard ingestionTask == nil else { return }
-        let stream = SwiftMoLogger.stream(bufferSize: 512)
+        let stream = source.subscribe(bufferSize: 512)
         ingestionTask = Task { [weak self] in
             for await entry in stream {
                 guard let self = self else { return }
                 if Task.isCancelled { return }
-                await self.append(entry)
+                self.append(entry)
             }
         }
     }

@@ -4,18 +4,22 @@ import SwiftMoLogger
 /// Ships log entries to a Sentry-compatible `envelope` endpoint as messages
 /// (not events). Pair with the official Sentry SDK if you also want crashes
 /// — this engine is purely for logs.
-public final class SentryLogEngine: HTTPLogShipper {
-    public init(dsn: URL, release: String? = nil, environment: String? = nil) {
-        precondition(dsn.scheme == "https" || dsn.scheme == "http", "Sentry DSN must be http(s)")
+public final class SentryLogEngine: HTTPLogShipper, @unchecked Sendable {
+    /// Returns `nil` for a DSN that isn't `http(s)://<key>@<host>/<project>`,
+    /// so a bad value from remote config can't crash the app.
+    public init?(dsn: URL, release: String? = nil, environment: String? = nil) {
+        guard dsn.scheme == "https" || dsn.scheme == "http",
+              dsn.user?.isEmpty == false,
+              let endpoint = SentryLogEngine.envelopeURL(from: dsn) else { return nil }
         let configuration = Configuration(
-            endpoint: SentryLogEngine.envelopeURL(from: dsn),
+            endpoint: endpoint,
             headers: SentryLogEngine.authHeaders(for: dsn),
             batchSize: 25,
             flushInterval: 5,
             maxRetries: 3
         )
         super.init(
-            engineID: "swiftmologger.remote.sentry",
+            engineID: "swiftmologger.remote.sentry.\(HTTPLogShipper.endpointKey(configuration.endpoint))",
             minimumLevel: .warning,
             configuration: configuration,
             body: SentryLogEngine.makeBody(release: release, environment: environment)
@@ -24,7 +28,7 @@ public final class SentryLogEngine: HTTPLogShipper {
 
     private static func makeBody(release: String?, environment: String?) -> BodyBuilder {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
         return { entries in
             var payload = Data()
             // Envelope header
@@ -67,14 +71,14 @@ public final class SentryLogEngine: HTTPLogShipper {
         }
     }
 
-    private static func envelopeURL(from dsn: URL) -> URL {
+    private static func envelopeURL(from dsn: URL) -> URL? {
         // DSN format: https://<key>@o<org>.ingest.sentry.io/<project>
-        var components = URLComponents(url: dsn, resolvingAgainstBaseURL: false)!
+        guard var components = URLComponents(url: dsn, resolvingAgainstBaseURL: false),
+              let projectID = dsn.pathComponents.last, projectID != "/" else { return nil }
         components.user = nil
         components.password = nil
-        let projectID = dsn.pathComponents.last ?? "0"
         components.path = "/api/\(projectID)/envelope/"
-        return components.url!
+        return components.url
     }
 
     private static func authHeaders(for dsn: URL) -> [String: String] {

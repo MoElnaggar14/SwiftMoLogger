@@ -1,21 +1,43 @@
 import SwiftUI
 import SwiftMoLogger
+import SwiftMoLoggerNetwork
 import SwiftMoLoggerDiagnostics
 
 @MainActor
 final class LoggingDemoViewModel: ObservableObject {
     @Published var memoryCounters: (total: Int, warnings: Int, errors: Int) = (0, 0, 0)
     @Published var breadcrumbCount: Int = 0
+    @Published var engineCount: Int = 0
     @Published var lastVitals: AppVitalsMonitor.Sample?
 
     let bugReporter: BugReporter
+    /// Entries recovered by the flight recorder if the previous run crashed.
+    let recoveredEntryCount: Int?
 
+    private let logging: LogEnvironment
+    private let logger: MoLogger
+    private let memory: MemoryLogEngine
+    private let vitals: AppVitalsMonitor
+    private let session: URLSession
+
+    #if DEBUG
     private var liveSink: LiveSink?
+    #endif
     private var task: Task<Void, Never>?
 
-    init() {
-        let memory = SwiftMoLogger.allEngines().compactMap { $0 as? MemoryLogEngine }.first
-        self.bugReporter = BugReporter(memoryEngine: memory, appName: "SwiftMoLoggerExample")
+    init(dependencies: AppDependencies) {
+        self.logging = dependencies.logging
+        self.logger = dependencies.logging.logger
+        self.memory = dependencies.memory
+        self.vitals = dependencies.vitals
+        self.session = dependencies.session
+        self.recoveredEntryCount = dependencies.flightRecorder.crashedSession?.entries.count
+        self.bugReporter = BugReporter(
+            environment: dependencies.logging,
+            memoryEngine: dependencies.memory,
+            vitalsMonitor: dependencies.vitals,
+            appName: "SwiftMoLoggerExample"
+        )
     }
 
     func start() {
@@ -34,17 +56,22 @@ final class LoggingDemoViewModel: ObservableObject {
     }
 
     func clearAll() {
-        SwiftMoLogger.clearBreadcrumbs()
-        for engine in SwiftMoLogger.allEngines() {
-            if let memory = engine as? MemoryLogEngine { memory.clear() }
+        logging.breadcrumbs.clear()
+        memory.clear()
+        for engine in logging.registry.allEngines() {
             if let grouping = engine as? ErrorGroupingEngine { grouping.clear() }
         }
         refresh()
     }
 
+    /// Runs through the `NetworkLogger`-instrumented session. Inside
+    /// `TraceContext.run { … }` the request also carries a W3C
+    /// `traceparent` header; outside one, `addTraceparentHeader()` is a no-op.
     func fetch(_ url: URL) async -> String {
+        var request = URLRequest(url: url)
+        request.addTraceparentHeader()
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await session.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             return "\(status) · \(data.count) B"
         } catch {
@@ -52,34 +79,36 @@ final class LoggingDemoViewModel: ObservableObject {
         }
     }
 
+    /// LiveSink streams unencrypted logs to the local network, so it only exists in
+    /// DEBUG builds (and `Info-Debug.plist` holds its Bonjour keys).
     func startLiveSink() {
+        #if DEBUG
         guard liveSink == nil else { return }
-        let sink = LiveSink()
+        let sink = LiveSink(statusLogger: logger)
         do {
             try sink.start()
-            SwiftMoLogger.addEngine(sink)
+            logging.registry.addEngine(sink)
             liveSink = sink
-            SwiftMoLogger.notice("LiveSink advertising on Bonjour", tag: .Development.debug)
+            logger.notice("LiveSink advertising on Bonjour", tag: .Development.debug)
         } catch {
-            SwiftMoLogger.error(error, tag: .Development.debug)
+            logger.error(error, tag: .Development.debug)
         }
+        #endif
     }
 
     func stopLiveSink() {
+        #if DEBUG
         guard let sink = liveSink else { return }
         sink.stop()
-        _ = SwiftMoLogger.removeEngine(id: sink.engineID)
+        logging.registry.removeEngine(id: sink.engineID)
         liveSink = nil
+        #endif
     }
 
     private func refresh() {
-        for engine in SwiftMoLogger.allEngines() {
-            if let memory = engine as? MemoryLogEngine {
-                memoryCounters = memory.counters()
-                break
-            }
-        }
-        breadcrumbCount = SwiftMoLogger.breadcrumbs().count
-        lastVitals = AppVitalsMonitor.shared.lastSample
+        memoryCounters = memory.counters()
+        breadcrumbCount = logging.breadcrumbs.snapshot().count
+        engineCount = logging.registry.engineCount
+        lastVitals = vitals.lastSample
     }
 }

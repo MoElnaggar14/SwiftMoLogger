@@ -9,7 +9,7 @@ import SwiftMoLogger
 /// import SwiftMoLoggerUI
 ///
 /// struct DebugRoot: View {
-///     var body: some View { LogConsoleView() }
+///     var body: some View { LogConsoleView(stream: logging.stream) }
 /// }
 /// ```
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
@@ -17,8 +17,9 @@ public struct LogConsoleView: View {
     @StateObject private var model: LogConsoleViewModel
     @State private var autoScroll = true
 
-    public init(bufferLimit: Int = 2_000) {
-        _model = StateObject(wrappedValue: LogConsoleViewModel(bufferLimit: bufferLimit))
+    /// A console showing every entry flowing through `stream` (typically `environment.stream`).
+    public init(stream: LogStream, bufferLimit: Int = 2_000) {
+        _model = StateObject(wrappedValue: LogConsoleViewModel(stream: stream, bufferLimit: bufferLimit))
     }
 
     public var body: some View {
@@ -39,12 +40,12 @@ public struct LogConsoleView: View {
                         Text("\(level.emoji) \(level.description)").tag(level)
                     }
                 }
-                .pickerStyle(.menu)
+                .consolePickerStyle()
 
                 Toggle(isOn: $model.isPaused) {
                     Image(systemName: model.isPaused ? "play.fill" : "pause.fill")
                 }
-                .toggleStyle(.button)
+                .consoleToggleStyle()
 
                 Button {
                     model.clear()
@@ -55,13 +56,13 @@ public struct LogConsoleView: View {
                 Toggle(isOn: $autoScroll) {
                     Image(systemName: "arrow.down.to.line")
                 }
-                .toggleStyle(.button)
+                .consoleToggleStyle()
             }
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
                 TextField("Filter messages or tags", text: $model.filterText)
-                    .textFieldStyle(.roundedBorder)
+                    .consoleTextFieldStyle()
             }
         }
         .padding(8)
@@ -90,3 +91,43 @@ public struct LogConsoleView: View {
     }
 }
 #endif
+
+// MARK: - Platform-adaptive styles
+//
+// Menu pickers, button toggles and rounded-border text fields don't exist on
+// every platform the package supports; fall back to the system default there.
+
+private extension View {
+    @ViewBuilder
+    func consolePickerStyle() -> some View {
+        #if os(watchOS)
+        self
+        #elseif os(tvOS)
+        if #available(tvOS 17.0, *) {
+            pickerStyle(.menu)
+        } else {
+            self
+        }
+        #else
+        pickerStyle(.menu)
+        #endif
+    }
+
+    @ViewBuilder
+    func consoleToggleStyle() -> some View {
+        #if os(tvOS)
+        self
+        #else
+        toggleStyle(.button)
+        #endif
+    }
+
+    @ViewBuilder
+    func consoleTextFieldStyle() -> some View {
+        #if os(tvOS) || os(watchOS)
+        self
+        #else
+        textFieldStyle(.roundedBorder)
+        #endif
+    }
+}

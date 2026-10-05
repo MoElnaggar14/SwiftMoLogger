@@ -5,7 +5,7 @@ import SwiftMoLogger
 ///
 /// API reference:
 /// https://docs.datadoghq.com/api/latest/logs/#send-logs
-public final class DatadogLogEngine: HTTPLogShipper {
+public final class DatadogLogEngine: HTTPLogShipper, @unchecked Sendable {
     public enum Site: String, Sendable {
         case us1, us3, us5, eu1, ap1, us1FedRamp
 
@@ -40,7 +40,7 @@ public final class DatadogLogEngine: HTTPLogShipper {
             maxRetries: 3
         )
         super.init(
-            engineID: "swiftmologger.remote.datadog",
+            engineID: "swiftmologger.remote.datadog.\(site.host).\(service)",
             minimumLevel: .info,
             configuration: configuration,
             body: DatadogLogEngine.makeBody(service: service, source: source, ddtags: ddtags)
@@ -49,7 +49,8 @@ public final class DatadogLogEngine: HTTPLogShipper {
 
     private static func makeBody(service: String, source: String, ddtags: [String: String]) -> BodyBuilder {
         let baseTags = ddtags.map { "\($0.key):\($0.value)" }.sorted().joined(separator: ",")
-        let formatter = ISO8601DateFormatter()
+        // Value type, so it's safe to capture in the @Sendable body builder.
+        let timestampFormat = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
         return { entries in
             let payload = entries.map { entry -> [String: Any] in
                 var record: [String: Any] = [
@@ -57,7 +58,7 @@ public final class DatadogLogEngine: HTTPLogShipper {
                     "ddsource": source,
                     "message": entry.message,
                     "status": DatadogLogEngine.datadogStatus(for: entry.level),
-                    "timestamp": formatter.string(from: entry.timestamp),
+                    "timestamp": timestampFormat.format(entry.timestamp),
                     "thread": entry.threadName,
                     "source.file": entry.source.fileName,
                     "source.function": entry.source.function,

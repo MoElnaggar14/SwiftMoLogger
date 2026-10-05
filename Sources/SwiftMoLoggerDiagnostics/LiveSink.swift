@@ -8,17 +8,36 @@ import SwiftMoLogger
 /// Mac to get a zero-config live tail.
 ///
 /// **Use in dev/QA builds only.** It opens a local network port and emits
-/// every log line in the clear.
+/// every log line in the clear, so ``start()`` does nothing in release builds
+/// unless you pass `allowInRelease: true` (for example for an internal QA build).
+///
+/// On iOS the app's Info.plist needs `NSLocalNetworkUsageDescription` and
+/// `NSBonjourServices` containing `_swiftmologger._tcp`.
 ///
 /// ```swift
 /// #if DEBUG
-/// let sink = LiveSink()
+/// let sink = LiveSink(statusLogger: logging.logger)
 /// try sink.start()
-/// SwiftMoLogger.addEngine(sink)
+/// logging.registry.addEngine(sink)
 /// #endif
 /// ```
+///
+/// ## Line protocol
+///
+/// Each connection receives newline-delimited JSON:
+/// - First, a hello line: `{"kind": "hello", "service": "SwiftMoLogger.LiveSink",
+///   "version": 2, "app": …, "app_version": …, "os": …, "connected_at": …}`.
+/// - Then one encoded ``LogEntry`` per line. Entry lines have no `kind` key.
+///
+/// Lines that carry a `kind` are control messages. Clients skip kinds and keys they
+/// don't know, so later versions can add message types without breaking older
+/// clients. ``protocolVersion`` changes whenever an existing line changes shape.
 public final class LiveSink: LogEngine, @unchecked Sendable {
     public static let serviceType = "_swiftmologger._tcp"
+    /// Version of the line protocol, sent in the hello line. 2 (SwiftMoLogger 4.0): `tag`
+    /// is `{rawValue, domain}`, timestamps have fractional seconds, and control lines
+    /// carry a `kind`. Version 1 was SwiftMoLogger 3.x.
+    public static let protocolVersion = 2
 
     public let engineID: String = "swiftmologger.diagnostics.livesink"
     public let minimumLevel: LogLevel
@@ -29,30 +48,48 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
     private let queue = DispatchQueue(label: "swiftmologger.livesink", qos: .utility)
     private let encoder: JSONEncoder
     private var listener: NWListener?
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
     private var clients: [NWConnection] = []
+    private let statusLogger: MoLogger?
+    private let allowInRelease: Bool
 
+    /// - Parameters:
+    ///   - statusLogger: Receives "ready" / "failed" notices about the listener.
+    ///   - allowInRelease: Lets ``start()`` open the listener in non-DEBUG builds.
     public init(
         port: NWEndpoint.Port = .any,
         serviceName: String? = nil,
-        minimumLevel: LogLevel = .trace
+        minimumLevel: LogLevel = .trace,
+        statusLogger: MoLogger? = nil,
+        allowInRelease: Bool = false
     ) {
+        self.statusLogger = statusLogger
+        self.allowInRelease = allowInRelease
         self.port = port
         self.minimumLevel = minimumLevel
         self.serviceName = serviceName ?? Bundle.main.bundleIdentifier ?? "SwiftMoLogger"
         self.encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
     }
 
     public func start() throws {
         guard listener == nil else { return }
+        #if !DEBUG
+        guard allowInRelease else {
+            statusLogger?.warning(
+                "LiveSink not started in a release build. Pass allowInRelease: true for internal QA builds.",
+                tag: .Development.debug
+            )
+            return
+        }
+        #endif
         let parameters = NWParameters.tcp
         let listener = try NWListener(using: parameters, on: port)
         listener.service = NWListener.Service(name: serviceName, type: LiveSink.serviceType)
-        listener.stateUpdateHandler = { state in
+        listener.stateUpdateHandler = { [statusLogger] state in
             switch state {
-            case .ready: SwiftMoLogger.notice("LiveSink ready", tag: .Development.debug)
-            case .failed(let error): SwiftMoLogger.error("LiveSink failed: \(error)", tag: .Development.debug)
+            case .ready: statusLogger?.notice("LiveSink ready", tag: .Development.debug)
+            case .failed(let error): statusLogger?.error("LiveSink failed: \(error)", tag: .Development.debug)
             default: break
             }
         }
@@ -68,10 +105,10 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
             guard let self = self else { return }
             self.listener?.cancel()
             self.listener = nil
-            os_unfair_lock_lock(&self.lock)
+            self.lock.lock()
             for client in self.clients { client.cancel() }
             self.clients.removeAll()
-            os_unfair_lock_unlock(&self.lock)
+            self.lock.unlock()
         }
     }
 
@@ -81,9 +118,9 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
                   let data = try? self.encoder.encode(entry) else { return }
             var line = data
             line.append(0x0A)
-            os_unfair_lock_lock(&self.lock)
+            self.lock.lock()
             let snapshot = self.clients
-            os_unfair_lock_unlock(&self.lock)
+            self.lock.unlock()
             for client in snapshot {
                 client.send(content: line, completion: .contentProcessed { _ in })
             }
@@ -95,14 +132,14 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
             guard let self = self, let connection = connection else { return }
             switch state {
             case .ready:
-                os_unfair_lock_lock(&self.lock)
+                self.lock.lock()
                 self.clients.append(connection)
-                os_unfair_lock_unlock(&self.lock)
+                self.lock.unlock()
                 self.sendBanner(to: connection)
             case .failed, .cancelled:
-                os_unfair_lock_lock(&self.lock)
+                self.lock.lock()
                 self.clients.removeAll { $0 === connection }
-                os_unfair_lock_unlock(&self.lock)
+                self.lock.unlock()
             default: break
             }
         }
@@ -111,10 +148,13 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
 
     private func sendBanner(to connection: NWConnection) {
         let banner: [String: Any] = [
+            "kind": "hello",
             "service": "SwiftMoLogger.LiveSink",
-            "version": 1,
+            "version": LiveSink.protocolVersion,
             "app": serviceName,
-            "started_at": ISO8601DateFormatter().string(from: Date())
+            "app_version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
+            "os": ProcessInfo.processInfo.operatingSystemVersionString,
+            "connected_at": ISO8601DateFormatter().string(from: Date())
         ]
         if let data = try? JSONSerialization.data(withJSONObject: banner) {
             var line = data

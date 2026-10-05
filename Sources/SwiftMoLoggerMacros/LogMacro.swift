@@ -1,28 +1,30 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// Expansion of `#log("msg", level: .info, tag: .api)`.
+/// Expansion of `#log(logger, "msg", level: .info, tag: .api)`.
 ///
 /// Lowers to:
 ///
 /// ```swift
-/// SwiftMoLogger.log(<level>, <message>, tag: <tag>,
-///                   file: #fileID, function: #function, line: #line)
+/// <logger>.log(<level>, <message>, tag: <tag>,
+///              file: #fileID, function: #function, line: #line)
 /// ```
 public struct LogMacro: ExpressionMacro {
     public static func expansion(
         of node: some FreestandingMacroExpansionSyntax,
         in context: some MacroExpansionContext
     ) throws -> ExprSyntax {
-        let arguments = node.arguments
-        guard let messageExpr = arguments.first?.expression else {
-            throw MacroError("#log requires a message argument")
+        let arguments = Array(node.arguments)
+        guard arguments.count >= 2 else {
+            throw MacroError("#log requires a logger and a message: #log(logger, \"message\")")
         }
+        let loggerExpr = arguments[0].expression
+        let messageExpr = arguments[1].expression
 
         var level: ExprSyntax = ".info"
         var tag: ExprSyntax = "nil"
 
-        for argument in arguments.dropFirst() {
+        for argument in arguments.dropFirst(2) {
             switch argument.label?.text {
             case "level":
                 level = argument.expression
@@ -34,7 +36,7 @@ public struct LogMacro: ExpressionMacro {
         }
 
         return """
-        SwiftMoLogger.log(\(level), \(messageExpr), tag: \(tag), file: #fileID, function: #function, line: #line)
+        \(loggerExpr).log(\(level), \(messageExpr), tag: \(tag), file: #fileID, function: #function, line: #line)
         """
     }
 }

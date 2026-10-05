@@ -1,32 +1,31 @@
 import Foundation
 
-/// Process-wide broadcast of `LogEntry` values as an `AsyncSequence`.
+/// Broadcasts the entries of the registry it's added to as an `AsyncSequence`.
+/// ``LogEnvironment`` creates and registers one for you.
 ///
 /// Internally backed by `AsyncStream` continuations stored per subscriber.
 /// New entries are fanned out to every active subscriber without blocking the
 /// caller; back-pressure is bounded by per-subscriber buffer policy.
 ///
 /// ```swift
-/// let stream = LogStream.shared.subscribe(bufferSize: 256)
+/// let stream = environment.stream.subscribe(bufferSize: 256)
 /// for await entry in stream where entry.level >= .warning {
 ///     await reportToBackend(entry)
 /// }
 /// ```
 public final class LogStream: LogEngine, @unchecked Sendable {
-    public static let shared = LogStream()
-
-    public let engineID: String = "swiftmologger.stream"
+    public let engineID = "swiftmologger.stream.\(UUID().uuidString)"
     public let minimumLevel: LogLevel = .trace
 
     private var continuations: [UUID: AsyncStream<LogEntry>.Continuation] = [:]
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
 
     public init() {}
 
     public func log(_ entry: LogEntry) {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         let snapshot = Array(continuations.values)
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
         for continuation in snapshot {
             continuation.yield(entry)
         }
@@ -42,23 +41,23 @@ public final class LogStream: LogEngine, @unchecked Sendable {
     public func subscribe(bufferSize: Int = 256) -> AsyncStream<LogEntry> {
         AsyncStream(LogEntry.self, bufferingPolicy: .bufferingNewest(bufferSize)) { continuation in
             let id = UUID()
-            os_unfair_lock_lock(&lock)
+            lock.lock()
             continuations[id] = continuation
-            os_unfair_lock_unlock(&lock)
+            lock.unlock()
 
             continuation.onTermination = { [weak self] _ in
                 guard let self = self else { return }
-                os_unfair_lock_lock(&self.lock)
+                self.lock.lock()
                 self.continuations.removeValue(forKey: id)
-                os_unfair_lock_unlock(&self.lock)
+                self.lock.unlock()
             }
         }
     }
 
     /// Number of currently active subscribers. Exposed for tests/diagnostics.
     public var subscriberCount: Int {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         return continuations.count
     }
 }

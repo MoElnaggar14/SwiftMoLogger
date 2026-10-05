@@ -4,21 +4,20 @@ import XCTest
 /// Performance baselines. Numbers documented in `PERFORMANCE.md` are
 /// regenerated from these tests; treat regressions in CI as a hard failure
 /// once the baseline is checked in via XCTest performance metrics.
-final class PerformanceBenchmarks: XCTestCase {
+final class PerformanceBenchmarks: LoggingTestCase {
 
     override func setUp() {
         super.setUp()
-        SwiftMoLogger.reset()
-        SwiftMoLogger.removeEngine(at: 0)
-        SwiftMoLogger.minimumLevel = .info
+        registry.removeEngine(at: 0)
+        registry.minimumLevel = .info
     }
 
     /// Lower bound: pure dispatch cost with no engines attached.
     func testHotPathWithNoEngines() {
-        EngineRegistry.shared.removeAllEngines()
+        registry.removeAllEngines()
         measure(metrics: [XCTClockMetric()]) {
             for index in 0..<10_000 {
-                SwiftMoLogger.info("hot-path-\(index)")
+                log.info("hot-path-\(index)")
             }
         }
     }
@@ -26,12 +25,12 @@ final class PerformanceBenchmarks: XCTestCase {
     /// Dispatch + MemoryLogEngine append cost. This is what an in-app log
     /// inspector pays per call.
     func testHotPathWithMemoryEngine() {
-        EngineRegistry.shared.removeAllEngines()
+        registry.removeAllEngines()
         let memory = MemoryLogEngine(capacity: 50_000)
-        SwiftMoLogger.addEngine(memory)
+        registry.addEngine(memory)
         measure(metrics: [XCTClockMetric()]) {
             for index in 0..<10_000 {
-                SwiftMoLogger.info("with-memory-\(index)")
+                log.info("with-memory-\(index)")
             }
         }
     }
@@ -39,25 +38,26 @@ final class PerformanceBenchmarks: XCTestCase {
     /// Verify that level-based filtering short-circuits before any work
     /// happens. Should be ~2× faster than the full hot path.
     func testFilteredByLevelShortCircuit() {
-        EngineRegistry.shared.removeAllEngines()
-        SwiftMoLogger.addEngine(MemoryLogEngine(capacity: 1_000))
-        SwiftMoLogger.minimumLevel = .error
+        registry.removeAllEngines()
+        registry.addEngine(MemoryLogEngine(capacity: 1_000))
+        registry.minimumLevel = .error
         measure(metrics: [XCTClockMetric()]) {
             for index in 0..<10_000 {
-                SwiftMoLogger.info("filtered-\(index)")
+                log.info("filtered-\(index)")
             }
         }
-        SwiftMoLogger.minimumLevel = .info
+        registry.minimumLevel = .info
     }
 
     /// Highly-contended dispatch across many threads. Validates the lock
     /// strategy isn't the bottleneck.
     func testConcurrentDispatchThroughput() {
-        EngineRegistry.shared.removeAllEngines()
+        registry.removeAllEngines()
         let memory = MemoryLogEngine(capacity: 100_000)
-        SwiftMoLogger.addEngine(memory)
+        registry.addEngine(memory)
         let queues = 8
         let perQueue = 2_000
+        let log = self.log
 
         measure(metrics: [XCTClockMetric()]) {
             let group = DispatchGroup()
@@ -65,7 +65,7 @@ final class PerformanceBenchmarks: XCTestCase {
                 group.enter()
                 DispatchQueue.global(qos: .userInitiated).async {
                     for entryIndex in 0..<perQueue {
-                        SwiftMoLogger.info("q\(queueIndex)-\(entryIndex)")
+                        log.info("q\(queueIndex)-\(entryIndex)")
                     }
                     group.leave()
                 }

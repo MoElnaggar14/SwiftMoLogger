@@ -6,21 +6,26 @@ import XCTest
 @MainActor
 final class LogConsoleViewModelTests: XCTestCase {
 
+    private var environment: LogEnvironment!
+
     override func setUp() async throws {
         try await super.setUp()
-        SwiftMoLogger.reset()
-        SwiftMoLogger.removeEngine(at: 0)
+        environment = LogEnvironment(registry: EngineRegistry(installDefaultSystemLogger: false))
+    }
+
+    private func makeModel(bufferLimit: Int = 100) -> LogConsoleViewModel {
+        LogConsoleViewModel(stream: environment.stream, bufferLimit: bufferLimit)
     }
 
     func testStreamingIngestsEntries() async {
-        let model = LogConsoleViewModel(bufferLimit: 100)
+        let model = makeModel()
         model.start()
         defer { model.stop() }
 
         try? await Task.sleep(nanoseconds: 50_000_000)
-        SwiftMoLogger.info("ui-1")
-        SwiftMoLogger.warn("ui-2")
-        SwiftMoLogger.error("ui-3")
+        environment.logger.info("ui-1")
+        environment.logger.warning("ui-2")
+        environment.logger.error("ui-3")
 
         try? await Task.sleep(nanoseconds: 100_000_000)
 
@@ -29,7 +34,7 @@ final class LogConsoleViewModelTests: XCTestCase {
     }
 
     func testFilteringByLevel() async {
-        let model = LogConsoleViewModel(bufferLimit: 100)
+        let model = makeModel()
         model.entries = [
             LogEntry(level: .info, message: "i"),
             LogEntry(level: .warning, message: "w"),
@@ -40,7 +45,7 @@ final class LogConsoleViewModelTests: XCTestCase {
     }
 
     func testFilteringByText() async {
-        let model = LogConsoleViewModel(bufferLimit: 100)
+        let model = makeModel()
         model.entries = [
             LogEntry(level: .info, message: "apple"),
             LogEntry(level: .info, message: "banana"),
@@ -51,18 +56,28 @@ final class LogConsoleViewModelTests: XCTestCase {
     }
 
     func testPauseStopsIngestion() async {
-        let model = LogConsoleViewModel(bufferLimit: 100)
+        let model = makeModel()
         model.start()
         defer { model.stop() }
         try? await Task.sleep(nanoseconds: 50_000_000)
         model.isPaused = true
-        SwiftMoLogger.info("dropped-while-paused")
+        environment.logger.info("dropped-while-paused")
         try? await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertFalse(model.entries.contains { $0.message == "dropped-while-paused" })
     }
 
+    func testReleasedHubRemovesItsMemoryEngine() {
+        let baseline = environment.registry.engineCount
+        do {
+            let hub = HubViewModel(environment: environment)
+            XCTAssertEqual(environment.registry.engineCount, baseline + 1)
+            _ = hub
+        }
+        XCTAssertEqual(environment.registry.engineCount, baseline)
+    }
+
     func testBufferLimitTrimsOldest() async {
-        let model = LogConsoleViewModel(bufferLimit: 5)
+        let model = makeModel(bufferLimit: 5)
         for index in 0..<20 {
             model.entries.append(LogEntry(level: .info, message: "m\(index)"))
             if model.entries.count > model.bufferLimit {

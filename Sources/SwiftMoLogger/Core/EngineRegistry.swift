@@ -3,23 +3,33 @@ import Foundation
 /// Thread-safe registry that owns the list of active ``LogEngine`` instances
 /// and dispatches every ``LogEntry`` to each of them.
 ///
+/// There is no shared instance: create one (usually through
+/// ``LogEnvironment``) at your composition root and inject it.
+///
 /// Implementation notes:
-/// - Uses an `os_unfair_lock` rather than a concurrent `DispatchQueue` because
+/// - Uses an unfair lock rather than a concurrent `DispatchQueue` because
 ///   reads dominate (one read per log call) and the critical section is tiny;
 ///   benchmarks show ~3× lower per-call cost than the old barrier queue.
 /// - Holds engines in a `ContiguousArray` for predictable iteration cost.
 /// - Ambient context is `@TaskLocal` (see ``LogContext``) so concurrent
 ///   `Task`s never trample each other's context.
 public final class EngineRegistry: @unchecked Sendable {
-    public static let shared = EngineRegistry()
-
     private var engines: ContiguousArray<any LogEngine> = []
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
     private var globalMinimumLevel: LogLevel = .trace
+    /// The system logger installed by the registry itself. Protected from
+    /// ``removeEngine(at:)`` / ``removeEngine(id:)`` by identity, so it stays
+    /// protected wherever it sits in the list (and nothing else is protected
+    /// by accident once it's gone).
+    private var defaultSystemLogger: SystemLogger?
+    /// Engines re-added by ``reset()`` (see ``addPersistentEngine(_:)``).
+    private var persistentEngines: [any LogEngine] = []
 
     public init(installDefaultSystemLogger: Bool = true) {
         if installDefaultSystemLogger {
-            engines.append(SystemLogger())
+            let logger = SystemLogger()
+            engines.append(logger)
+            defaultSystemLogger = logger
         }
     }
 
@@ -29,39 +39,64 @@ public final class EngineRegistry: @unchecked Sendable {
     /// with the same id replaces the existing one rather than creating a
     /// duplicate.
     public func addEngine(_ engine: any LogEngine) {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         if let index = engines.firstIndex(where: { $0.engineID == engine.engineID }) {
+            if engines[index] === defaultSystemLogger { defaultSystemLogger = nil }
             engines[index] = engine
         } else {
             engines.append(engine)
         }
     }
 
-    /// Remove the engine at the given index. The default system logger lives
-    /// at index `0` and is protected; pass a custom index to remove user-added
-    /// engines only.
+    /// Remove the engine at the given index. The registry's default system
+    /// logger is protected; use ``removeAllEngines()`` to drop it too.
     public func removeEngine(at index: Int) {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        guard index > 0 && index < engines.count else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        guard engines.indices.contains(index), !isProtected(engines[index]) else { return }
         engines.remove(at: index)
     }
 
-    /// Remove an engine by its stable ``LogEngine/engineID``.
+    /// Remove an engine by its stable ``LogEngine/engineID``. The registry's
+    /// default system logger is protected.
     @discardableResult
     public func removeEngine(id: String) -> Bool {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        guard let index = engines.firstIndex(where: { $0.engineID == id }), index > 0 else { return false }
+        lock.lock()
+        defer { lock.unlock() }
+        guard let index = engines.firstIndex(where: { $0.engineID == id }), !isProtected(engines[index]) else {
+            return false
+        }
         engines.remove(at: index)
         return true
     }
 
+    /// Atomically swap the engine with `id` for `transform(engine)`, keeping its
+    /// position. No entry dispatched concurrently can miss both engines.
+    ///
+    /// `transform` runs under the registry lock: it must not log.
+    ///
+    /// - Returns: `false` if no engine has that id.
+    @discardableResult
+    public func replaceEngine(id: String, with transform: (any LogEngine) -> any LogEngine) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let index = engines.firstIndex(where: { $0.engineID == id }) else { return false }
+        let replacement = transform(engines[index])
+        if engines[index] === defaultSystemLogger { defaultSystemLogger = nil }
+        engines[index] = replacement
+        return true
+    }
+
+    private func isProtected(_ engine: any LogEngine) -> Bool {
+        guard let defaultSystemLogger else { return false }
+        return engine === defaultSystemLogger
+    }
+
     /// Snapshot of all registered engines. Cheap (copies pointers only).
     public func allEngines() -> [any LogEngine] {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         return Array(engines)
     }
 
@@ -72,26 +107,45 @@ public final class EngineRegistry: @unchecked Sendable {
     }
 
     public var engineCount: Int {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         return engines.count
     }
 
-    /// Reset to the default system logger only.
+    /// Adds `engine` and keeps it across ``reset()``. ``LogEnvironment`` uses
+    /// this for its stream, so subscribers stay connected through a reset.
+    public func addPersistentEngine(_ engine: any LogEngine) {
+        lock.lock()
+        defer { lock.unlock() }
+        persistentEngines.removeAll { $0.engineID == engine.engineID }
+        persistentEngines.append(engine)
+        if let index = engines.firstIndex(where: { $0.engineID == engine.engineID }) {
+            engines[index] = engine
+        } else {
+            engines.append(engine)
+        }
+    }
+
+    /// Back to a fresh state: the default system logger plus any persistent
+    /// engines (such as a ``LogEnvironment``'s stream).
     public func reset() {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         engines.removeAll(keepingCapacity: true)
-        engines.append(SystemLogger())
+        let logger = SystemLogger()
+        engines.append(logger)
+        engines.append(contentsOf: persistentEngines)
+        defaultSystemLogger = logger
         globalMinimumLevel = .trace
     }
 
-    /// Drop all engines. Used by tests; production code should prefer
-    /// ``reset()``.
+    /// Drop every engine, persistent ones included (``reset()`` brings those
+    /// back). Mostly for tests; production code should prefer ``reset()``.
     public func removeAllEngines() {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         engines.removeAll(keepingCapacity: true)
+        defaultSystemLogger = nil
     }
 
     // MARK: - Global filtering
@@ -100,15 +154,28 @@ public final class EngineRegistry: @unchecked Sendable {
     /// entries below the threshold short-circuit before any allocation.
     public var minimumLevel: LogLevel {
         get {
-            os_unfair_lock_lock(&lock)
-            defer { os_unfair_lock_unlock(&lock) }
+            lock.lock()
+            defer { lock.unlock() }
             return globalMinimumLevel
         }
         set {
-            os_unfair_lock_lock(&lock)
-            defer { os_unfair_lock_unlock(&lock) }
+            lock.lock()
+            defer { lock.unlock() }
             globalMinimumLevel = newValue
         }
+    }
+
+    // MARK: - Flush
+
+    /// Asks every engine to write or send what it has buffered: files are synced and
+    /// remote shippers start their upload. Call it when the app moves to the background
+    /// (in SwiftUI, when `scenePhase` becomes `.background`) and before a bug report.
+    /// Engines are flushed outside the registry lock, so an engine may log while flushing.
+    public func flush() {
+        lock.lock()
+        let snapshot = engines
+        lock.unlock()
+        for engine in snapshot { engine.flush() }
     }
 
     // MARK: - Dispatch
@@ -117,14 +184,14 @@ public final class EngineRegistry: @unchecked Sendable {
     /// then dispatches without holding it so an engine performing slow I/O
     /// cannot block writers. The ambient ``LogContext`` is merged in here.
     public func dispatch(_ entry: LogEntry) {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         let level = globalMinimumLevel
         guard entry.level >= level else {
-            os_unfair_lock_unlock(&lock)
+            lock.unlock()
             return
         }
         let snapshot = engines
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
 
         let ambient = LogContext.current
         let merged: LogEntry

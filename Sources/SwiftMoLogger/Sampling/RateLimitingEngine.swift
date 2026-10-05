@@ -17,7 +17,7 @@ public final class RateLimitingLogEngine: LogEngine, @unchecked Sendable {
     private let wrapped: any LogEngine
     private let permitsPerSecond: Double
     private let burst: Double
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
     private var tokens: Double
     private var lastRefill: DispatchTime
     private var droppedSinceLast: Int = 0
@@ -33,27 +33,30 @@ public final class RateLimitingLogEngine: LogEngine, @unchecked Sendable {
         self.minimumLevel = wrapped.minimumLevel
     }
 
+    /// Forwards to the wrapped engine.
+    public func flush() { wrapped.flush() }
+
     public func log(_ entry: LogEntry) {
         if acquire() {
             wrapped.log(entry)
         } else {
             // Don't recurse through the framework — emit a summary entry
             // once every N drops at most.
-            os_unfair_lock_lock(&lock)
+            lock.lock()
             droppedSinceLast += 1
             let snapshot = droppedSinceLast
             if snapshot.isMultiple(of: 100) {
-                os_unfair_lock_unlock(&lock)
+                lock.unlock()
                 NSLog("RateLimitingLogEngine dropped %d entries", snapshot)
             } else {
-                os_unfair_lock_unlock(&lock)
+                lock.unlock()
             }
         }
     }
 
     private func acquire() -> Bool {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         let now = DispatchTime.now()
         let elapsed = Double(now.uptimeNanoseconds - lastRefill.uptimeNanoseconds) / 1_000_000_000
         if elapsed > 0 {

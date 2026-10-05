@@ -4,12 +4,11 @@ import Combine
 @testable import SwiftMoLogger
 
 @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
-final class CombinePublisherTests: XCTestCase {
+final class CombinePublisherTests: LoggingTestCase {
     private var cancellables: Set<AnyCancellable> = []
 
     override func setUp() {
         super.setUp()
-        SwiftMoLogger.reset()
         cancellables.removeAll()
     }
 
@@ -17,13 +16,15 @@ final class CombinePublisherTests: XCTestCase {
         let received = expectation(description: "publisher")
         received.expectedFulfillmentCount = 3
 
-        SwiftMoLogger.publisher()
+        let combine = CombineLogPublisher()
+        registry.addEngine(combine)
+        combine.publisher
             .sink { _ in received.fulfill() }
             .store(in: &cancellables)
 
-        SwiftMoLogger.info("one")
-        SwiftMoLogger.warn("two")
-        SwiftMoLogger.error("three")
+        log.info("one")
+        log.warning("two")
+        log.error("three")
 
         wait(for: [received], timeout: 1)
     }

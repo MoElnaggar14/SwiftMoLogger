@@ -3,7 +3,7 @@ import SwiftMoLogger
 
 /// Ships log entries to a Grafana Loki push endpoint
 /// (`POST /loki/api/v1/push`).
-public final class LokiLogEngine: HTTPLogShipper {
+public final class LokiLogEngine: HTTPLogShipper, @unchecked Sendable {
     public init(endpoint: URL, labels: [String: String] = ["job": "swiftmologger"], basicAuth: (user: String, password: String)? = nil) {
         var headers: [String: String] = ["Content-Type": "application/json"]
         if let auth = basicAuth {
@@ -18,7 +18,7 @@ public final class LokiLogEngine: HTTPLogShipper {
             maxRetries: 3
         )
         super.init(
-            engineID: "swiftmologger.remote.loki",
+            engineID: "swiftmologger.remote.loki.\(HTTPLogShipper.endpointKey(endpoint))",
             minimumLevel: .info,
             configuration: configuration,
             body: LokiLogEngine.makeBody(staticLabels: labels)

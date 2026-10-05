@@ -10,26 +10,30 @@ import Foundation
 /// lock — O(1) append, O(N) snapshot. The buffer never reallocates after
 /// construction, so logging in tight loops does not produce GC churn.
 public final class MemoryLogEngine: LogEngine, @unchecked Sendable {
-    public let engineID: String = "swiftmologger.memory"
+    /// Unique per instance unless you pass an `id`, so two memory engines
+    /// (yours, the Flight Recorder's, the Diagnostics Hub's) never replace
+    /// each other in the registry.
+    public let engineID: String
     public let minimumLevel: LogLevel
 
     private let capacity: Int
     private var buffer: [LogEntry?]
     private var head: Int = 0
     private var count: Int = 0
-    private var lock = os_unfair_lock_s()
+    private let lock = UnfairLock()
     private var errorCount: Int = 0
     private var warningCount: Int = 0
 
-    public init(capacity: Int = 1_000, minimumLevel: LogLevel = .trace) {
+    public init(capacity: Int = 1_000, minimumLevel: LogLevel = .trace, id: String? = nil) {
         precondition(capacity > 0, "MemoryLogEngine capacity must be positive")
+        self.engineID = id ?? "swiftmologger.memory.\(UUID().uuidString)"
         self.capacity = capacity
         self.buffer = Array(repeating: nil, count: capacity)
         self.minimumLevel = minimumLevel
     }
 
     public func log(_ entry: LogEntry) {
-        os_unfair_lock_lock(&lock)
+        lock.lock()
         buffer[head] = entry
         head = (head + 1) % capacity
         if count < capacity { count += 1 }
@@ -38,13 +42,13 @@ public final class MemoryLogEngine: LogEngine, @unchecked Sendable {
         case .warning: warningCount += 1
         default: break
         }
-        os_unfair_lock_unlock(&lock)
+        lock.unlock()
     }
 
     /// Snapshot of all retained entries in insertion order (oldest first).
     public func snapshot() -> [LogEntry] {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         guard count > 0 else { return [] }
         var result: [LogEntry] = []
         result.reserveCapacity(count)
@@ -62,7 +66,7 @@ public final class MemoryLogEngine: LogEngine, @unchecked Sendable {
     public func recent(_ requested: Int) -> [LogEntry] {
         let all = snapshot()
         guard requested < all.count else { return all }
-        return Array(all.suffix(requested))
+        return Array(all.suffix(max(0, requested)))
     }
 
     /// Filter snapshot by level / tag domain / substring without re-acquiring
@@ -82,14 +86,14 @@ public final class MemoryLogEngine: LogEngine, @unchecked Sendable {
 
     /// Aggregate counters maintained at insertion time — O(1) read.
     public func counters() -> (total: Int, warnings: Int, errors: Int) {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         return (count, warningCount, errorCount)
     }
 
     public func clear() {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
+        lock.lock()
+        defer { lock.unlock() }
         for index in 0..<capacity { buffer[index] = nil }
         head = 0
         count = 0

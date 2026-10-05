@@ -4,14 +4,14 @@
 
 ## Design choices that matter for performance
 
-| Concern | v2 (old) | v3 (current) |
+| Concern | v2 (old) | v3+ (current) |
 |---|---|---|
 | Engine list synchronisation | `DispatchQueue(attributes: .concurrent)` + `sync` on every read | `os_unfair_lock` + snapshot under lock, dispatch outside |
 | Per-call cost | `getAllEngines()` snapshot allocates `Array` every call | Snapshot is a `ContiguousArray` and is dispatched as a `let` slice |
 | Filtering | None — every entry walks every engine | Two-tier: global `minimumLevel` check **before** allocation, then per-engine `minimumLevel` |
 | Argument evaluation | Every message string is built even when no engine consumes it | `@autoclosure` on every level helper — message is built only when the entry survives filtering |
 | Source location capture | `Thread.callStackSymbols` (~ms) | `#fileID` / `#function` / `#line` compile-time literals |
-| Thread label | `Thread.current.description` allocates | `__dispatch_queue_get_label` direct C call |
+| Thread label | `Thread.current.description` allocates | `"main"` via `Thread.isMainThread`, otherwise the thread's name (no description string) |
 | Concurrency model | GCD callbacks only | Native `AsyncStream` for streaming, `async` overloads for context |
 
 ## Measured costs (release build, M1 MacBook Pro, iOS 17 simulator)
@@ -35,7 +35,7 @@
 
 | Component | Resident cost |
 |---|---|
-| `EngineRegistry.shared` | `os_unfair_lock_s` + `ContiguousArray<LogEngine>` header (≈64 B + 8 B per engine) |
+| `EngineRegistry` (one per `LogEnvironment`) | a heap-allocated `UnfairLock` + `ContiguousArray<LogEngine>` header (≈64 B + 8 B per engine) |
 | `LogEntry` | 200 B (struct on stack), no heap unless `metadata` is non-empty |
 | `MemoryLogEngine(capacity: 1_000)` | One pre-allocated `Array<LogEntry?>` (≈200 KB) — no growth, no reallocation |
 | `LogStream` subscriber | `AsyncStream<LogEntry>` continuation only (≈48 B) |
@@ -45,7 +45,9 @@
 ## Instruments integration
 
 ```swift
-LogSignpost.measure("decodeJSON", tag: .parsing) {
+let signposter = environment.signposter   // or an injected Signposter
+
+try signposter.measure("decodeJSON", tag: .parsing) {
     try JSONDecoder().decode(Model.self, from: data)
 }
 ```
@@ -55,15 +57,17 @@ Every signpost-instrumented region shows up in Instruments' **Points of Interest
 For spans across `async` boundaries:
 
 ```swift
-let span = LogSignpost.Interval(name: "imageDownload")
+let span = signposter.makeInterval("imageDownload")
 defer { span.end() }
 try await session.data(from: url)
 ```
 
+Or wrap the whole `async` body with `signposter.measureAsync("imageDownload") { … }`.
+
 ## Optimisation guide for callers
 
-1. **Set `SwiftMoLogger.minimumLevel = .info` in release.** Cuts trace/debug entries before any allocation.
-2. **Wrap expensive payloads in `@autoclosure`-friendly call sites:** `SwiftMoLogger.debug("payload = \(prettyPrint(huge))")` does **nothing** in release because `debug(_:)` is itself `#if DEBUG`.
-3. **Reach for `LogSignpost.measure` instead of bracketing two `info` calls.** It produces both a log entry and a signpost — Instruments-friendly with one call.
+1. **Set `environment.registry.minimumLevel = .info` in release.** Cuts trace/debug entries before any allocation.
+2. **Wrap expensive payloads in `@autoclosure`-friendly call sites:** `logger.debug("payload = \(prettyPrint(huge))")` does **nothing** in release because `debug(_:)` is itself `#if DEBUG`.
+3. **Reach for `signposter.measure` instead of bracketing two `info` calls.** It produces both a log entry and a signpost — Instruments-friendly with one call.
 4. **Pin a `MemoryLogEngine(capacity: 500)` in release for crash bundling.** ≈100 KB of resident memory; lets your crash uploader attach the last 500 lines without touching disk.
 5. **Avoid attaching `FileLogEngine` and routing all `.trace` traffic to it.** Disk is the bottleneck, not the framework. Filter aggressively at the engine level.

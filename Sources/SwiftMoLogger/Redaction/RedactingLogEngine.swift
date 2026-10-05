@@ -23,6 +23,9 @@ public final class RedactingLogEngine: LogEngine, @unchecked Sendable {
         self.minimumLevel = wrapped.minimumLevel
     }
 
+    /// Forwards to the wrapped engine.
+    public func flush() { wrapped.flush() }
+
     public func log(_ entry: LogEntry) {
         let (redactedMessage, _) = redactor.redact(entry.message)
         let redactedMetadata = redactor.redact(entry.metadata)
@@ -40,19 +43,14 @@ public final class RedactingLogEngine: LogEngine, @unchecked Sendable {
     }
 }
 
-public extension SwiftMoLogger {
-    /// Install global redaction by replacing the engine at `index` with a
-    /// ``RedactingLogEngine`` wrapper. Idempotent: re-running it on an
-    /// already-redacted engine is a no-op.
-    static func enableRedaction(at index: Int = 0, redactor: Redactor = Redactor()) {
-        let engines = EngineRegistry.shared.allEngines()
+public extension EngineRegistry {
+    /// Wraps the engine at `index` in a ``RedactingLogEngine``, atomically and
+    /// in place. Idempotent: an already-redacted engine is left as is.
+    func enableRedaction(at index: Int = 0, redactor: Redactor = Redactor()) {
+        let engines = allEngines()
         guard engines.indices.contains(index) else { return }
-        let target = engines[index]
-        if target is RedactingLogEngine { return }
-        let wrapped = RedactingLogEngine(wrapping: target, redactor: redactor)
-        EngineRegistry.shared.removeAllEngines()
-        for (offset, engine) in engines.enumerated() {
-            EngineRegistry.shared.addEngine(offset == index ? wrapped : engine)
+        replaceEngine(id: engines[index].engineID) { target in
+            target is RedactingLogEngine ? target : RedactingLogEngine(wrapping: target, redactor: redactor)
         }
     }
 }

@@ -23,11 +23,24 @@ public struct BugReporter: Sendable {
         public let info: String
     }
 
+    public let environment: LogEnvironment
     public let memoryEngine: MemoryLogEngine?
+    public let vitalsMonitor: AppVitalsMonitor?
     public let appName: String
 
-    public init(memoryEngine: MemoryLogEngine? = nil, appName: String = "App") {
+    /// - Parameters:
+    ///   - environment: Supplies breadcrumbs and the list of active engines.
+    ///   - memoryEngine: Recent entries to include as `logs.json`.
+    ///   - vitalsMonitor: Its last sample is included as `vitals.json`.
+    public init(
+        environment: LogEnvironment,
+        memoryEngine: MemoryLogEngine? = nil,
+        vitalsMonitor: AppVitalsMonitor? = nil,
+        appName: String = "App"
+    ) {
+        self.environment = environment
         self.memoryEngine = memoryEngine
+        self.vitalsMonitor = vitalsMonitor
         self.appName = appName
     }
 
@@ -43,10 +56,10 @@ public struct BugReporter: Sendable {
         try info.write(to: root.appendingPathComponent("info.txt"), atomically: true, encoding: .utf8)
 
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
-        let breadcrumbs = SwiftMoLogger.breadcrumbs()
+        let breadcrumbs = environment.breadcrumbs.snapshot()
         try encoder.encode(breadcrumbs)
             .write(to: root.appendingPathComponent("breadcrumbs.json"))
 
@@ -60,7 +73,7 @@ public struct BugReporter: Sendable {
                 .write(to: root.appendingPathComponent("metadata.json"))
         }
 
-        if let sample = AppVitalsMonitor.shared.lastSample {
+        if let sample = vitalsMonitor?.lastSample {
             try encoder.encode(sample)
                 .write(to: root.appendingPathComponent("vitals.json"))
         }
@@ -73,19 +86,28 @@ public struct BugReporter: Sendable {
         lines.append("Generated: \(Date())")
         let bundle = Bundle.main.infoDictionary
         lines.append("App: \(bundle?["CFBundleName"] as? String ?? "?")")
-        lines.append("Version: \(bundle?["CFBundleShortVersionString"] as? String ?? "?") (\(bundle?["CFBundleVersion"] as? String ?? "?"))")
-        #if canImport(UIKit)
-        let device = UIDevice.current
-        lines.append("Device: \(device.model)")
-        lines.append("OS: \(device.systemName) \(device.systemVersion)")
-        #endif
+        let shortVersion = bundle?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = bundle?["CFBundleVersion"] as? String ?? "?"
+        lines.append("Version: \(shortVersion) (\(build))")
+        lines.append("Device: \(Self.hardwareModel())")
+        lines.append("OS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
         lines.append("Locale: \(Locale.current.identifier)")
         if let info = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()),
            let free = info[.systemFreeSize] as? Int64 {
             lines.append("Free disk: \(ByteCountFormatter.string(fromByteCount: free, countStyle: .file))")
         }
-        lines.append("Breadcrumbs: \(SwiftMoLogger.breadcrumbs().count)")
-        lines.append("Engines: \(SwiftMoLogger.allEngines().map(\.engineID).joined(separator: ", "))")
+        lines.append("Breadcrumbs: \(environment.breadcrumbs.snapshot().count)")
+        lines.append("Engines: \(environment.registry.allEngines().map(\.engineID).joined(separator: ", "))")
         return lines.joined(separator: "\n")
+    }
+
+    /// The hardware model identifier (e.g. `iPhone16,2`). Read with `sysctl`
+    /// rather than `UIDevice`, which is main-actor isolated and missing on watchOS.
+    private static func hardwareModel() -> String {
+        var size = 0
+        guard sysctlbyname("hw.machine", nil, &size, nil, 0) == 0, size > 0 else { return "unknown" }
+        var machine = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("hw.machine", &machine, &size, nil, 0) == 0 else { return "unknown" }
+        return String(decoding: machine.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 }

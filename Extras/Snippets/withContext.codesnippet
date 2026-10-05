@@ -7,7 +7,7 @@
     <key>IDECodeSnippetCompletionScopes</key>
     <array><string>All</string></array>
     <key>IDECodeSnippetContents</key>
-    <string>SwiftMoLogger.withContext(["&lt;#key#&gt;": .string("&lt;#value#&gt;")]) {
+    <string>LogContext.with(["&lt;#key#&gt;": .string("&lt;#value#&gt;")]) {
     &lt;#code#&gt;
 }</string>
     <key>IDECodeSnippetIdentifier</key>
@@ -17,7 +17,7 @@
     <key>IDECodeSnippetSummary</key>
     <string>Run a block with task-local ambient log metadata.</string>
     <key>IDECodeSnippetTitle</key>
-    <string>SwiftMoLogger withContext</string>
+    <string>SwiftMoLogger LogContext.with</string>
     <key>IDECodeSnippetUserSnippet</key>
     <true/>
     <key>IDECodeSnippetVersion</key>

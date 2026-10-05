@@ -37,12 +37,13 @@ public struct VitalsChartsView: View {
     private var placeholder: some View {
         VStack(spacing: 8) {
             Image(systemName: "heart.text.square")
-                .font(.system(size: 36))
+                .font(.largeTitle)
                 .foregroundColor(.secondary)
+                .accessibilityHidden(true)
             Text("No vitals samples in window")
                 .font(.callout)
                 .foregroundColor(.secondary)
-            Text("AppVitalsMonitor.shared.start(interval: 1)")
+            Text("AppVitalsMonitor(logger:history:).start(interval: 1)")
                 .font(.caption2.monospaced())
                 .foregroundColor(.secondary)
         }
@@ -57,18 +58,24 @@ public struct VitalsChartsView: View {
             Chart(ticks) { tick in
                 LineMark(x: .value("t", tick.timestamp), y: .value("MB", tick.memoryMB))
                     .foregroundStyle(.purple)
+                    .accessibilityLabel(Text(tick.timestamp.formatted(date: .omitted, time: .standard)))
+                    .accessibilityValue(Text(String(format: "%.0f megabytes", tick.memoryMB)))
             }
         }
         card(title: "CPU", value: latest("%") { String(format: "%.1f", $0.cpuPercent) }, ticks: ticks) {
             Chart(ticks) { tick in
                 LineMark(x: .value("t", tick.timestamp), y: .value("%", tick.cpuPercent))
                     .foregroundStyle(.orange)
+                    .accessibilityLabel(Text(tick.timestamp.formatted(date: .omitted, time: .standard)))
+                    .accessibilityValue(Text(String(format: "%.1f percent CPU", tick.cpuPercent)))
             }
         }
         card(title: "FPS", value: latest("") { String(format: "%.0f", $0.fps) }, ticks: ticks) {
             Chart(ticks) { tick in
                 LineMark(x: .value("t", tick.timestamp), y: .value("FPS", tick.fps))
                     .foregroundStyle(.green)
+                    .accessibilityLabel(Text(tick.timestamp.formatted(date: .omitted, time: .standard)))
+                    .accessibilityValue(Text(String(format: "%.0f frames per second", tick.fps)))
             }
         }
         #else
@@ -95,6 +102,7 @@ public struct VitalsChartsView: View {
             Spacer()
             Text(value).font(.body.monospacedDigit())
         }
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -106,6 +114,7 @@ public struct VitalsChartsView: View {
                 Spacer()
                 Text(value).font(.title3.monospacedDigit().bold())
             }
+            .accessibilityElement(children: .combine)
             content()
                 .frame(height: 100)
         }

@@ -12,7 +12,7 @@ concurrency:
 jobs:
   pr-info:
     name: PR Information
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     
     steps:
@@ -29,7 +29,7 @@ jobs:
 
   title-validation:
     name: Validate PR Title
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     
     steps:
@@ -58,7 +58,7 @@ jobs:
 
   swift-validation:
     name: Swift Package Validation
-    runs-on: macos-14
+    runs-on: xcode-27
     if: github.event.pull_request.draft == false
     
     steps:
@@ -68,10 +68,11 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
         
     - name: Setup Xcode
-      run: |
-        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-        xcodebuild -version
-        swift --version
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '27.0'
+
+    - run: swift --version
     
     - name: Cache Swift Package Manager
       uses: actions/cache@v4
@@ -86,7 +87,7 @@ jobs:
     
     - name: Swift Package Build
       run: |
-        swift build -v
+        swift build --build-tests
         
     - name: Swift Package Test
       run: |
@@ -101,8 +102,8 @@ jobs:
         fi
         
         # Validate iOS deployment target
-        if ! grep -q "iOS(.v15)" Package.swift; then
-          echo "❌ iOS 15 minimum deployment target requirement not met"
+        if ! grep -q "iOS(.v16)" Package.swift; then
+          echo "❌ iOS 16 minimum deployment target requirement not met"
           exit 1
         fi
         
@@ -116,7 +117,7 @@ jobs:
 
   code-quality:
     name: Code Quality Checks
-    runs-on: macos-14
+    runs-on: macos-15
     if: github.event.pull_request.draft == false
     
     steps:
@@ -127,7 +128,7 @@ jobs:
         
     - name: Install SwiftLint
       run: |
-        brew install swiftlint
+        which swiftlint || brew install swiftlint
         
     - name: Run SwiftLint
       run: |
@@ -155,7 +156,7 @@ jobs:
 
   security-scan:
     name: Security Scan
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     
     steps:
@@ -183,13 +184,14 @@ jobs:
           echo "Consider using the logging framework instead"
         fi
         
-        # Check for sensitive data patterns
-        SENSITIVE_PATTERNS="password|secret|api_key|token|credential"
-        if grep -ri "$SENSITIVE_PATTERNS" Sources/ --include="*.swift"; then
-          echo "❌ Potential sensitive data found in source code"
+        # Hard-coded credentials: a credential-like name assigned a string literal.
+        # (Mentioning "token" or "password" is fine: the redaction code has to.)
+        CREDENTIAL='(password|passwd|secret|api_?key|access_?token|auth_?token|credential)[A-Za-z0-9_]*"?[[:space:]]*[:=][[:space:]]*"[A-Za-z0-9+/_=-]{12,}"'
+        if grep -rniE "$CREDENTIAL" Sources/ --include="*.swift"; then
+          echo "❌ Possible hard-coded credential in Sources/"
           exit 1
         fi
-        
+
         # Check for force unwrapping
         FORCE_UNWRAP=$(grep -r "!" Sources/ --include="*.swift" | grep -v "fatalError\|precondition" | wc -l || echo "0")
         if [ "$FORCE_UNWRAP" -gt 10 ]; then
@@ -201,46 +203,37 @@ jobs:
 
   ios-compatibility:
     name: iOS Compatibility Check
-    runs-on: macos-14
+    runs-on: xcode-27
     if: github.event.pull_request.draft == false
-    strategy:
-      matrix:
-        ios: ['17.5', '16.4', '15.6']
-    
+
     steps:
     - name: Checkout PR code
       uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
-        
+
     - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '27.0'
+
+    - name: Use the package, not the stale root workspace
+      # SwiftMoLogger.xcworkspace hides the package's schemes from xcodebuild.
+      run: mv SwiftMoLogger.xcworkspace "$RUNNER_TEMP/"
+
+    - name: Build tests for the iOS Simulator
+      # Compiles every library and test target against the iOS 16 deployment
+      # target with the newest SDK.
       run: |
-        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-        
-    - name: Test iOS ${{ matrix.ios }} Compatibility
-      run: |
-        # Find available simulator
-        SIMULATOR_ID=$(xcrun simctl list devices available | grep "iOS ${{ matrix.ios }}" | head -1 | grep -o "[0-9A-F-]\{36\}" || echo "")
-        
-        if [ -z "$SIMULATOR_ID" ]; then
-          echo "No iOS ${{ matrix.ios }} simulator found, using latest available"
-          SIMULATOR_ID=$(xcrun simctl list devices available | grep "iPhone" | head -1 | grep -o "[0-9A-F-]\{36\}")
-        fi
-        
-        echo "Testing on iOS ${{ matrix.ios }} with simulator: $SIMULATOR_ID"
-        
-        # Boot simulator
-        xcrun simctl boot $SIMULATOR_ID || true
-        
-        # Build and test
+        set -o pipefail
         xcodebuild build-for-testing \
-          -scheme SwiftMoLogger \
-          -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-          | xcpretty
+          -scheme SwiftMoLogger-Package \
+          -destination 'generic/platform=iOS Simulator' \
+          CODE_SIGNING_ALLOWED=NO -quiet
 
   pr-size-check:
     name: PR Size Check
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     
     steps:
@@ -275,7 +268,7 @@ jobs:
 
   validation-summary:
     name: Validation Summary
-    runs-on: macos-14
+    runs-on: ubuntu-latest
     needs: [title-validation, swift-validation, code-quality, security-scan, ios-compatibility, pr-size-check]
     if: always() && github.event.pull_request.draft == false
     

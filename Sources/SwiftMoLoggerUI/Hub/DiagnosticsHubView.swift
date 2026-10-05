@@ -11,15 +11,22 @@ import SwiftMoLogger
 /// import SwiftMoLoggerUI
 ///
 /// struct DebugTab: View {
-///     var body: some View { DiagnosticsHubView() }
+///     let logging: LogEnvironment
+///     var body: some View { DiagnosticsHubView(environment: logging) }
 /// }
 /// ```
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
 public struct DiagnosticsHubView: View {
     @StateObject private var model: HubViewModel
 
-    public init(model: HubViewModel? = nil) {
-        _model = StateObject(wrappedValue: model ?? HubViewModel())
+    /// A Hub over `environment`'s registry and stores.
+    public init(environment: LogEnvironment) {
+        _model = StateObject(wrappedValue: HubViewModel(environment: environment))
+    }
+
+    /// A Hub driven by a model you own (e.g. to keep it alive across presentations).
+    public init(model: HubViewModel) {
+        _model = StateObject(wrappedValue: model)
     }
 
     public var body: some View {
