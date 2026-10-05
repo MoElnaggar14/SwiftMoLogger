@@ -6,6 +6,11 @@ import Foundation
 /// directly tail-able and consumable by analytics pipelines. Writes happen on
 /// a dedicated serial queue; the caller of ``log(_:)`` never blocks on I/O.
 ///
+/// The backlog of entries waiting to be written is capped at
+/// ``maxPendingEntries``, so a burst of logging can't grow memory without
+/// bound. Entries over the cap are dropped and counted, and one warning line
+/// in the file records how many were lost.
+///
 /// Rotation is triggered when the active file exceeds ``maxFileSizeBytes``.
 /// The current file is renamed to `<name>.1`, older numbered files shift
 /// down, and the oldest beyond ``maxRotatedFiles`` is deleted.
@@ -16,8 +21,14 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
     public let fileURL: URL
     public let maxFileSizeBytes: Int
     public let maxRotatedFiles: Int
+    /// Most entries that may wait to be written before new ones are dropped.
+    public let maxPendingEntries: Int
 
     private let queue: DispatchQueue
+    private let backlogLock = UnfairLock()
+    private var pendingCount = 0
+    private var droppedSinceLastWrite = 0
+    private var totalDropped = 0
     private let encoder: JSONEncoder
     private var handle: FileHandle?
     private var currentSize: Int = 0
@@ -26,12 +37,13 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
         fileURL: URL,
         maxFileSizeBytes: Int = 1_048_576,
         maxRotatedFiles: Int = 3,
+        maxPendingEntries: Int = 10_000,
         minimumLevel: LogLevel = .info
     ) throws {
-        precondition(maxRotatedFiles >= 0, "maxRotatedFiles must not be negative")
         self.fileURL = fileURL
         self.maxFileSizeBytes = maxFileSizeBytes
-        self.maxRotatedFiles = maxRotatedFiles
+        self.maxRotatedFiles = max(0, maxRotatedFiles)
+        self.maxPendingEntries = max(1, maxPendingEntries)
         self.minimumLevel = minimumLevel
         // Keyed by full path: two engines for the same file replace each other,
         // same-named files in different directories don't.
@@ -50,9 +62,37 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
     }
 
     public func log(_ entry: LogEntry) {
+        let accepted: Bool = backlogLock.withLock {
+            guard pendingCount < maxPendingEntries else {
+                droppedSinceLastWrite += 1
+                totalDropped += 1
+                return false
+            }
+            pendingCount += 1
+            return true
+        }
+        guard accepted else { return }
         // Strong capture on purpose: queued writes must land even if the
         // engine is removed from the registry before the queue drains.
-        queue.async { self.writeEntry(entry) }
+        queue.async {
+            let dropped: Int = self.backlogLock.withLock {
+                self.pendingCount -= 1
+                defer { self.droppedSinceLastWrite = 0 }
+                return self.droppedSinceLastWrite
+            }
+            if dropped > 0 {
+                self.writeEntry(LogEntry(
+                    level: .warning,
+                    message: "FileLogEngine dropped \(dropped) entries: more than \(self.maxPendingEntries) were waiting"
+                ))
+            }
+            self.writeEntry(entry)
+        }
+    }
+
+    /// How many entries were dropped because the backlog was full.
+    public var droppedEntryCount: Int {
+        backlogLock.withLock { totalDropped }
     }
 
     /// Synchronously flush any pending writes. Useful before bug reports or
@@ -62,6 +102,10 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
             try? handle?.synchronize()
         }
     }
+
+    /// Pauses and resumes the writer, so tests can fill the backlog deterministically.
+    func suspendWrites() { queue.suspend() }
+    func resumeWrites() { queue.resume() }
 
     /// All log files currently on disk for this engine (current + rotated).
     public func allLogFileURLs() -> [URL] {

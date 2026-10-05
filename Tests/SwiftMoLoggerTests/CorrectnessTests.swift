@@ -314,6 +314,30 @@ final class CorrectnessTests: LoggingTestCase {
 
     // MARK: - Shared log files
 
+    func testFileEngineCapsItsBacklogAndRecordsDrops() throws {
+        let url = temporaryURL("backlog.log")
+        let engine = try FileLogEngine(fileURL: url, maxPendingEntries: 2, minimumLevel: .trace)
+
+        engine.suspendWrites()
+        for index in 0..<5 {
+            engine.log(LogEntry(level: .info, message: "line-\(index)"))
+        }
+        XCTAssertEqual(engine.droppedEntryCount, 3)
+        engine.resumeWrites()
+        engine.log(LogEntry(level: .info, message: "after"))
+        engine.flush()
+
+        let lines = try String(contentsOf: url, encoding: .utf8).split(separator: "\n")
+        XCTAssertEqual(lines.count, 4, "two queued lines, one drop warning, one new line")
+        XCTAssertTrue(lines.contains { $0.contains("dropped 3 entries") })
+        XCTAssertTrue(lines.last?.contains("after") ?? false)
+    }
+
+    func testNegativeRotationCountDoesNotCrash() throws {
+        let engine = try FileLogEngine(fileURL: temporaryURL("negative.log"), maxRotatedFiles: -1)
+        XCTAssertEqual(engine.maxRotatedFiles, 0)
+    }
+
     func testTwoEnginesOnOneFileKeepEveryLineIntact() throws {
         let url = temporaryURL("shared.log")
         let first = try FileLogEngine(fileURL: url, maxFileSizeBytes: 1_000_000, minimumLevel: .trace)
