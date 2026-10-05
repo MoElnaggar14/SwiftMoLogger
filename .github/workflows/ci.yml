@@ -89,8 +89,14 @@ jobs:
             CODE_SIGNING_ALLOWED=NO -quiet
 
   example-app:
-    name: Build example app
+    name: Example app (${{ matrix.destination }})
     runs-on: xcode-27
+    strategy:
+      fail-fast: false
+      matrix:
+        destination:
+          - generic/platform=iOS Simulator
+          - generic/platform=iOS
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
@@ -102,7 +108,7 @@ jobs:
           xcodebuild build \
             -project ExampleApp/SwiftMoLoggerExample.xcodeproj \
             -scheme SwiftMoLoggerExample \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination "${{ matrix.destination }}" \
             -skipMacroValidation -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO -quiet
 

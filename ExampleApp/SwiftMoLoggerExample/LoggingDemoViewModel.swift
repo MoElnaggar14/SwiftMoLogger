@@ -20,7 +20,9 @@ final class LoggingDemoViewModel: ObservableObject {
     private let vitals: AppVitalsMonitor
     private let session: URLSession
 
+    #if DEBUG
     private var liveSink: LiveSink?
+    #endif
     private var task: Task<Void, Never>?
 
     init(dependencies: AppDependencies) {
@@ -77,7 +79,10 @@ final class LoggingDemoViewModel: ObservableObject {
         }
     }
 
+    /// LiveSink streams unencrypted logs to the local network, so it only exists in
+    /// DEBUG builds (and `Info-Debug.plist` holds its Bonjour keys).
     func startLiveSink() {
+        #if DEBUG
         guard liveSink == nil else { return }
         let sink = LiveSink(statusLogger: logger)
         do {
@@ -88,13 +93,16 @@ final class LoggingDemoViewModel: ObservableObject {
         } catch {
             logger.error(error, tag: .Development.debug)
         }
+        #endif
     }
 
     func stopLiveSink() {
+        #if DEBUG
         guard let sink = liveSink else { return }
         sink.stop()
         logging.registry.removeEngine(id: sink.engineID)
         liveSink = nil
+        #endif
     }
 
     private func refresh() {

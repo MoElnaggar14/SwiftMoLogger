@@ -13,15 +13,36 @@ End-to-end SwiftUI showcase that exercises every product in the v4 package — C
 | **Diagnostics** | Live `AppVitalsMonitor` sample, `FlightRecorder` status, one-tap `BugReporter` bundle (with `ShareLink`), Bonjour `LiveSink` toggle, plus snippets for `MetricKitCrashReporter` and the remote shippers. |
 | **About** | Full feature matrix — handy talking points when pitching the library. |
 
-## Run
+## Run on the simulator
 
 ```bash
 open ExampleApp/SwiftMoLoggerExample.xcodeproj
 ```
 
-…then `⌘R`. The project's six target dependencies (`SwiftMoLogger`, `SwiftMoLoggerUI`, `SwiftMoLoggerNetwork`, `SwiftMoLoggerDiagnostics`, `SwiftMoLoggerSugar`, `SwiftMoLoggerRemote`) all resolve from the workspace's local SPM checkout.
+Pick an iPhone simulator and press ⌘R. The six products (`SwiftMoLogger`, `SwiftMoLoggerUI`, `SwiftMoLoggerNetwork`, `SwiftMoLoggerDiagnostics`, `SwiftMoLoggerSugar`, `SwiftMoLoggerRemote`) resolve from this checkout (`..`), so your local edits to the library show up immediately. The first build compiles swift-syntax for the macros, which takes a minute. If Xcode asks you to trust the `SwiftMoLoggerMacros` macro, choose **Trust & Enable**.
 
-Deployment target: **iOS 17**. The library still ships against iOS 16 / macOS 13.
+The Network tab calls httpbin.org, so it needs internet access. Check the vitals charts on a device too, since a simulator's CPU, memory and thermal numbers are your Mac's.
+
+## Run on an iPhone or iPad
+
+1. Select the **SwiftMoLoggerExample** target → Signing & Capabilities → choose your **Team**.
+2. If the bundle identifier is taken, change it, e.g. to `com.<you>.SwiftMoLoggerExample`.
+3. Connect the device, turn on Developer Mode (Settings → Privacy & Security → Developer Mode), pick the device and press ⌘R.
+
+## Tail the device from your Mac
+
+1. In the Debug build, open **Diagnostics** → turn on **Advertise _swiftmologger._tcp**. Allow the local network prompt on the device.
+2. On a Mac on the same Wi-Fi, from the repository root:
+
+   ```bash
+   swift run swiftmologger-inspector
+   ```
+
+3. Tap around the Demo tab. Each log line appears in the terminal.
+
+The Debug configuration merges `Info-Debug.plist`, which declares `NSLocalNetworkUsageDescription` and `NSBonjourServices`. Release builds have neither key, and the LiveSink section is compiled out (`#if DEBUG`). That's the setup to copy into your own app.
+
+Requires Xcode 16 or later. Deployment target: **iOS 17**. The library itself supports iOS 16 / macOS 13.
 
 ## Boot wiring — `SwiftMoLoggerExampleApp.swift`
 
@@ -34,7 +55,7 @@ let session = URLSession(configuration: .default,
                          delegate: NetworkLogger(environment: logging),
                          delegateQueue: nil)
 let vitals = AppVitalsMonitor(logger: logging.logger, history: logging.vitals)
-let recorder = FlightRecorder(environment: logging)
+let recorder = FlightRecorder(environment: logging, redactor: Redactor())
 
 logging.registry.replaceEngine(id: systemLoggerID) { ErrorGroupingEngine(wrapping: RedactingLogEngine(wrapping: $0)) }
 logging.registry.addEngine(RedactingLogEngine(wrapping: memory))

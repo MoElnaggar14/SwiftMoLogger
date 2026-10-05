@@ -117,6 +117,7 @@ struct AppDependencies {
             delegateQueue: nil
         )
         self.vitals = AppVitalsMonitor(logger: logging.logger, history: logging.vitals)
-        self.flightRecorder = FlightRecorder(environment: logging)
+        // Redact before anything touches the disk: the crash file can outlive the session.
+        self.flightRecorder = FlightRecorder(environment: logging, redactor: Redactor())
     }
 }

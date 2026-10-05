@@ -58,6 +58,8 @@ DiagnosticsHubView(environment: logging)
 swift run swiftmologger-inspector
 ```
 
+Want to see it first? Open [`ExampleApp/SwiftMoLoggerExample.xcodeproj`](ExampleApp) and run it on a simulator or your iPhone.
+
 That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: one `LogEnvironment` you inject.
 
 ---

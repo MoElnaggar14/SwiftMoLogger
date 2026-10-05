@@ -115,6 +115,7 @@ struct DiagnosticsTab: View {
                 }
             }
 
+            #if DEBUG
             Section("LiveSink (Bonjour log tail)") {
                 Toggle("Advertise _swiftmologger._tcp", isOn: $liveSinkRunning)
                     .onChange(of: liveSinkRunning) { newValue in
@@ -124,6 +125,7 @@ struct DiagnosticsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            #endif
 
             Section("Remote shippers (mocks)") {
                 Text("Production wiring:")
