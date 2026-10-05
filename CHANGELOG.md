@@ -4,6 +4,11 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Documentation
+- Article 5 covers `flush()`: why buffered engines lose their last batch when iOS terminates a suspended app, and flushing the registry on `scenePhase == .background`.
+
 ## [4.0.0] — 2026-10-05
 
 Dependency injection everywhere: SwiftMoLogger no longer has any singletons or
