@@ -35,7 +35,7 @@ func attachLiveTail(to logging: LogEnvironment) {
 
 The `serviceName` defaults to the bundle identifier, so ten devices running one app would announce the same name. Picking your own keeps the terminal readable. The `statusLogger` hears "LiveSink ready" or "LiveSink failed".
 
-Each `LogEntry` goes out as one line of JSON: JSON-Lines over TCP, no framing protocol, no handshake beyond Bonjour discovery. A new client first gets a small banner line naming the app. Encoding and sending happen on a background queue, so the call site never waits on the network.
+Each `LogEntry` goes out as one line of JSON: JSON-Lines over TCP, no framing protocol, no handshake beyond Bonjour discovery. A new client first gets a `"kind": "hello"` line with the app, its version, the OS and the protocol version. Every later line without a `kind` is a `LogEntry`, and clients skip control lines they don't recognise, so new message types can be added without breaking older inspectors. Encoding and sending happen on a background queue, so the call site never waits on the network.
 
 ### Info.plist and safety
 
@@ -76,7 +76,7 @@ SwiftMoLogger Inspector — discovering _swiftmologger._tcp on local network…
 ◉ discovered MyApp-iPhone-15
 ◉ discovered MyApp-iPad-Pro
 ● connected MyApp-iPhone-15
-…banner from MyApp-iPhone-15: MyApp-iPhone-15
+…connected to MyApp-iPhone-15: com.example.MyApp 1.4.2
 2026-10-05T14:22:01.124Z INFO  MyApp-iPhone-15 [API] [thread] HTTP response 200
 2026-10-05T14:22:01.221Z WARN  MyApp-iPad-Pro [Layout] [main] Auto-layout broke 3 constraints
 2026-10-05T14:22:01.337Z ERROR MyApp-iPhone-15 [Database] [thread] Migration v4 → v5 timed out

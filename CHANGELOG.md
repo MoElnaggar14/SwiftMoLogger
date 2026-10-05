@@ -19,6 +19,7 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - Macros take their dependency explicitly: `#log(logger, …)`, `#measure(signposter, …)`. `@AutoLog` uses the type's `logger` property.
 
 ### Added
+- **LiveSink line protocol version 2.** The 4.0 entry format differs from 3.x (`tag` is an object, timestamps have fractional seconds), but the banner still said version 1. The first line is now a `"kind": "hello"` message with `version: 2`, `app_version`, `os` and `connected_at`. Lines with a `kind` are control messages that clients skip when unknown, so later versions can add message types without breaking anything. The inspector warns when a device speaks a different version. `LiveSink.protocolVersion` exposes the version.
 - **`flush()` on every engine** and `EngineRegistry.flush()`. `FileLogEngine` and the remote shippers write or send what they buffer, and decorators forward the call. The protocol requirement has a do-nothing default, so existing engines still compile. Call it when the app moves to the background; the example app does.
 - **visionOS 1+** is a supported platform, and CI builds for it.
 - The README compares SwiftMoLogger with Pulse: Pulse wins on network request and response bodies.

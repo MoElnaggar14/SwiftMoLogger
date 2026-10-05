@@ -117,7 +117,19 @@ final class InspectorRuntime: @unchecked Sendable {
             return
         }
         if object["service"] as? String == "SwiftMoLogger.LiveSink" {
-            print(Ansi.dim("…banner from \(source): \(object["app"] ?? "?")"))
+            // Hello line (version 2) or the 3.x banner (version 1, no `kind`).
+            let version = object["version"] as? Int ?? 1
+            let app = object["app"] as? String ?? "?"
+            let appVersion = object["app_version"] as? String ?? ""
+            print(Ansi.dim("…connected to \(source): \(app) \(appVersion)"))
+            if version != Self.protocolVersion {
+                print(Ansi.yellow("…\(source) speaks LiveSink protocol \(version); this inspector speaks \(Self.protocolVersion). "
+                    + "Use the inspector from the same SwiftMoLogger version as the app."))
+            }
+            return
+        }
+        // Control messages from newer devices: skip the kinds this inspector doesn't know.
+        if object["kind"] != nil {
             return
         }
         // LogEntry shape
@@ -128,6 +140,9 @@ final class InspectorRuntime: @unchecked Sendable {
         let timestamp = object["timestamp"] as? String ?? ""
         print("\(Ansi.dim(timestamp)) \(level) \(Ansi.cyan(source)) \(Ansi.magenta(tag)) \(Ansi.dim("[" + thread + "]")) \(message)")
     }
+
+    /// The LiveSink line protocol this inspector understands (``LiveSink/protocolVersion``).
+    static let protocolVersion = 2
 
     private static func levelString(from raw: Any?) -> String {
         let intValue = raw as? Int ?? -1

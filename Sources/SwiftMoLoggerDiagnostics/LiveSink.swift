@@ -21,8 +21,23 @@ import SwiftMoLogger
 /// logging.registry.addEngine(sink)
 /// #endif
 /// ```
+///
+/// ## Line protocol
+///
+/// Each connection receives newline-delimited JSON:
+/// - First, a hello line: `{"kind": "hello", "service": "SwiftMoLogger.LiveSink",
+///   "version": 2, "app": …, "app_version": …, "os": …, "connected_at": …}`.
+/// - Then one encoded ``LogEntry`` per line. Entry lines have no `kind` key.
+///
+/// Lines that carry a `kind` are control messages. Clients skip kinds and keys they
+/// don't know, so later versions can add message types without breaking older
+/// clients. ``protocolVersion`` changes whenever an existing line changes shape.
 public final class LiveSink: LogEngine, @unchecked Sendable {
     public static let serviceType = "_swiftmologger._tcp"
+    /// Version of the line protocol, sent in the hello line. 2 (SwiftMoLogger 4.0): `tag`
+    /// is `{rawValue, domain}`, timestamps have fractional seconds, and control lines
+    /// carry a `kind`. Version 1 was SwiftMoLogger 3.x.
+    public static let protocolVersion = 2
 
     public let engineID: String = "swiftmologger.diagnostics.livesink"
     public let minimumLevel: LogLevel
@@ -133,10 +148,13 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
 
     private func sendBanner(to connection: NWConnection) {
         let banner: [String: Any] = [
+            "kind": "hello",
             "service": "SwiftMoLogger.LiveSink",
-            "version": 1,
+            "version": LiveSink.protocolVersion,
             "app": serviceName,
-            "started_at": ISO8601DateFormatter().string(from: Date())
+            "app_version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
+            "os": ProcessInfo.processInfo.operatingSystemVersionString,
+            "connected_at": ISO8601DateFormatter().string(from: Date())
         ]
         if let data = try? JSONSerialization.data(withJSONObject: banner) {
             var line = data
