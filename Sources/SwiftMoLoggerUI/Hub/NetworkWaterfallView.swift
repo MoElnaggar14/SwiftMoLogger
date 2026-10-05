@@ -23,6 +23,11 @@ public struct NetworkWaterfallView: View {
                         ForEach(events) { event in
                             row(event: event)
                                 .onTapGesture { selected = event }
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(spokenSummary(for: event))
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityHint("Shows request details.")
+                                .accessibilityAction { selected = event }
                         }
                     }
                     .padding(8)
@@ -41,12 +46,18 @@ public struct NetworkWaterfallView: View {
         let duration = max(event.durationSeconds, 0) / totalSpan
         VStack(alignment: .leading, spacing: 2) {
             HStack {
-                Text("\(event.method) \(event.url.lastPathComponent.isEmpty ? event.url.host ?? "?" : event.url.lastPathComponent)")
+                Text("\(event.method) \(displayName(for: event))")
                     .font(.caption.monospaced())
                     .lineLimit(1)
                 Spacer()
                 Text("\(Int(event.durationSeconds * 1000))ms")
                     .font(.caption2.monospacedDigit())
+                if isFailure(event) {
+                    // Non-colour cue for failures, alongside the status code.
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundColor(color(for: event))
+                }
                 Text("\(event.statusCode)")
                     .font(.caption2.bold().monospacedDigit())
                     .foregroundColor(.white)
@@ -67,6 +78,27 @@ public struct NetworkWaterfallView: View {
             }
             .frame(height: 8)
         }
+    }
+
+    private func displayName(for event: NetworkEvent) -> String {
+        event.url.lastPathComponent.isEmpty ? event.url.host ?? "?" : event.url.lastPathComponent
+    }
+
+    private func isFailure(_ event: NetworkEvent) -> Bool {
+        event.errorDescription != nil || event.statusCode >= 400
+    }
+
+    /// Spoken row summary, e.g. "GET orders, status 200, 142 milliseconds".
+    private func spokenSummary(for event: NetworkEvent) -> String {
+        var parts = ["\(event.method) \(displayName(for: event))"]
+        parts.append(event.statusCode > 0 ? "status \(event.statusCode)" : "no status")
+        parts.append("\(Int(event.durationSeconds * 1000)) milliseconds")
+        if let error = event.errorDescription {
+            parts.append("failed: \(error)")
+        } else if event.statusCode >= 400 {
+            parts.append("failed")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func color(for event: NetworkEvent) -> Color {
@@ -119,8 +151,9 @@ struct HubEmptyState: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: systemImage)
-                .font(.system(size: 36))
+                .font(.largeTitle)
                 .foregroundColor(.secondary)
+                .accessibilityHidden(true)
             Text(title)
                 .foregroundColor(.secondary)
         }

@@ -27,6 +27,7 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - `LogEnvironment.recording()` / `MoLogger.recording()` for isolated, parallel-safe tests.
 - `FlightRecorder(redactor:)`: redacts entries before they're persisted, so the crash file never holds raw secrets or PII.
 - `FlightRecorder(defaults:)` / `recoverLastSession(from:defaults:)`, so tests and app groups can supply their own `UserDefaults`.
+- **Diagnostics Hub accessibility.** The timeline, network waterfall, flame graph and vitals charts have VoiceOver labels and values (the timeline is adjustable), fixed font sizes are replaced with Dynamic Type text styles, and failed requests and slow spans get a warning symbol so status isn't shown by colour alone; see [ACCESSIBILITY.md](ACCESSIBILITY.md).
 
 ### Fixed (found in review of the 4.0 changes)
 - **`AppVitalsMonitor` leaked and drained battery.** Its display link retained the monitor (so it lived until `stop()`), ran at 120 Hz on ProMotion screens, and switched on app-wide battery monitoring for good. It now uses a weak proxy, caps the link at 60 Hz (FPS is measured against 60), restores the battery-monitoring setting after each read, and cleans up on release.

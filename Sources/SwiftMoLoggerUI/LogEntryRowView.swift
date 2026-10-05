@@ -21,7 +21,8 @@ public struct LogEntryRowView: View {
     public var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Text(entry.level.emoji)
-                .font(.system(size: 14))
+                .font(.subheadline)
+                .accessibilityHidden(true) // the level is also spoken as text below
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(Self.timeFormatter.string(from: entry.timestamp))
