@@ -19,7 +19,7 @@ public final class SentryLogEngine: HTTPLogShipper, @unchecked Sendable {
             maxRetries: 3
         )
         super.init(
-            engineID: "swiftmologger.remote.sentry",
+            engineID: "swiftmologger.remote.sentry.\(HTTPLogShipper.endpointKey(configuration.endpoint))",
             minimumLevel: .warning,
             configuration: configuration,
             body: SentryLogEngine.makeBody(release: release, environment: environment)

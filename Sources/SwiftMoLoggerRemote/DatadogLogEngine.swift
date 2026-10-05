@@ -40,7 +40,7 @@ public final class DatadogLogEngine: HTTPLogShipper, @unchecked Sendable {
             maxRetries: 3
         )
         super.init(
-            engineID: "swiftmologger.remote.datadog",
+            engineID: "swiftmologger.remote.datadog.\(site.host).\(service)",
             minimumLevel: .info,
             configuration: configuration,
             body: DatadogLogEngine.makeBody(service: service, source: source, ddtags: ddtags)

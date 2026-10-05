@@ -446,6 +446,12 @@ try redactor.add(Redactor.Rule(name: "ssn", pattern: #"\d{3}-\d{2}-\d{4}"#))
 logging.registry.addEngine(RedactingLogEngine(wrapping: networkEngine, redactor: redactor))
 ```
 
+Register the wrapper *instead of* the engine. If the engine is already registered, swap it in place, or the raw copy keeps logging unredacted:
+
+```swift
+EngineRegistry.shared.replaceEngine(id: networkEngine.engineID) { RedactingLogEngine(wrapping: $0, redactor: redactor) }
+```
+
 ### Breadcrumbs
 
 ```swift

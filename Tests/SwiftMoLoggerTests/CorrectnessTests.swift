@@ -160,6 +160,19 @@ final class CorrectnessTests: LoggingTestCase {
         XCTAssertNotEqual(first.engineID, second.engineID)
     }
 
+    func testTwoEnginesOfTheSameCustomTypeBothStayRegistered() {
+        let registry = EngineRegistry(installDefaultSystemLogger: false)
+        let first = CustomEngine()
+        let second = CustomEngine()
+
+        registry.addEngine(first)
+        registry.addEngine(second)
+        registry.addEngine(first) // re-adding the same instance doesn't duplicate it
+
+        XCTAssertEqual(registry.allEngines().count, 2)
+        XCTAssertNotEqual(first.engineID, second.engineID)
+    }
+
     // MARK: - FlightRecorder
 
     func testFlightRecorderCanRestartAndStopCleanly() {
@@ -344,4 +357,9 @@ final class CorrectnessTests: LoggingTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         return directory.appendingPathComponent(name)
     }
+}
+
+/// A custom engine that relies on the default `engineID`.
+private final class CustomEngine: LogEngine, @unchecked Sendable {
+    func log(_ entry: LogEntry) {}
 }
