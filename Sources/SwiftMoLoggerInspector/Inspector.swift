@@ -162,4 +162,3 @@ enum Ansi {
     static func magenta(_ s: String) -> String { style("35", s) }
     static func cyan(_ s: String) -> String { style("36", s) }
 }
-}
