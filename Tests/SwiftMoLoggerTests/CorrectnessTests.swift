@@ -170,7 +170,7 @@ final class CorrectnessTests: XCTestCase {
         recorder.start()
         recorder.stop()
 
-        XCTAssertFalse(UserDefaults.standard.bool(forKey: "SwiftMoLogger.FlightRecorder.alive"))
+        XCTAssertFalse(UserDefaults.standard.bool(forKey: FlightRecorder.aliveKey(for: url)))
         XCTAssertNil(recorder.crashedSession)
     }
 
@@ -188,6 +188,24 @@ final class CorrectnessTests: XCTestCase {
         XCTAssertEqual(next.crashedSession?.entries.last?.message, "about to crash")
         next.stop()
         crashed.stop()
+    }
+
+    func testTwoEnginesOnOneFileKeepEveryLineIntact() throws {
+        let url = temporaryURL("shared.log")
+        let first = try FileLogEngine(fileURL: url, maxFileSizeBytes: 1_000_000, minimumLevel: .trace)
+        let second = try FileLogEngine(fileURL: url, maxFileSizeBytes: 1_000_000, minimumLevel: .trace)
+
+        for index in 0..<50 {
+            (index.isMultiple(of: 2) ? first : second).log(LogEntry(level: .info, message: "line-\(index)"))
+        }
+        first.flush()
+        second.flush()
+
+        let lines = try String(contentsOf: url, encoding: .utf8).split(separator: "\n")
+        XCTAssertEqual(lines.count, 50)
+        for line in lines {
+            XCTAssertNoThrow(try JSONSerialization.jsonObject(with: Data(line.utf8)))
+        }
     }
 
     // MARK: - Error grouping

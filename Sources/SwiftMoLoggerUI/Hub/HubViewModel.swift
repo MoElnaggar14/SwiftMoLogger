@@ -45,12 +45,23 @@ public final class HubViewModel: ObservableObject {
     public let memoryEngine: MemoryLogEngine
     private let refreshInterval: TimeInterval
     private var task: Task<Void, Never>?
+    /// Whether this model registered `memoryEngine` (and so must remove it).
+    private let registeredEngine: Bool
 
     public init(memoryEngine: MemoryLogEngine = MemoryLogEngine(capacity: 2_000), refreshInterval: TimeInterval = 0.5) {
         self.memoryEngine = memoryEngine
         self.refreshInterval = refreshInterval
-        if !SwiftMoLogger.allEngines().contains(where: { $0.engineID == memoryEngine.engineID }) {
+        let alreadyRegistered = SwiftMoLogger.allEngines().contains { $0.engineID == memoryEngine.engineID }
+        registeredEngine = !alreadyRegistered
+        if !alreadyRegistered {
             SwiftMoLogger.addEngine(memoryEngine)
+        }
+    }
+
+    deinit {
+        // Memory engines have per-instance ids, so each Hub adds its own; don't leave it behind.
+        if registeredEngine {
+            SwiftMoLogger.removeEngine(id: memoryEngine.engineID)
         }
     }
 

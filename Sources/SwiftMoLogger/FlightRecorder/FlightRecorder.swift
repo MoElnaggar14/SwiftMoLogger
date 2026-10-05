@@ -113,7 +113,7 @@ public final class FlightRecorder: @unchecked Sendable {
     /// Call this *before* any recorder's ``start()`` in the new process (which
     /// marks the new session as running), or read ``crashedSession`` instead.
     public static func recoverLastSession(from fileURL: URL = FlightRecorder.defaultFileURL) -> Session? {
-        guard wasAlive(in: UserDefaults.standard) else { return nil }
+        guard UserDefaults.standard.bool(forKey: aliveKey(for: fileURL)) else { return nil }
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601WithFractionalSeconds
@@ -129,14 +129,19 @@ public final class FlightRecorder: @unchecked Sendable {
         return dir.appendingPathComponent("flight-recorder.json")
     }()
 
-    private static let aliveKey = "SwiftMoLogger.FlightRecorder.alive"
+    /// One flag per file, so independent recorders can't mark each other's
+    /// sessions as clean.
+    static func aliveKey(for fileURL: URL) -> String {
+        "SwiftMoLogger.FlightRecorder.alive.\(fileURL.standardizedFileURL.path)"
+    }
 
-    private static func wasAlive(in defaults: UserDefaults) -> Bool {
-        defaults.bool(forKey: aliveKey)
+    deinit {
+        // A recorder released without stop() shouldn't leave its engine behind.
+        SwiftMoLogger.removeEngine(id: memory.engineID)
     }
 
     private func markSessionAlive(_ alive: Bool) {
-        UserDefaults.standard.set(alive, forKey: FlightRecorder.aliveKey)
+        UserDefaults.standard.set(alive, forKey: FlightRecorder.aliveKey(for: fileURL))
     }
 
     private func flushSync() {
