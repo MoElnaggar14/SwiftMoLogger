@@ -14,6 +14,7 @@ A correctness release. No breaking API changes; see "Behaviour changes".
 - **`SwiftMoLoggerSwiftLog`** product: `SwiftMoLogHandler` routes swift-log `Logger` calls (SwiftNIO, AsyncHTTPClient, gRPC, AWS SDK, …) into SwiftMoLogger engines, with label tags, structured metadata and metadata providers.
 
 ### Fixed
+- **The default phone rule redacted parts of trace IDs.** It matched digit runs inside hex strings, so about one in eight W3C trace IDs lost a chunk to `[PHONE]` in any redacted sink. It now only matches numbers that aren't part of a longer alphanumeric run.
 - **Diagnostics had no privacy manifest.** `BugReporter` reads free disk space, a required-reason API. `SwiftMoLoggerDiagnostics` now ships a `PrivacyInfo.xcprivacy` declaring DiskSpace (7D9E.1).
 - **The Flight Recorder rewrote its file every 2 seconds, even when idle** (up to hundreds of MB per hour, enough for iOS disk-write warnings). It now skips the write when nothing new was recorded, flushes every 5 seconds by default, and flushes when the app goes to the background.
 - **Every swipe-away looked like a crash.** iOS terminates suspended apps without warning, so the recorder now marks the session clean on entering the background and running again on returning.

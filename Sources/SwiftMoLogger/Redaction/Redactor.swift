@@ -104,7 +104,13 @@ public extension Redactor {
             rule("gcp_key", #"AIza[0-9A-Za-z\-_]{35}"#, "[GCP_KEY]"),
             rule("email", #"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"#, "[EMAIL]"),
             rule("credit_card", #"\b(?:\d[ -]*?){13,16}\b"#, "[CARD]"),
-            rule("phone", #"\+?\d{1,3}[\s\-]?\(?\d{2,4}\)?[\s\-]?\d{3,4}[\s\-]?\d{3,4}"#, "[PHONE]"),
+            // Not inside a longer alphanumeric run, so digits in hex IDs (trace and
+            // span IDs, hashes) aren't mistaken for phone numbers.
+            rule(
+                "phone",
+                #"(?<![0-9A-Za-z])\+?\d{1,3}[\s\-]?\(?\d{2,4}\)?[\s\-]?\d{3,4}[\s\-]?\d{3,4}(?![0-9A-Za-z])"#,
+                "[PHONE]"
+            ),
             rule("ipv4", #"\b(?:\d{1,3}\.){3}\d{1,3}\b"#, "[IP]"),
             rule("uuid", #"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"#, "[UUID]")
         ]
