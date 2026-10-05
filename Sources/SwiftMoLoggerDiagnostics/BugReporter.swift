@@ -89,13 +89,8 @@ public struct BugReporter: Sendable {
         let shortVersion = bundle?["CFBundleShortVersionString"] as? String ?? "?"
         let build = bundle?["CFBundleVersion"] as? String ?? "?"
         lines.append("Version: \(shortVersion) (\(build))")
-        #if canImport(UIKit) && !os(watchOS)
-        let device = UIDevice.current
-        lines.append("Device: \(device.model)")
-        lines.append("OS: \(device.systemName) \(device.systemVersion)")
-        #else
+        lines.append("Device: \(Self.hardwareModel())")
         lines.append("OS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
-        #endif
         lines.append("Locale: \(Locale.current.identifier)")
         if let info = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()),
            let free = info[.systemFreeSize] as? Int64 {
@@ -104,5 +99,15 @@ public struct BugReporter: Sendable {
         lines.append("Breadcrumbs: \(environment.breadcrumbs.snapshot().count)")
         lines.append("Engines: \(environment.registry.allEngines().map(\.engineID).joined(separator: ", "))")
         return lines.joined(separator: "\n")
+    }
+
+    /// The hardware model identifier (e.g. `iPhone16,2`). Read with `sysctl`
+    /// rather than `UIDevice`, which is main-actor isolated and missing on watchOS.
+    private static func hardwareModel() -> String {
+        var size = 0
+        guard sysctlbyname("hw.machine", nil, &size, nil, 0) == 0, size > 0 else { return "unknown" }
+        var machine = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("hw.machine", &machine, &size, nil, 0) == 0 else { return "unknown" }
+        return String(cString: machine)
     }
 }

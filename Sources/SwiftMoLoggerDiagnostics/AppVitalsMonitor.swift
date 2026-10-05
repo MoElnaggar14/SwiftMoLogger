@@ -195,8 +195,13 @@ public final class AppVitalsMonitor: @unchecked Sendable {
 
     private func currentBatteryLevel() -> Double {
         #if canImport(UIKit) && os(iOS)
-        UIDevice.current.isBatteryMonitoringEnabled = true
-        return Double(UIDevice.current.batteryLevel)
+        // UIDevice is main-actor isolated; samples are taken on a background queue.
+        return DispatchQueue.main.sync {
+            MainActor.assumeIsolated {
+                UIDevice.current.isBatteryMonitoringEnabled = true
+                return Double(UIDevice.current.batteryLevel)
+            }
+        }
         #else
         return -1
         #endif

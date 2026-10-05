@@ -10,7 +10,8 @@ import Foundation
 /// tokens, credit-card-shaped numbers, IPv4 addresses, phone numbers, and
 /// AWS/GCP-style access keys. Adopters add more via ``Redactor/add(_:)``.
 public struct Redactor: Sendable {
-    public struct Rule: Sendable {
+    // NSRegularExpression is immutable and documented as thread-safe.
+    public struct Rule: @unchecked Sendable {
         public let name: String
         public let pattern: NSRegularExpression
         public let replacement: String

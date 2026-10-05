@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 import CompilerPluginSupport
 
@@ -69,7 +69,8 @@ let package = Package(
         ),
         .executableTarget(
             name: "SwiftMoLoggerInspector",
-            dependencies: []
+            dependencies: [],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .macro(
             name: "SwiftMoLoggerMacros",
@@ -82,30 +83,37 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftMoLoggerTests",
-            dependencies: ["SwiftMoLogger", "SwiftMoLoggerTesting"]
+            dependencies: ["SwiftMoLogger", "SwiftMoLoggerTesting"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "SwiftMoLoggerUITests",
-            dependencies: ["SwiftMoLoggerUI"]
+            dependencies: ["SwiftMoLoggerUI"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "SwiftMoLoggerNetworkTests",
-            dependencies: ["SwiftMoLoggerNetwork", "SwiftMoLoggerTesting"]
+            dependencies: ["SwiftMoLoggerNetwork", "SwiftMoLoggerTesting"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "SwiftMoLoggerRemoteTests",
-            dependencies: ["SwiftMoLoggerRemote"]
+            dependencies: ["SwiftMoLoggerRemote"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "SwiftMoLoggerSwiftLogTests",
-            dependencies: ["SwiftMoLoggerSwiftLog", "SwiftMoLoggerTesting"]
+            dependencies: ["SwiftMoLoggerSwiftLog", "SwiftMoLoggerTesting"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
             name: "SwiftMoLoggerMacrosTests",
             dependencies: [
                 "SwiftMoLoggerMacros",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
-            ]
+            ],
+            swiftSettings: [.swiftLanguageMode(.v5)]
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )
