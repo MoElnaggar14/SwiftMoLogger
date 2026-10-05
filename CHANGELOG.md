@@ -31,7 +31,7 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - **`AppVitalsMonitor` leaked and drained battery.** Its display link retained the monitor (so it lived until `stop()`), ran at 120 Hz on ProMotion screens, and switched on app-wide battery monitoring for good. It now uses a weak proxy, caps the link at 60 Hz (FPS is measured against 60), restores the battery-monitoring setting after each read, and cleans up on release.
 - **`LiveSink` could ship.** `start()` does nothing in non-DEBUG builds unless you pass `allowInRelease: true`, because it streams every log line unencrypted to the local network.
 - Metadata literals with a repeated key keep the last value instead of trapping, and `MemoryLogEngine.recent(_:)` with a negative count returns nothing instead of trapping.
-- **The Articles linked from the README use the 3.x API.** Each one (and the README section) now says so and points to MIGRATION.md.
+- **The article series used the 3.x API.** All five articles are rewritten for 4.0 and checked against the source.
 - **Network failures logged the full failing URL.** The error description was `String(describing:)` of the `URLError`, whose userInfo holds the unredacted URL.
 - **Requests weren't logged on the per-task delegate path.** With `session.data(for:delegate:)`, the request was never logged; it's now logged together with the outcome.
 - **`FlightRecorder(redactor:)` only redacted entries.** It now also redacts breadcrumbs and network-event errors, and drops URL query strings.
