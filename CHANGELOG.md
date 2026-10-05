@@ -4,6 +4,28 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] — Unreleased
+
+Dependency injection everywhere: SwiftMoLogger no longer has any singletons or
+global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
+
+### Breaking
+- Removed the static `SwiftMoLogger.*` facade and every `.shared` instance (`EngineRegistry`, `MoLogger`, `BreadcrumbStore`, `NetworkEventStore`, `SignpostEventStore`, `VitalsHistoryStore`, `LogStream`, `CombineLogPublisher`, `AppVitalsMonitor`).
+- `LogSignpost` replaced by the injectable `Signposter`; `LogTagged` replaced by `MoLogger.with(tag:)`.
+- Network capture is now `NetworkLogger`, a `URLSessionTaskDelegate` you inject. The `URLProtocol`-based capture is gone because the system instantiates those objects and they can't receive dependencies.
+- Components take their collaborators in their initializers: `FlightRecorder`, `MetricKitCrashReporter`, `AppVitalsMonitor`, `BugReporter`, `LiveSink`, `HubViewModel` / `DiagnosticsHubView`, `LogConsoleViewModel` / `LogConsoleView`, `SwiftMoLogHandler`.
+- Macros take their dependency explicitly: `#log(logger, …)`, `#measure(signposter, …)`. `@AutoLog` uses the type's `logger` property.
+
+### Added
+- `LogEnvironment`: the composition root (registry, bound logger, live stream, diagnostics stores, signposter).
+- `LogContext.with(_:operation:)` and `TraceContext.run(_:)` for task-local scoping.
+- `URLRequest.addTraceparentHeader()`.
+- `LogEnvironment.recording()` / `MoLogger.recording()` for isolated, parallel-safe tests.
+- `FlightRecorder(defaults:)` / `recoverLastSession(from:defaults:)`, so tests and app groups can supply their own `UserDefaults`.
+
+### Changed
+- `HTTPLogShipper` uses its own ephemeral `URLSession` by default (no cookies or cache; never observed by a `NetworkLogger`).
+
 ## [3.1.0] — Unreleased
 
 A correctness release. No breaking API changes; see "Behaviour changes".
