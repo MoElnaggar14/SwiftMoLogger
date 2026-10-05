@@ -12,7 +12,10 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../.."),
-        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.11.0")
+        // MCP Swift SDK 0.12.1, pinned by commit: 0.11.0 doesn't compile with Swift 6.4, and
+        // 0.12.x depends on swift-docc-plugin by branch, which SwiftPM only accepts when the
+        // SDK itself is pinned by revision. This package is a standalone tool, never a dependency.
+        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", revision: "a0ae212ebf6eab5f754c3129608bc5557637e605")
     ],
     targets: [
         // Domain: devices, ring buffers, queries, the LiveSink line protocol and the

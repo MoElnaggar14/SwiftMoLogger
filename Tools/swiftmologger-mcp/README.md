@@ -84,7 +84,7 @@ The first time the server browses, macOS may ask whether it can find devices on 
   - `LogQuery`;
   - the `DeviceHub` actor, which owns all state and the pending `wait_for` calls;
   - a Network.framework Bonjour client (`LiveSinkBrowser`) that reconnects with backoff.
-- **`SwiftMoLoggerMCPServer`** maps MCP tool calls onto the hub, using the official [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk).
+- **`SwiftMoLoggerMCPServer`** maps MCP tool calls onto the hub, using the official [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) (0.12.1).
 - **This package lives under `Tools/`** so apps that depend on SwiftMoLogger never resolve the MCP SDK.
 
 Run the tests with `swift test` in this directory.
