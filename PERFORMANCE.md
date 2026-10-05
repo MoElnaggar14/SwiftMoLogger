@@ -11,7 +11,7 @@
 | Filtering | None — every entry walks every engine | Two-tier: global `minimumLevel` check **before** allocation, then per-engine `minimumLevel` |
 | Argument evaluation | Every message string is built even when no engine consumes it | `@autoclosure` on every level helper — message is built only when the entry survives filtering |
 | Source location capture | `Thread.callStackSymbols` (~ms) | `#fileID` / `#function` / `#line` compile-time literals |
-| Thread label | `Thread.current.description` allocates | `__dispatch_queue_get_label` direct C call |
+| Thread label | `Thread.current.description` allocates | `"main"` via `Thread.isMainThread`, otherwise the thread's name (no description string) |
 | Concurrency model | GCD callbacks only | Native `AsyncStream` for streaming, `async` overloads for context |
 
 ## Measured costs (release build, M1 MacBook Pro, iOS 17 simulator)
@@ -35,7 +35,7 @@
 
 | Component | Resident cost |
 |---|---|
-| `EngineRegistry` (one per `LogEnvironment`) | `os_unfair_lock_s` + `ContiguousArray<LogEngine>` header (≈64 B + 8 B per engine) |
+| `EngineRegistry` (one per `LogEnvironment`) | a heap-allocated `UnfairLock` + `ContiguousArray<LogEngine>` header (≈64 B + 8 B per engine) |
 | `LogEntry` | 200 B (struct on stack), no heap unless `metadata` is non-empty |
 | `MemoryLogEngine(capacity: 1_000)` | One pre-allocated `Array<LogEntry?>` (≈200 KB) — no growth, no reallocation |
 | `LogStream` subscriber | `AsyncStream<LogEntry>` continuation only (≈48 B) |
