@@ -23,13 +23,7 @@ public func XCTAssertLogged(
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    let matches = recorder.recorded().filter { entry in
-        guard entry.level == level else { return false }
-        if let substring = substring, !entry.message.contains(substring) { return false }
-        if let tag = tag, entry.tag?.domain != tag.domain { return false }
-        return true
-    }
-    if matches.isEmpty {
+    if !recorder.contains(level, containing: substring, tag: tag) {
         let levelDescription = level.description
         let summary = "Expected log at level \(levelDescription)" +
             (substring.map { " containing \"\($0)\"" } ?? "") +
@@ -45,11 +39,7 @@ public func XCTAssertNotLogged(
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    let matches = recorder.recorded().filter { entry in
-        guard entry.level == level else { return false }
-        if let substring = substring, !entry.message.contains(substring) { return false }
-        return true
-    }
+    let matches = recorder.entries(level, containing: substring)
     if !matches.isEmpty {
         XCTFail("Expected no log at \(level.description); found: \(matches.map(\.message))", file: file, line: line)
     }
@@ -62,11 +52,5 @@ public func XCTAssertLogCount(
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    let count: Int
-    if let level = level {
-        count = recorder.recorded().filter { $0.level == level }.count
-    } else {
-        count = recorder.recorded().count
-    }
-    XCTAssertEqual(count, expected, file: file, line: line)
+    XCTAssertEqual(recorder.count(level), expected, file: file, line: line)
 }

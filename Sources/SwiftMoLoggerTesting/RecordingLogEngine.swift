@@ -32,6 +32,52 @@ public final class RecordingLogEngine: LogEngine, @unchecked Sendable {
         entries.removeAll(keepingCapacity: true)
         lock.unlock()
     }
+
+    // MARK: - Queries
+
+    /// Recorded entries matching every condition you pass (`nil` matches anything).
+    /// Tags match by domain, so `.api` matches entries tagged `.Network.api`.
+    ///
+    /// These return plain values, so they work with any test framework:
+    ///
+    /// ```swift
+    /// #expect(logs.contains(.error, containing: "declined", tag: .api))   // Swift Testing
+    /// XCTAssertEqual(logs.count(.warning), 0)                             // XCTest
+    /// ```
+    public func entries(
+        _ level: LogLevel? = nil,
+        containing substring: String? = nil,
+        tag: LogTag? = nil,
+        withMetadataKey key: String? = nil
+    ) -> [LogEntry] {
+        recorded().filter { entry in
+            if let level, entry.level != level { return false }
+            if let substring, !entry.message.contains(substring) { return false }
+            if let tag, entry.tag?.domain != tag.domain { return false }
+            if let key, entry.metadata[key] == nil { return false }
+            return true
+        }
+    }
+
+    /// Whether any recorded entry matches every condition you pass.
+    public func contains(
+        _ level: LogLevel? = nil,
+        containing substring: String? = nil,
+        tag: LogTag? = nil,
+        withMetadataKey key: String? = nil
+    ) -> Bool {
+        !entries(level, containing: substring, tag: tag, withMetadataKey: key).isEmpty
+    }
+
+    /// How many recorded entries match every condition you pass.
+    public func count(
+        _ level: LogLevel? = nil,
+        containing substring: String? = nil,
+        tag: LogTag? = nil,
+        withMetadataKey key: String? = nil
+    ) -> Int {
+        entries(level, containing: substring, tag: tag, withMetadataKey: key).count
+    }
 }
 
 public extension LogEnvironment {
@@ -44,6 +90,7 @@ public extension LogEnvironment {
     /// let service = CheckoutService(log: logging.logger)
     /// service.pay(orderID: "42")
     /// XCTAssertLogged(.info, contains: "Paying", in: logs)
+    /// #expect(logs.contains(.info, containing: "Paying"))   // or with Swift Testing
     /// ```
     static func recording() -> (environment: LogEnvironment, recorder: RecordingLogEngine) {
         let environment = LogEnvironment(registry: EngineRegistry(installDefaultSystemLogger: false))

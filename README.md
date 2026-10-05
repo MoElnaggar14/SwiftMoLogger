@@ -743,6 +743,23 @@ final class CheckoutTests: XCTestCase {
 }
 ```
 
+Using Swift Testing? The recorder's queries return plain values, so they work with `#expect`:
+
+```swift
+import Testing
+import SwiftMoLoggerTesting
+
+@Test func declinedPaymentIsLogged() async throws {
+    let (log, logs) = MoLogger.recording()
+    try await CheckoutService(log: log).purchase(invalid: true)
+
+    #expect(logs.contains(.error, containing: "declined", tag: .api))
+    #expect(logs.count(.fault) == 0)
+}
+```
+
+`entries(_:containing:tag:withMetadataKey:)`, `contains(…)` and `count(…)` take the same filters (level, substring, tag domain, metadata key).
+
 `LogEnvironment.recording()` returns a fresh environment whose only engine (besides its stream) is a `RecordingLogEngine`; `MoLogger.recording()` does the same and hands back just the logger. Inject it into the system under test, then assert on *what* it logged. Nothing global is touched, so every test is isolated and suites are safe to run in parallel.
 
 ---

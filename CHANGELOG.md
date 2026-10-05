@@ -19,6 +19,7 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - Macros take their dependency explicitly: `#log(logger, …)`, `#measure(signposter, …)`. `@AutoLog` uses the type's `logger` property.
 
 ### Added
+- **Swift Testing support.** `RecordingLogEngine` gains `entries(…)`, `contains(…)` and `count(…)` queries (filter by level, substring, tag domain and metadata key) that work with `#expect` as well as XCTest. The XCTest assertions now use them.
 - `URLRedaction` for `NetworkLogger`: URLs in log entries, breadcrumbs and network events drop `user:password@` and redact secret query values (`token`, `code`, `api_key`, `signature`, …) by default. `.withoutQuery` and `.full` are also available.
 - `LogEnvironment`: the composition root (registry, bound logger, live stream, diagnostics stores, signposter).
 - `LogContext.with(_:operation:)` and `TraceContext.run(_:)` for task-local scoping.
