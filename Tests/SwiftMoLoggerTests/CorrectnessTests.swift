@@ -227,6 +227,7 @@ final class CorrectnessTests: XCTestCase {
         }
         XCTAssertEqual(engine.droppedEntryCount, 3)
         engine.resumeWrites()
+        engine.flush() // drain the backlog first, or "after" would be over the cap too
         engine.log(LogEntry(level: .info, message: "after"))
         engine.flush()
 
