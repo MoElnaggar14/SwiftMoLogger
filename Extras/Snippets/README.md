@@ -4,11 +4,11 @@ Five snippets covering the calls you'll type most often.
 
 | Prefix | Expands to |
 |---|---|
-| `smlinfo` | `SwiftMoLogger.info(…, tag:, metadata:)` |
-| `smlerror` | `SwiftMoLogger.error(error:, tag:, metadata:)` |
-| `smlmeasure` | `LogSignpost.measure("name", tag: .performance) { … }` |
-| `smlcontext` | `SwiftMoLogger.withContext(…) { … }` |
-| `smlcrumb` | `SwiftMoLogger.breadcrumb(…, category: .userAction)` |
+| `smlinfo` | `logger.info(…, tag:, metadata:)` |
+| `smlerror` | `logger.error(<#error#>, tag:, metadata:)` |
+| `smlmeasure` | `signposter.measure("name", tag: .performance) { … }` |
+| `smlcontext` | `LogContext.with(…) { … }` |
+| `smlcrumb` | `breadcrumbs.record(…, category: .userAction)` |
 
 ## Install
 
