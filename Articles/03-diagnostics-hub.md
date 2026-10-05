@@ -20,7 +20,7 @@ That's it. The same kind of data Instruments shows you, in a SwiftUI view you ca
 
 The Hub has one rule: **never own the data**. In 4.0 there are no `.shared` stores. One `LogEnvironment`, created at your composition root, owns the registry, the logger and the four diagnostics stores. The Hub only reads them.
 
-I think of it like a building's security system. The stores are cameras recording onto loop tapes. The producers are whatever walks past the cameras. The Hub is the monitor room: it doesn't record anything, it just shows you the tapes.
+Think of a building's security system. The stores are cameras recording onto loop tapes. The Hub is the monitor room: it records nothing, it just plays the tapes.
 
 ```
 environment.networkEvents  ← NetworkLogger (a URLSessionTaskDelegate you inject)
@@ -30,7 +30,7 @@ environment.breadcrumbs    ← breadcrumbs.record(…), plus NetworkLogger
 MemoryLogEngine            ← registered by HubViewModel for the Logs tab
 ```
 
-Here is the whole wiring:
+The whole wiring:
 
 ```swift
 import SwiftMoLogger
@@ -39,53 +39,35 @@ import SwiftMoLoggerDiagnostics
 
 let logging = LogEnvironment()
 
-// Network waterfall: hand the logger to the sessions you create.
+// Network waterfall
 let network = NetworkLogger(environment: logging)
 let session = URLSession(configuration: .default, delegate: network, delegateQueue: nil)
 
-// Flame graph: every measured span lands in logging.signposts.
+// Flame graph
 let signposter = logging.signposter
 let users = try signposter.measure("loadUsers") { try userRepository.all() }
 
-// Vitals charts: keep a strong reference, or sampling stops.
+// Vitals charts (keep a strong reference, or sampling stops)
 let vitals = AppVitalsMonitor(logger: logging.logger, history: logging.vitals)
 vitals.start(interval: 1)
 
-// Breadcrumbs trail.
+// Breadcrumbs
 logging.breadcrumbs.record("tapped Checkout", category: .userAction)
 ```
 
-The one rule that matters with injection: **feed and read from the same environment**. A `NetworkLogger` built from a different `LogEnvironment` writes to a different store, and the waterfall stays empty.
+The rule that matters with injection: **feed and read from the same environment**. A `NetworkLogger` built from another `LogEnvironment` writes to another store, and the waterfall stays empty.
 
 ### Loop tapes, not archives
 
-Each store is a fixed-capacity ring buffer behind a heap-allocated `UnfairLock`. When it's full, the oldest item is overwritten, just like a loop tape. The defaults are 500 network events, 500 signpost spans, 600 vitals ticks and 100 breadcrumbs, and each store takes `capacity:` if you want more. `record(_:)` is O(1), and `snapshot()` returns a plain value-typed `Array`. Nothing mutable escapes the lock.
+Each store is a fixed-capacity ring buffer behind an `UnfairLock`. When it's full, the oldest item is overwritten, like a loop tape. Defaults: 500 network events, 500 signpost spans, 600 vitals ticks, 100 breadcrumbs; each store's `init(capacity:)` changes that. `record(_:)` is O(1), and `snapshot()` returns a value-typed `Array`. Nothing mutable escapes the lock.
 
 ### The view model
 
-`HubViewModel` (`@MainActor`, `ObservableObject`) polls every 500 ms by default. Each tick it takes a snapshot of every store and publishes them. It only polls while the Hub is on screen: the view calls `start()` on appear and `stop()` on disappear. The tick is the throttle. A burst of logs never turns into a burst of SwiftUI updates.
+`HubViewModel` (`@MainActor`, `ObservableObject`) polls every 500 ms by default, snapshots every store and publishes the results. It polls only while the Hub is on screen (`start()` on appear, `stop()` on disappear). The tick is the throttle: a burst of logs never becomes a burst of SwiftUI updates.
 
-The Logs tab is the exception to "never own the data". The view model registers its own `MemoryLogEngine` (2,000 entries by default) with `environment.registry` when it's created, and removes it again in `deinit`. In 3.x, every Hub you opened and closed left its engine behind, still receiving every log line. Now each Hub cleans up after itself.
+The Logs tab is the exception to "never own the data". The view model registers its own `MemoryLogEngine` (2,000 entries by default) with `environment.registry`, and removes it in `deinit`. Older versions left that engine behind every time a Hub closed, still receiving every log line.
 
-One consequence: the Logs tab starts empty when the model is created. If you want history from app launch, own the model yourself and keep it alive:
-
-```swift
-@main
-struct ShopApp: App {
-    private let logging: LogEnvironment
-    @StateObject private var hub: HubViewModel
-
-    init() {
-        let logging = LogEnvironment()
-        self.logging = logging
-        _hub = StateObject(wrappedValue: HubViewModel(environment: logging))
-    }
-
-    var body: some Scene {
-        WindowGroup { DiagnosticsHubView(model: hub) }
-    }
-}
-```
+One consequence: the Logs tab only holds entries logged after the model was created. For history from launch, create a `HubViewModel(environment:)` early, keep it alive, and show it with `DiagnosticsHubView(model:)`.
 
 ## The unifying abstraction: `scrubbedTime`
 
@@ -97,15 +79,15 @@ public func inWindow(_ timestamp: Date) -> Bool {
 }
 ```
 
-`windowEnd` is `scrubbedTime ?? Date()`, so `nil` means live tail. The window is 60 seconds wide by default. When you drag the slider in `TimelineScrubberView` (it reaches back 10 minutes), `scrubbedTime` becomes a fixed instant. Every sub-view then shows you that moment: the requests in flight, the spans that were running, the memory level at the time. A "Live" button snaps back.
+`windowEnd` is `scrubbedTime ?? Date()`, so `nil` means live tail, over a 60-second window by default. Drag the slider in `TimelineScrubberView` (it reaches back 10 minutes) and `scrubbedTime` becomes a fixed instant. Every sub-view now shows that moment: requests in flight, spans running, memory at the time. "Live" snaps back.
 
-This is the **time-travel** part, or in the analogy, rewinding every tape at once. It's not a complicated abstraction. It's one `Date` shared by five views. But "what was happening right before the crash?" becomes "drag the slider to the crash entry and look around."
+This is the **time-travel** part: rewinding every tape at once. It's one `Date` shared by five views, but "what was happening right before the crash?" becomes "drag the slider to the crash entry and look around."
 
 ## The five tabs
 
 ### Logs
 
-A `LazyVStack` of `LogEntryRowView`s from the Hub's memory engine, filtered by `inWindow`. The scrubber above it draws a density bar from the same entries, one column per second. If you only want a plain console, `LogConsoleView(stream: logging.stream)` is the lighter option.
+A `LazyVStack` of `LogEntryRowView`s from the Hub's memory engine, filtered by `inWindow`. The scrubber draws a per-second density bar from the same entries. For just a console, use `LogConsoleView(stream: logging.stream)`.
 
 ### Network waterfall
 
@@ -117,13 +99,13 @@ POST checkout     ████████░░  423ms  [201]
 GET products      ███████████ 891ms  [500]
 ```
 
-The bar's offset encodes start time inside the window, and its width encodes duration. Colour follows the status family: green for 2xx, yellow for 3xx, orange for 4xx, red for 5xx or any transport error. Tap a row for a sheet with method, URL, status, request and response sizes, duration, error and timestamps.
+Offset encodes start time within the window; width encodes duration. Colour follows status: green 2xx, yellow 3xx, orange 4xx, red for 5xx or a transport error. Tap a row for method, URL, status, sizes, duration, error and timestamps.
 
-The data comes from `NetworkLogger`. It reports each task's outcome from `urlSession(_:task:didFinishCollecting:)`, which also fires for tasks made with the async and completion-handler APIs. So it works on a session you own, or per request on any session: `URLSession.shared.data(for: request, delegate: network)`. It only observes. URLs are redacted before they reach the store (`NetworkLogger(environment:urlRedaction:)` lets you pick `.withoutQuery` or `.full`).
+The data comes from `NetworkLogger`, which records each task when `urlSession(_:task:didFinishCollecting:)` fires, including tasks made with the async APIs. Use it on a session you own, or per request: `URLSession.shared.data(for: request, delegate: network)`. It only observes, and redacts URLs before they reach the store (`NetworkLogger(environment:urlRedaction:)` also accepts `.withoutQuery` or `.full`).
 
 ### Signpost flame graph
 
-Spans are laid out by greedy lane assignment. Walk the spans sorted by start time, and put each one in the lowest lane whose current occupant has already ended. Concurrent spans stack vertically, and sequential spans share a lane.
+Greedy lane assignment: walk spans by start time and put each in the lowest lane whose occupant has already ended. Concurrent spans stack; sequential spans share a lane.
 
 ```swift
 private func laneAssignments(for events: [SignpostEvent]) -> [UUID: Int] {
@@ -148,7 +130,7 @@ private func laneAssignments(for events: [SignpostEvent]) -> [UUID: Int] {
 }
 ```
 
-Colour encodes duration: blue up to 50 ms, orange up to 250 ms, red above that. The spans come from `Signposter`, the same call that emits `os_signpost` intervals for Instruments. `environment.signposter` is built with the environment's logger and signpost store, so one `measure` gives you an Instruments interval, a timing log entry and a flame-graph bar.
+Colour encodes duration: blue up to 50 ms, orange up to 250 ms, red above. The spans come from `environment.signposter`, a `Signposter` wired to the environment's logger and signpost store. One `measure` gives you an Instruments interval, a timing log entry and a flame-graph bar.
 
 ### Vitals charts
 
@@ -160,23 +142,21 @@ Chart(ticks) { tick in
 }
 ```
 
-Where Charts isn't available, a summary card shows the latest memory, CPU, FPS, thermal state and battery. Either way, the data is `environment.vitals.snapshot()`, an array of `VitalsTick`, fed by `AppVitalsMonitor(logger:history:)` and `start(interval:)`.
+Where Charts is unavailable, a summary card shows the latest values. The data is `environment.vitals.snapshot()`, fed by `AppVitalsMonitor(logger:history:)` once you call `start(interval:)`.
 
-The monitor had two quiet bugs in earlier versions, both fixed in 4.0. Its `CADisplayLink` retained the monitor, so it lived until you called `stop()`. Now a small proxy holds it weakly. And on ProMotion screens it kept the display at 120 Hz just to count frames. The link is now capped at 60 Hz, so FPS is measured against 60. It also restores the app's battery-monitoring setting after each read.
+Two quiet monitor bugs are fixed in 4.0. Its `CADisplayLink` retained the monitor, keeping it alive until `stop()`; a proxy now holds it weakly. And on ProMotion it held the screen at 120 Hz just to count frames; the link is now capped at 60 Hz, so FPS is measured against 60.
 
 ### Breadcrumbs trail
 
-A vertical timeline of `Breadcrumb`s, with a coloured dot per category and a line between them. It's synced to the same window as everything else. This is the "what was the user doing before this happened" view. `NetworkLogger` adds a breadcrumb per request and response, so the trail and the waterfall line up.
+A vertical timeline of `Breadcrumb`s, a coloured dot per category, synced to the same window. This is the "what was the user doing before this happened" view. `NetworkLogger` adds a crumb per request and response, so trail and waterfall line up.
 
-### Beyond iOS
-
-The Hub and the vitals monitor build for tvOS and watchOS too, and degrade where a control or measurement doesn't exist. On tvOS, which has no `Slider`, the scrubber becomes step buttons. FPS is only measured on iOS and tvOS, and battery only on iOS.
+The Hub also builds for tvOS and watchOS and degrades gracefully: tvOS has no `Slider`, so the scrubber uses step buttons, and FPS is only measured on iOS and tvOS.
 
 ## Why one view, not a separate Mac app
 
-A separate desktop tool (Charles, Pulse, Bagel) is genuinely useful, but it has a cost. Every QA engineer needs to install it, configure proxies, trust certificates and run a Mac. The on-device Hub skips all of that. Anybody who can install your TestFlight build can open the debug tab and see what happened.
+A desktop tool (Charles, Pulse, Bagel) is genuinely useful, but every QA engineer needs to install it, configure proxies, trust certificates and run a Mac. The on-device Hub skips all of that. Anybody who can install your TestFlight build can open the debug tab.
 
-The `swiftmologger-inspector` CLI complements the Hub. It discovers devices running a `LiveSink` over Bonjour and tails their logs on your Mac, which is great when you do have a real screen nearby. But it's not the *primary* surface. The Hub is.
+The `swiftmologger-inspector` CLI complements it, tailing logs from devices running a `LiveSink` over Bonjour. But it's not the *primary* surface. The Hub is.
 
 ## What I'd add next
 
@@ -184,6 +164,6 @@ The `swiftmologger-inspector` CLI complements the Hub. It discovers devices runn
 - **Export as `.trace`.** Hand off to real Instruments for deep dives.
 - **Replay from a `FlightRecorder` file.** Crash recovered? Load the recorded session into the Hub and scrub through what happened.
 
-The third one is closer than it looks. Because the stores are injected, a recovered session could be poured into a fresh `LogEnvironment` and handed to the Hub. The Flight Recorder itself is covered in [the production playbook](05-production-playbook.md); next up is [zero-config debugging with Bonjour and Swift Macros](04-bonjour-and-macros.md).
+The third is closer than it looks: since stores are injected, a recovered session could be poured into a fresh `LogEnvironment` and handed to the Hub. The Flight Recorder is covered in [the production playbook](05-production-playbook.md); next up is [Bonjour and Swift Macros](04-bonjour-and-macros.md).
 
 → See [`Sources/SwiftMoLoggerUI/Hub/`](../Sources/SwiftMoLoggerUI/Hub) for the implementation, the [README](../README.md) for setup, and [MIGRATION.md](../MIGRATION.md) if you're coming from 3.x.
