@@ -4,7 +4,7 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.0.0] — Unreleased
+## [4.0.0] — 2026-10-05
 
 Dependency injection everywhere: SwiftMoLogger no longer has any singletons or
 global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
