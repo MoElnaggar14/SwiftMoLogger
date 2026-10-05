@@ -33,9 +33,6 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
     private let breadcrumbs: BreadcrumbStore?
     private let sensitiveHeaders: Set<String>
 
-    private let lock = UnfairLock()
-    private var metricsByTask: [Int: URLSessionTaskMetrics] = [:]
-
     /// - Parameters:
     ///   - logger: Receives request and response entries. Untagged entries get `.api`.
     ///   - events: Records each task for the Diagnostics Hub. `nil` to skip.
@@ -71,24 +68,25 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
         breadcrumbs?.record("→ \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "?")", category: .network)
     }
 
+    /// Logs the outcome. URLSession delivers metrics for every task, including
+    /// those created with the async and completion-handler APIs, which never
+    /// reach the session delegate's `didCompleteWithError`. By the time
+    /// metrics arrive the task has finished, so its response and error are final.
     public func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
         didFinishCollecting metrics: URLSessionTaskMetrics
     ) {
-        lock.withLock { metricsByTask[task.taskIdentifier] = metrics }
-    }
-
-    public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
-        let metrics = lock.withLock { metricsByTask.removeValue(forKey: task.taskIdentifier) }
+        let error = task.error
         let request = task.originalRequest
         let url = task.response?.url ?? request?.url ?? URL(fileURLWithPath: "/")
         let method = request?.httpMethod ?? "GET"
-        let interval = metrics?.taskInterval
-        let durationMS = (interval?.duration ?? 0) * 1_000
-        let transaction = metrics?.transactionMetrics.last
+        let interval = metrics.taskInterval
+        let durationMS = interval.duration * 1_000
+        let transaction = metrics.transactionMetrics.last
         let responseBytes = transaction?.countOfResponseBodyBytesReceived ?? task.countOfBytesReceived
         let requestBytes = transaction?.countOfRequestBodyBytesSent ?? task.countOfBytesSent
+        let status = (task.response as? HTTPURLResponse)?.statusCode ?? 0
 
         if let error {
             logger.error("HTTP failure", metadata: [
@@ -99,7 +97,6 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
             ])
             breadcrumbs?.record("✗ \(url.host ?? "?"): \(error.localizedDescription)", category: .network)
         } else {
-            let status = (task.response as? HTTPURLResponse)?.statusCode ?? 0
             let level: LogLevel = status >= 500 ? .error : (status >= 400 ? .warning : .info)
             logger.log(level, "HTTP response", metadata: [
                 "http.method": .string(method),
@@ -112,11 +109,11 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
         }
 
         events?.record(NetworkEvent(
-            startedAt: interval?.start ?? Date(),
-            endedAt: interval?.end ?? Date(),
+            startedAt: interval.start,
+            endedAt: interval.end,
             method: method,
             url: url,
-            statusCode: (task.response as? HTTPURLResponse)?.statusCode ?? 0,
+            statusCode: status,
             responseBytes: responseBytes,
             requestBytes: requestBytes,
             errorDescription: error.map { String(describing: $0) }
