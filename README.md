@@ -271,6 +271,8 @@ SwiftMoLogger Inspector — discovering _swiftmologger._tcp on local network…
 
 Each line shows timestamp (UTC), level, device, tag, thread and message. Metadata isn't printed, so keep the key fact in the message. Multiple devices, one terminal, no Xcode needed.
 
+**Ask your AI agent.** [`swiftmologger-mcp`](Tools/swiftmologger-mcp) is an MCP server that gives Claude Code, Codex or Cursor the same live tail, with tools to search, read an entry in context, list failed HTTP requests and wait for the next error while you reproduce a bug. Entries are redacted before the agent sees them.
+
 ### 3. Swift Macros — zero-boilerplate call sites
 
 ```swift
