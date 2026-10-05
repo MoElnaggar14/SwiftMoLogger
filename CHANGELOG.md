@@ -27,6 +27,7 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - `FlightRecorder(defaults:)` / `recoverLastSession(from:defaults:)`, so tests and app groups can supply their own `UserDefaults`.
 
 ### Fixed (found in review of the 4.0 changes)
+- **The Articles linked from the README use the 3.x API.** Each one (and the README section) now says so and points to MIGRATION.md.
 - **Network failures logged the full failing URL.** The error description was `String(describing:)` of the `URLError`, whose userInfo holds the unredacted URL.
 - **Requests weren't logged on the per-task delegate path.** With `session.data(for:delegate:)`, the request was never logged; it's now logged together with the outcome.
 - **`FlightRecorder(redactor:)` only redacted entries.** It now also redacts breadcrumbs and network-event errors, and drops URL query strings.
@@ -47,6 +48,10 @@ A correctness release. No breaking API changes; see "Behaviour changes".
 - **`SwiftMoLoggerSwiftLog`** product: `SwiftMoLogHandler` routes swift-log `Logger` calls (SwiftNIO, AsyncHTTPClient, gRPC, AWS SDK, …) into SwiftMoLogger engines, with label tags, structured metadata and metadata providers.
 
 ### Fixed
+- **Diagnostics had no privacy manifest.** `BugReporter` reads free disk space, a required-reason API. `SwiftMoLoggerDiagnostics` now ships a `PrivacyInfo.xcprivacy` declaring DiskSpace (7D9E.1).
+- **The Flight Recorder rewrote its file every 2 seconds, even when idle** (up to hundreds of MB per hour, enough for iOS disk-write warnings). It now skips the write when nothing new was recorded, flushes every 5 seconds by default, and flushes when the app goes to the background.
+- **Every swipe-away looked like a crash.** iOS terminates suspended apps without warning, so the recorder now marks the session clean on entering the background and running again on returning.
+- README: live tail needs `NSLocalNetworkUsageDescription` and `NSBonjourServices` (now documented); redaction is opt-in (the README said every line was scrubbed); the privacy section no longer claims remote shipping needs no disclosure.
 - **Hub leaked memory engines.** Each `HubViewModel` left its memory engine registered after it went away; it now removes it.
 - **Recorders could mark each other's sessions as clean.** Each `FlightRecorder` now keeps its own "session alive" flag (keyed by file), and a released recorder unregisters its engine.
 - **Two `FileLogEngine`s on one file could interleave bytes.** Files are now opened in append mode.
@@ -83,6 +88,7 @@ A correctness release. No breaking API changes; see "Behaviour changes".
 - CI: rebuilt on the latest Xcode. It builds every library for iOS, Mac Catalyst, tvOS and watchOS, tests against the newest swift-syntax, and builds DocC. The always-failing manifest grep and the masked iOS test step are gone.
 
 ### Behaviour changes
+- `FlightRecorder` flushes every 5 s by default (was 2 s) and only when something changed. Pass `flushInterval:` to change it.
 - `MemoryLogEngine().engineID` and `RecordingLogEngine().engineID` are no longer constants. If you removed one with `removeEngine(id: "swiftmologger.memory")`, use `removeEngine(id: engine.engineID)` or construct it with `MemoryLogEngine(id:)`.
 
 ## [3.0.0] — 2026-05-11

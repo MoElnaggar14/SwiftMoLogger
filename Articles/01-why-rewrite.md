@@ -1,5 +1,7 @@
 # Why I rewrote iOS logging from scratch
 
+> **Written for 3.x.** The articles explain the design, and their code uses the 3.x API (`SwiftMoLogger.info`, `.shared` stores, `LogSignpost`). For 4.0 code, inject a `LogEnvironment` as shown in the [README](../README.md) and see [MIGRATION.md](../MIGRATION.md) for the mapping.
+
 > The third logger I shipped this year started, like the others, with a single `print("starting…")`. I'm telling on myself.
 
 There's a peculiar gravity around logging in iOS apps. Every team starts the same way: `print`, then `os.Logger`, then someone reads a blog post and we add SwiftyBeaver, then six months later we add CocoaLumberjack because Beaver doesn't ship to Sentry, then someone wires up a `URLProtocol` to capture network traffic, then we wrap `XCTestObservation` so tests can assert on logs… and we end up with five overlapping abstractions, none of which we own.

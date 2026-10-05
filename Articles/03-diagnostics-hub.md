@@ -1,5 +1,7 @@
 # Instruments in your app: building Diagnostics Hub
 
+> **Written for 3.x.** The articles explain the design, and their code uses the 3.x API (`SwiftMoLogger.info`, `.shared` stores, `LogSignpost`). For 4.0 code, inject a `LogEnvironment` as shown in the [README](../README.md) and see [MIGRATION.md](../MIGRATION.md) for the mapping.
+
 > The bug only repros on TestFlight, on a colleague's iPad, with airplane mode toggled at the wrong moment. You can't attach Xcode. You can't run Instruments. You have a screenshot and a feeling.
 
 This is the situation that motivated `DiagnosticsHubView`. The thesis: if every signal an iOS engineer cares about — logs, network requests, signpost spans, CPU/memory/FPS, breadcrumbs — is already a `Sendable` value in the app's memory, why does looking at them require a Mac?

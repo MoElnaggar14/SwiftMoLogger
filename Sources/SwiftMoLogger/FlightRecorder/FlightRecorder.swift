@@ -9,8 +9,14 @@ import Foundation
 /// answering "what was happening in the seconds before the app died?".
 ///
 /// Cost is bounded: the recorder writes at most every `flushInterval`
-/// seconds, encoding the current ring-buffer contents in a single
-/// `JSONEncoder` pass on a background queue.
+/// seconds, and only when something new was recorded, encoding the current
+/// ring-buffer contents in a single `JSONEncoder` pass on a background queue.
+///
+/// On iOS, tvOS and visionOS it also flushes and marks the session clean when
+/// the app moves to the background, and marks it running again on return. An
+/// app the user swipes away (or the system evicts) while suspended therefore
+/// isn't reported as a crash; a crash while running in the background isn't
+/// either.
 ///
 /// ```swift
 /// // In didFinishLaunching:
@@ -48,9 +54,21 @@ public final class FlightRecorder: @unchecked Sendable {
     private let redactor: Redactor?
     private let aliveKey: String
     private let queue: DispatchQueue
-    // `timer` and `recovered` are only touched on `queue`.
+    // `timer`, `recovered`, `lastFlushed` and `lifecycleObservers` are only touched on `queue`.
     private var timer: DispatchSourceTimer?
     private var recovered: Session?
+    private var lastFlushed: Fingerprint?
+    private var lifecycleObservers: [any NSObjectProtocol] = []
+
+    /// The newest item of each source at the last write. An unchanged snapshot
+    /// isn't rewritten.
+    private struct Fingerprint: Equatable {
+        var entry: UUID?
+        var breadcrumb: UUID?
+        var networkEvent: UUID?
+        var signpostEvent: UUID?
+        var vitals: UUID?
+    }
 
     /// - Parameters:
     ///   - environment: The registry to record from and the stores to snapshot.
@@ -62,7 +80,7 @@ public final class FlightRecorder: @unchecked Sendable {
         environment: LogEnvironment,
         fileURL: URL? = nil,
         window: TimeInterval = 120,
-        flushInterval: TimeInterval = 2,
+        flushInterval: TimeInterval = 5,
         capacity: Int = 1_000,
         defaults: UserDefaults = .standard,
         redactor: Redactor? = nil
@@ -100,11 +118,17 @@ public final class FlightRecorder: @unchecked Sendable {
             // MemoryLogEngine in the registry.
             environment.registry.addEngine(recordingEngine)
             markSessionAlive(true)
+            lastFlushed = nil
             let timer = DispatchSource.makeTimerSource(queue: queue)
-            timer.schedule(deadline: .now() + flushInterval, repeating: flushInterval)
-            timer.setEventHandler { [weak self] in self?.flushSync() }
+            timer.schedule(
+                deadline: .now() + flushInterval,
+                repeating: flushInterval,
+                leeway: .milliseconds(Int(flushInterval * 100))
+            )
+            timer.setEventHandler { [weak self] in self?.flushSync(force: false) }
             timer.resume()
             self.timer = timer
+            observeLifecycle()
         }
     }
 
@@ -115,15 +139,24 @@ public final class FlightRecorder: @unchecked Sendable {
             guard let timer else { return }
             timer.cancel()
             self.timer = nil
+            stopObservingLifecycle()
             environment.registry.removeEngine(id: recordingEngine.engineID)
             markSessionAlive(false)
+            lastFlushed = nil
             try? FileManager.default.removeItem(at: fileURL)
         }
     }
 
     /// Flush the current ring buffer to disk immediately.
     public func flush() {
-        queue.sync { flushSync() }
+        queue.sync { _ = flushSync(force: true) }
+    }
+
+    /// What the timer does: writes only if something was recorded since the
+    /// last write. Returns whether it wrote.
+    @discardableResult
+    func flushIfChanged() -> Bool {
+        queue.sync { flushSync(force: false) }
     }
 
     // MARK: - Recovery
@@ -165,7 +198,53 @@ public final class FlightRecorder: @unchecked Sendable {
 
     deinit {
         // A recorder released without stop() shouldn't leave its engine behind.
+        lifecycleObservers.forEach { NotificationCenter.default.removeObserver($0) }
         environment.registry.removeEngine(id: recordingEngine.engineID)
+    }
+
+    // MARK: - App lifecycle
+
+    // The UIApplication notification names, spelled out: UIKit's constants are
+    // main-actor isolated and this runs on `queue`. The values are stable API.
+    private static let didEnterBackground = Notification.Name("UIApplicationDidEnterBackgroundNotification")
+    private static let willEnterForeground = Notification.Name("UIApplicationWillEnterForegroundNotification")
+
+    // Called on `queue`.
+    private func observeLifecycle() {
+        #if os(iOS) || os(tvOS) || os(visionOS)
+        guard lifecycleObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        let background = center.addObserver(
+            forName: Self.didEnterBackground, object: nil, queue: nil
+        ) { [weak self] _ in self?.appDidEnterBackground() }
+        let foreground = center.addObserver(
+            forName: Self.willEnterForeground, object: nil, queue: nil
+        ) { [weak self] _ in self?.appWillEnterForeground() }
+        lifecycleObservers = [background, foreground]
+        #endif
+    }
+
+    // Called on `queue`.
+    private func stopObservingLifecycle() {
+        lifecycleObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        lifecycleObservers.removeAll()
+    }
+
+    /// Suspended apps can be terminated without warning, which isn't a crash:
+    /// write the latest snapshot and mark the session clean.
+    private func appDidEnterBackground() {
+        queue.sync {
+            guard timer != nil else { return }
+            _ = flushSync(force: true)
+            markSessionAlive(false)
+        }
+    }
+
+    private func appWillEnterForeground() {
+        queue.sync {
+            guard timer != nil else { return }
+            markSessionAlive(true)
+        }
     }
 
     private func redacted(_ crumb: Breadcrumb) -> Breadcrumb {
@@ -202,19 +281,32 @@ public final class FlightRecorder: @unchecked Sendable {
         return components.url ?? url
     }
 
-    private func flushSync() {
+    @discardableResult
+    private func flushSync(force: Bool) -> Bool {
         let cutoff = Date().addingTimeInterval(-window)
         let allEntries = memory.snapshot()
-        let entries = allEntries.filter { $0.timestamp >= cutoff }
+        let breadcrumbs = environment.breadcrumbs.snapshot()
+        let networkEvents = environment.networkEvents.snapshot()
+        let signpostEvents = environment.signposts.snapshot()
+        let vitals = environment.vitals.snapshot()
+        let fingerprint = Fingerprint(
+            entry: allEntries.last?.id,
+            breadcrumb: breadcrumbs.last?.id,
+            networkEvent: networkEvents.last?.id,
+            signpostEvent: signpostEvents.last?.id,
+            vitals: vitals.last?.id
+        )
+        // Nothing new since the last write: skip the encode and the disk write.
+        guard force || fingerprint != lastFlushed else { return false }
         let session = Session(
             recordedAt: Date(),
             appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?",
             osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
-            entries: entries,
-            breadcrumbs: environment.breadcrumbs.snapshot().map(redacted),
-            networkEvents: environment.networkEvents.snapshot().filter { $0.startedAt >= cutoff }.map(redacted),
-            signpostEvents: environment.signposts.snapshot().filter { $0.startedAt >= cutoff },
-            vitals: environment.vitals.snapshot().filter { $0.timestamp >= cutoff }
+            entries: allEntries.filter { $0.timestamp >= cutoff },
+            breadcrumbs: breadcrumbs.map(redacted),
+            networkEvents: networkEvents.filter { $0.startedAt >= cutoff }.map(redacted),
+            signpostEvents: signpostEvents.filter { $0.startedAt >= cutoff },
+            vitals: vitals.filter { $0.timestamp >= cutoff }
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
@@ -226,8 +318,11 @@ public final class FlightRecorder: @unchecked Sendable {
                 withIntermediateDirectories: true
             )
             try data.write(to: fileURL, options: .atomic)
+            lastFlushed = fingerprint
+            return true
         } catch {
             NSLog("FlightRecorder flush failed: %@", String(describing: error))
+            return false
         }
     }
 }

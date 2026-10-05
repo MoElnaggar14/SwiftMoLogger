@@ -1,5 +1,7 @@
 # Zero-config debugging with Bonjour and Swift Macros
 
+> **Written for 3.x.** The articles explain the design, and their code uses the 3.x API (`SwiftMoLogger.info`, `.shared` stores, `LogSignpost`). For 4.0 code, inject a `LogEnvironment` as shown in the [README](../README.md) and see [MIGRATION.md](../MIGRATION.md) for the mapping.
+
 > Half of what a senior iOS engineer spends their day on is *not* writing iOS code. It's reading logs, ten devices at a time, on a flaky office Wi-Fi, while someone keeps unplugging the cable.
 
 This article is about the two parts of v3 that exist to make that day shorter: a Bonjour-advertised live tail, and a small set of Swift Macros that make the call sites painless.

@@ -1,5 +1,7 @@
 # SwiftMoLogger — Article Series
 
+> **Written for 3.x.** The articles explain the design, and their code uses the 3.x API (`SwiftMoLogger.info`, `.shared` stores, `LogSignpost`). For 4.0 code, inject a `LogEnvironment` as shown in the [README](../README.md) and see [MIGRATION.md](../MIGRATION.md) for the mapping.
+
 A focused 5-part series on what shipped in v3 and why each piece exists.
 
 | # | Title | What you'll learn |

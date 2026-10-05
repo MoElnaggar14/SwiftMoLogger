@@ -193,6 +193,25 @@ final class CorrectnessTests: LoggingTestCase {
         crashed.stop()
     }
 
+    func testFlightRecorderOnlyRewritesWhenSomethingChanged() {
+        let url = temporaryURL("flight-idle.json")
+        let recorder = FlightRecorder(
+            environment: environment,
+            fileURL: url,
+            flushInterval: 60,
+            defaults: isolatedDefaults()
+        )
+        recorder.start()
+        defer { recorder.stop() }
+
+        log.error("first")
+        XCTAssertTrue(recorder.flushIfChanged())
+        XCTAssertFalse(recorder.flushIfChanged(), "an unchanged snapshot was rewritten")
+
+        log.error("second")
+        XCTAssertTrue(recorder.flushIfChanged())
+    }
+
     func testFlightRecorderCanRedactBeforePersisting() throws {
         let url = temporaryURL("flight-redacted.json")
         let recorder = FlightRecorder(

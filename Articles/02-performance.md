@@ -1,5 +1,7 @@
 # Sub-µs logging: the performance design
 
+> **Written for 3.x.** The articles explain the design, and their code uses the 3.x API (`SwiftMoLogger.info`, `.shared` stores, `LogSignpost`). For 4.0 code, inject a `LogEnvironment` as shown in the [README](../README.md) and see [MIGRATION.md](../MIGRATION.md) for the mapping.
+
 > "Logging is fine, it doesn't show up in profiles." — every team, ten seconds before logging shows up in profiles.
 
 The first version of SwiftMoLogger v2 used a concurrent `DispatchQueue` with barrier writes to protect its engine list. The second version inlined a copy of the engine array into every log call. Both worked. Neither was fast enough to log in a tight Metal render loop without showing up on a trace.

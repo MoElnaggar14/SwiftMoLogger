@@ -1,5 +1,7 @@
 # The production playbook: tracing, redaction, flight recorder
 
+> **Written for 3.x.** The articles explain the design, and their code uses the 3.x API (`SwiftMoLogger.info`, `.shared` stores, `LogSignpost`). For 4.0 code, inject a `LogEnvironment` as shown in the [README](../README.md) and see [MIGRATION.md](../MIGRATION.md) for the mapping.
+
 > Every iOS engineer has a war story about the day the App Store reviewer found a password in a debug log. Or a JWT in Sentry. Or a credit card in a crash report. The features in this article exist because those days are bad.
 
 This is the article on the v3 features that pay for themselves on the call you don't want to take at 3 AM: **W3C distributed tracing**, **automatic PII redaction**, and the **flight recorder**.
