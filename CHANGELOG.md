@@ -14,6 +14,7 @@ A correctness release. No breaking API changes; see "Behaviour changes".
 - **`SwiftMoLoggerSwiftLog`** product: `SwiftMoLogHandler` routes swift-log `Logger` calls (SwiftNIO, AsyncHTTPClient, gRPC, AWS SDK, …) into SwiftMoLogger engines, with label tags, structured metadata and metadata providers.
 
 ### Fixed
+- **Engines replaced each other by default.** A custom engine's default `engineID` was its type name, and each remote shipper had a fixed ID, so adding a second engine of the same type (or a second shipper to a different endpoint) silently removed the first. Custom engines now default to one ID per instance; shippers are keyed by endpoint (host and path, never credentials), so a second shipper to the *same* endpoint still replaces the first instead of sending everything twice.
 - **The default phone rule redacted parts of trace IDs.** It matched digit runs inside hex strings, so about one in eight W3C trace IDs lost a chunk to `[PHONE]` in any redacted sink. It now only matches numbers that aren't part of a longer alphanumeric run.
 - **Diagnostics had no privacy manifest.** `BugReporter` reads free disk space, a required-reason API. `SwiftMoLoggerDiagnostics` now ships a `PrivacyInfo.xcprivacy` declaring DiskSpace (7D9E.1).
 - **The Flight Recorder rewrote its file every 2 seconds, even when idle** (up to hundreds of MB per hour, enough for iOS disk-write warnings). It now skips the write when nothing new was recorded, flushes every 5 seconds by default, and flushes when the app goes to the background.
@@ -55,6 +56,7 @@ A correctness release. No breaking API changes; see "Behaviour changes".
 - CI: rebuilt on the latest Xcode. It builds every library for iOS, Mac Catalyst, tvOS and watchOS, tests against the newest swift-syntax, and builds DocC. The always-failing manifest grep and the masked iOS test step are gone.
 
 ### Behaviour changes
+- A custom engine that doesn't override `engineID` no longer replaces another instance of its type. Return a fixed `engineID` if you relied on that. Remote shipper IDs now include their endpoint.
 - `FlightRecorder` flushes every 5 s by default (was 2 s) and only when something changed. Pass `flushInterval:` to change it.
 - `MemoryLogEngine().engineID` and `RecordingLogEngine().engineID` are no longer constants. If you removed one with `removeEngine(id: "swiftmologger.memory")`, use `removeEngine(id: engine.engineID)` or construct it with `MemoryLogEngine(id:)`.
 

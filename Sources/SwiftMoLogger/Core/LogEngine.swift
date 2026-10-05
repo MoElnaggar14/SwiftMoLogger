@@ -25,9 +25,11 @@ public protocol LogEngine: AnyObject, Sendable {
     /// ``log(_:)``.
     func error(message: String)
 
-    /// Stable identifier for the engine instance. Used by the registry to
-    /// remove engines by identity rather than by index. Defaults to the
-    /// runtime type name.
+    /// Stable identifier for the engine instance. The registry uses it to
+    /// remove engines by identity, and adding an engine replaces any engine
+    /// with the same ID. Defaults to one ID per instance, so two engines of
+    /// the same type both stay registered; return a fixed ID to opt into
+    /// replace-by-ID.
     var engineID: String { get }
 
     /// Lowest level this engine accepts. Entries below the threshold are
@@ -37,7 +39,9 @@ public protocol LogEngine: AnyObject, Sendable {
 }
 
 public extension LogEngine {
-    var engineID: String { String(describing: type(of: self)) }
+    var engineID: String {
+        "\(String(describing: type(of: self)))#\(UInt(bitPattern: ObjectIdentifier(self).hashValue))"
+    }
     var minimumLevel: LogLevel { .trace }
 
     func info(message: String) {

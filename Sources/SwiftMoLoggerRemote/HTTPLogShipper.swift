@@ -54,19 +54,28 @@ public class HTTPLogShipper: LogEngine, @unchecked Sendable {
     private var pending: [LogEntry] = []
     private var flushScheduled = false
 
+    /// - Parameter engineID: Defaults to one ID per endpoint, so shippers to
+    ///   different endpoints both stay registered while a second shipper to the
+    ///   same endpoint replaces the first instead of sending everything twice.
     public init(
-        engineID: String = "swiftmologger.remote.http",
+        engineID: String? = nil,
         minimumLevel: LogLevel = .info,
         configuration: Configuration,
         session: URLSession = .shared,
         body: @escaping BodyBuilder = HTTPLogShipper.defaultJSONBody
     ) {
+        let engineID = engineID ?? "swiftmologger.remote.http.\(HTTPLogShipper.endpointKey(configuration.endpoint))"
         self.engineID = engineID
         self.minimumLevel = minimumLevel
         self.configuration = configuration
         self.session = session
         self.queue = DispatchQueue(label: "\(engineID).shipper", qos: .utility)
         self.buildBody = body
+    }
+
+    /// Host and path only: never credentials or query parameters.
+    static func endpointKey(_ url: URL) -> String {
+        "\(url.host ?? "")\(url.path)"
     }
 
     public func log(_ entry: LogEntry) {

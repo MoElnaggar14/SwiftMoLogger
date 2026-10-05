@@ -18,7 +18,7 @@ public final class LokiLogEngine: HTTPLogShipper, @unchecked Sendable {
             maxRetries: 3
         )
         super.init(
-            engineID: "swiftmologger.remote.loki",
+            engineID: "swiftmologger.remote.loki.\(HTTPLogShipper.endpointKey(endpoint))",
             minimumLevel: .info,
             configuration: configuration,
             body: LokiLogEngine.makeBody(staticLabels: labels)
