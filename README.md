@@ -3,7 +3,7 @@
 > **The logging package iOS teams wish they'd written.**
 > Structured, multi-engine, Swift-Concurrency-native — with an in-app Instruments dashboard, zero-config live tail to your Mac, automatic PII redaction, Sentry/Datadog/Loki shippers, and Swift Macros. All in one package, all opt-in.
 
-[![Swift](https://img.shields.io/badge/Swift-5.9+-orange.svg)](https://swift.org)
+[![Swift](https://img.shields.io/badge/Swift-5.9_→_6.4-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/iOS_15_•_macOS_12_•_tvOS_15_•_watchOS_8-lightgrey.svg)](https://developer.apple.com)
 [![SPM](https://img.shields.io/badge/SPM-supported-brightgreen.svg)](https://swift.org/package-manager/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -112,6 +112,8 @@ targets: [
     ])
 ]
 ```
+
+**Requirements:** Swift 5.9+ (Xcode 15+). CI builds and tests with Swift 6.4 (Xcode 27), 6.3 (Xcode 26.6) and 6.1 (Xcode 16.4), and the macros against swift-syntax 509 through 604.
 
 ---
 
