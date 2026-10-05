@@ -21,26 +21,18 @@ final class NetworkLoggingTests: XCTestCase {
         XCTAssertTrue(NetworkLogger.defaultSensitiveHeaders.isSuperset(of: ["authorization", "cookie", "x-api-key"]))
     }
 
-    func testUntaggedLoggerGetsAPITag() throws {
+    func testUntaggedLoggerGetsAPITag() async throws {
         let (environment, recorder) = LogEnvironment.recording()
         let network = NetworkLogger(environment: environment)
         let session = URLSession(configuration: .ephemeral, delegate: network, delegateQueue: nil)
         defer { session.invalidateAndCancel() }
 
-        // A request to an invalid host fails fast without leaving the machine.
-        let task = session.dataTask(with: URL(string: "http://invalid.invalid/")!)
-        let done = expectation(description: "completed")
-        let observation = task.observe(\.state) { task, _ in
-            if task.state == .completed { done.fulfill() }
-        }
-        task.resume()
-        wait(for: [done], timeout: 30)
-        observation.invalidate()
+        // The .invalid TLD never resolves, so this fails fast without leaving the machine.
+        _ = try? await session.data(from: URL(string: "http://invalid.invalid/")!)
 
-        // Delegate callbacks run on the session's queue; give them a moment to land.
-        let deadline = Date().addingTimeInterval(5)
-        while recorder.recorded().filter({ $0.message.hasPrefix("HTTP") }).count < 2, Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        // Delegate callbacks run on the session's queue; give the last ones a moment to land.
+        for _ in 0..<100 where recorder.recorded().filter({ $0.message.hasPrefix("HTTP") }).count < 2 {
+            try await Task.sleep(nanoseconds: 50_000_000)
         }
         let messages = recorder.recorded().filter { $0.message.hasPrefix("HTTP") }
         XCTAssertEqual(messages.first?.message, "HTTP request")
