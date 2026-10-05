@@ -22,15 +22,7 @@ The Hub has one rule: **never own the data**. In 4.0 there are no `.shared` stor
 
 Think of a building's security system. The stores are cameras recording onto loop tapes. The Hub is the monitor room: it records nothing, it just plays the tapes.
 
-```
-environment.networkEvents  ← NetworkLogger (a URLSessionTaskDelegate you inject)
-environment.signposts      ← environment.signposter.measure / measureAsync / makeInterval
-environment.vitals         ← AppVitalsMonitor(logger:history:)
-environment.breadcrumbs    ← breadcrumbs.record(…), plus NetworkLogger
-MemoryLogEngine            ← registered by HubViewModel for the Logs tab
-```
-
-The whole wiring:
+The producers each receive the piece they record into:
 
 ```swift
 import SwiftMoLogger
@@ -59,13 +51,13 @@ The rule that matters with injection: **feed and read from the same environment*
 
 ### Loop tapes, not archives
 
-Each store is a fixed-capacity ring buffer behind an `UnfairLock`. When it's full, the oldest item is overwritten, like a loop tape. Defaults: 500 network events, 500 signpost spans, 600 vitals ticks, 100 breadcrumbs; each store's `init(capacity:)` changes that. `record(_:)` is O(1), and `snapshot()` returns a value-typed `Array`. Nothing mutable escapes the lock.
+Each store is a fixed-capacity ring buffer behind an `UnfairLock`. When full, the oldest item is overwritten, like a loop tape. Defaults: 500 network events, 500 spans, 600 vitals ticks, 100 breadcrumbs (pass your own `capacity:` stores to `LogEnvironment`). `record(_:)` is O(1), and `snapshot()` returns a value-typed `Array`. Nothing mutable escapes the lock.
 
 ### The view model
 
 `HubViewModel` (`@MainActor`, `ObservableObject`) polls every 500 ms by default, snapshots every store and publishes the results. It polls only while the Hub is on screen (`start()` on appear, `stop()` on disappear). The tick is the throttle: a burst of logs never becomes a burst of SwiftUI updates.
 
-The Logs tab is the exception to "never own the data". The view model registers its own `MemoryLogEngine` (2,000 entries by default) with `environment.registry`, and removes it in `deinit`. Older versions left that engine behind every time a Hub closed, still receiving every log line.
+The Logs tab is the exception to "never own the data". The view model registers its own `MemoryLogEngine` (2,000 entries by default) with `environment.registry`, and removes it in `deinit`. Older versions left it behind whenever a Hub closed, still receiving every line.
 
 One consequence: the Logs tab only holds entries logged after the model was created. For history from launch, create a `HubViewModel(environment:)` early, keep it alive, and show it with `DiagnosticsHubView(model:)`.
 
@@ -101,7 +93,7 @@ GET products      ███████████ 891ms  [500]
 
 Offset encodes start time within the window; width encodes duration. Colour follows status: green 2xx, yellow 3xx, orange 4xx, red for 5xx or a transport error. Tap a row for method, URL, status, sizes, duration, error and timestamps.
 
-The data comes from `NetworkLogger`, which records each task when `urlSession(_:task:didFinishCollecting:)` fires, including tasks made with the async APIs. Use it on a session you own, or per request: `URLSession.shared.data(for: request, delegate: network)`. It only observes, and redacts URLs before they reach the store (`NetworkLogger(environment:urlRedaction:)` also accepts `.withoutQuery` or `.full`).
+The data comes from `NetworkLogger`, which records each task when `urlSession(_:task:didFinishCollecting:)` fires. Use it on a session you own, or per request: `URLSession.shared.data(for: request, delegate: network)`. It only observes, and redacts URLs before they reach the store (see `NetworkLogger(environment:urlRedaction:)`).
 
 ### Signpost flame graph
 
@@ -111,14 +103,8 @@ Greedy lane assignment: walk spans by start time and put each in the lowest lane
 private func laneAssignments(for events: [SignpostEvent]) -> [UUID: Int] {
     var laneEnds: [Date] = []
     var result: [UUID: Int] = [:]
-    let sorted = events.sorted { $0.startedAt < $1.startedAt }
-    for event in sorted {
-        var assignedLane: Int?
-        for (index, end) in laneEnds.enumerated() where end <= event.startedAt {
-            assignedLane = index
-            break
-        }
-        if let lane = assignedLane {
+    for event in events.sorted(by: { $0.startedAt < $1.startedAt }) {
+        if let lane = laneEnds.firstIndex(where: { $0 <= event.startedAt }) {
             laneEnds[lane] = event.endedAt
             result[event.id] = lane
         } else {

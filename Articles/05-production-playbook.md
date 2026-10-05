@@ -148,7 +148,7 @@ Network logs are where secrets hide best. `NetworkLogger` handles three of them 
 
 - **Headers.** `Authorization`, `Cookie`, `Set-Cookie`, `X-API-Key`, `X-Auth-Token` and `Proxy-Authorization` values become `[REDACTED]`.
 - **URLs.** With the default `URLRedaction.default`, `user:password@` is dropped and the values of common secret query items (`token`, `code`, `api_key`, `signature`, `X-Amz-Signature`, …) become `REDACTED`. This applies everywhere a URL is written: entries, breadcrumbs and the Hub's waterfall.
-- **Errors.** It logs a `URLError` as domain, code and message, never `String(describing:)`. That string includes the error's `userInfo`, which holds the full, unredacted failing URL. Before 4.0 this leaked exactly what the URL redaction was hiding.
+- **Errors.** It logs a `URLError` as domain, code and message, never `String(describing:)`. That string includes the error's `userInfo`, which holds the full, unredacted failing URL. An earlier 4.0 build did exactly that, leaking the very URL the redaction was hiding.
 
 Stricter or looser policies are one argument:
 
@@ -169,7 +169,7 @@ The remote engines (`SentryLogEngine`, `DatadogLogEngine`, `LokiLogEngine`, all 
 - **Watch your keys.** `DatadogLogEngine(apiKey:service:)` sends whatever key you give it in a header from every device. Anything compiled into an app can be extracted, so never embed an org-wide secret. If you need to keep keys off the device, point a plain `HTTPLogShipper(configuration: .init(endpoint: yourURL))` at your own backend and forward from there.
 - **Wrap shippers in a redactor**, as above. Shippers use their own ephemeral `URLSession`, so their uploads never get logged and shipped again.
 
-For noisy sinks, the decorators stack. Here the order is redact, then group, then rate-limit:
+For noisy sinks, the decorators stack. Using the `sentry` engine from above, the order here is redact, then group, then rate-limit:
 
 ```swift
 logging.registry.addEngine(
@@ -210,7 +210,7 @@ Three fixes since 3.0 make it fit for production:
 
 The output is a `Codable` `FlightRecorder.Session`, so you can upload it, attach it to a `BugReporter` report, or someday load it into the [Diagnostics Hub](03-diagnostics-hub.md) and scrub through the final minutes. That last one isn't implemented yet, but the data shape is ready.
 
-It pairs well with MetricKit. The recorder tells you what the app was doing; `MetricKitCrashReporter(logger:)` logs the crash and hang diagnostics the OS delivers on the next launch, which tell you how it died:
+It pairs well with MetricKit (iOS and macOS). The recorder tells you what the app was doing; `MetricKitCrashReporter(logger:)` logs the crash and hang diagnostics the OS delivers on the next launch, which tell you how it died:
 
 ```swift
 let metricKit = MetricKitCrashReporter(logger: logger)
@@ -219,9 +219,9 @@ metricKit.startMonitoring()
 
 ## What ties them together
 
-Each of these is a small piece of code. They fit because the core abstractions (`LogEntry`, `LogEngine`, the breadcrumb and event stores) are plain value types and protocols, so they compose. Tracing stamps metadata. Redaction rewrites it. Grouping fingerprints messages. The flight recorder snapshots everything. None of them needed a new architectural concept: each is another engine, another decorator, or another reader of the stores.
+Each of these is a small piece of code. They fit because the core abstractions are small: `LogEntry` is a plain value, `LogEngine` is a three-member protocol, and the breadcrumb and event stores are simple ring buffers. Small pieces compose. Tracing stamps metadata. Redaction rewrites it. Grouping fingerprints messages. The flight recorder snapshots everything. None of them needed a new architectural concept: each is another engine, another decorator, or another reader of the stores.
 
-4.0 added one thing to that list: nothing is global. The recorder, the network logger and the shippers all take the environment they work with, which is also what made them testable in parallel.
+4.0 added one thing to that list: nothing is global. The recorder, the network logger and the bug reporter take the environment they work with, and engines are just values you construct and register. That's also what lets tests run in parallel, each with its own environment.
 
 Good design is the design where the next feature is short to write. The point of the rewrite was to *make the next feature short to write*. Five articles later, I think we got there.
 
