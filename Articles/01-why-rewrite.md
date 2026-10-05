@@ -2,7 +2,7 @@
 
 > The third logger I shipped this year started, like the others, with a single `print("starting…")`. I'm telling on myself.
 
-There's a peculiar gravity around logging in iOS apps. Every team starts the same way: `print`, then `os.Logger`, then someone reads a blog post and we add SwiftyBeaver, then six months later we add CocoaLumberjack for a destination Beaver doesn't have, then someone wires up a `URLProtocol` to capture network traffic, then we wrap `XCTestObservation` so tests can assert on logs… and we end up with five overlapping abstractions, none of which we own, all reached through globals.
+There's a peculiar gravity around logging in iOS apps. Every team starts the same way: `print`, then `os.Logger`, then SwiftyBeaver after someone reads a blog post, then CocoaLumberjack for a destination Beaver lacks, then someone wires up a `URLProtocol` to capture network traffic, then we wrap `XCTestObservation` so tests can assert on logs… and we end up with five overlapping abstractions, none of which we own, all reached through globals.
 
 SwiftMoLogger is what I got by designing backwards from what a small team needs in production. Version 3 got the shape right. Version 4.0 removed what I came to regret most: the global itself.
 
@@ -16,7 +16,7 @@ Apple's `os.Logger` is fast, integrates with Console.app, keeps dynamic values p
 
 3. **No live view inside the app.** By the time a TestFlight bug report reaches you, the logs are long gone.
 
-SwiftyBeaver and CocoaLumberjack solve fan-out, and they've served many apps well. What I missed was different: metadata is an untyped side channel rather than the core of the model, there's no built-in redaction or test assertions, and the usual entry points (`SwiftyBeaver.info`, `DDLogInfo`) are global. That last one mattered more than I expected.
+SwiftyBeaver and CocoaLumberjack solve fan-out, and they've served many apps well. What I missed: metadata is an untyped side channel, not the core of the model; there's no built-in redaction or test assertions; and the usual entry points (`SwiftyBeaver.info`, `DDLogInfo`) are global. That last one mattered more than I expected.
 
 ## The design principles
 
@@ -55,7 +55,7 @@ final class CheckoutService {
 
 Think of the composition root as a building's fuse box: the wiring lives in one cupboard, and each room just gets an outlet. `CheckoutService` doesn't know whether its logs reach the system log, a file or Sentry. Starting is still one line; the registry installs a `SystemLogger` by default.
 
-The payoff is in tests. Each test owns its environment, so suites run isolated and in parallel:
+The payoff is tests that own their environment, so suites run isolated and in parallel:
 
 ```swift
 import XCTest
@@ -71,7 +71,7 @@ final class CheckoutTests: XCTestCase {
 }
 ```
 
-The upgrade from 3.x is mechanical; [MIGRATION.md](../MIGRATION.md) maps every old call.
+Upgrading from 3.x is mechanical: [MIGRATION.md](../MIGRATION.md) maps every call.
 
 ### 2. Structured all the way down
 
@@ -94,7 +94,7 @@ This was the most important change from v2: the Hub, the Sentry shipper, redacti
 
 ### 3. Engines are strategies
 
-An engine is anything that implements `log(_ entry: LogEntry)`. The registry doesn't care what happens next: `os_log`, a ring buffer, a JSON-Lines file, an HTTP batch. Decorators like `RedactingLogEngine`, `SamplingLogEngine` and `RateLimitingLogEngine` wrap any engine, the way a surge protector goes between the wall and whatever you plug in.
+An engine is anything that implements `log(_ entry: LogEntry)`. The registry doesn't care what happens next: `os_log`, a ring buffer, a file, an HTTP batch. Decorators like `RedactingLogEngine`, `SamplingLogEngine` and `RateLimitingLogEngine` wrap any engine, the way a surge protector goes between the wall and whatever you plug in.
 
 ### 4. Swift 6 strict concurrency, not "thread-safe, trust me"
 
@@ -134,7 +134,7 @@ The rest of the series walks through the consequences:
 
 - A **~140 ns hot path** (no engines attached) comes from these choices, not from later optimisation passes ([article 2](02-performance.md)).
 - An **in-app Instruments dashboard** works because every signal is a `Sendable` value SwiftUI can chart directly ([article 3](03-diagnostics-hub.md)).
-- A **CLI that tails every device on your Wi-Fi** is a small `NWBrowser` loop, because the on-device sink ships JSON-Lines `LogEntry` values ([article 4](04-bonjour-and-macros.md)).
+- A **CLI that tails every device on your Wi-Fi** is small because the on-device sink ships JSON-Lines `LogEntry` values ([article 4](04-bonjour-and-macros.md)).
 - **Distributed tracing, PII redaction and a flight recorder** drop in because the fan-out architecture already speaks the right vocabulary ([article 5](05-production-playbook.md)).
 
 The goal was a logger I'd want on every team I work with. The test is installing it and never wanting to switch back. Start with the [README](../README.md).

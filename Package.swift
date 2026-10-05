@@ -23,7 +23,7 @@ let package = Package(
         .executable(name: "swiftmologger-inspector", targets: ["SwiftMoLoggerInspector"]),
     ],
     dependencies: [
-        // Wide range (Swift 5.9 through 6.2) so the macro target never forces a
+        // Wide range (Swift 5.9 through 6.4) so the macro target never forces a
         // swift-syntax version that conflicts with other packages in an app.
         // CI builds against both the pinned and the newest resolvable version.
         .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.0.0"..<"605.0.0"),

@@ -38,12 +38,14 @@ public macro measure<T>(
     _ body: () throws -> T
 ) -> T = #externalMacro(module: "SwiftMoLoggerMacros", type: "MeasureMacro")
 
-/// Member-attribute macro that wraps every method of an actor / class in
-/// automatic entry+exit logging. Trace level on entry, error level on
-/// thrown errors. The macro injects a stable signpost name per method.
+/// Adds a `__autoLog()` helper to a class or actor. Call it at the top of a
+/// method to log a trace entry ("→ purchase(_:)") with the caller's
+/// function, file and line, through the type's `logger`.
 ///
-/// The type must have a `logger: MoLogger` property (inject it); the
-/// synthesised `__autoLog()` helper logs through it.
+/// It does not log anything on its own: methods you don't call it from
+/// aren't logged, and there's no exit or error logging.
+///
+/// The type must have a `logger: MoLogger` property (inject it).
 ///
 /// ```swift
 /// @AutoLog

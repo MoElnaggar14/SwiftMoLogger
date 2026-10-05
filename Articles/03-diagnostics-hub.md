@@ -14,15 +14,15 @@ struct DebugTab: View {
 }
 ```
 
-That's it. The same kind of data Instruments shows you, in a SwiftUI view you can drop into any debug screen of any build.
+That's it: Instruments-style data in a SwiftUI view you can drop into any debug screen of any build.
 
 ## The architecture
 
-The Hub has one rule: **never own the data**. In 4.0 there are no `.shared` stores. One `LogEnvironment`, created at your composition root, owns the registry, the logger and the four diagnostics stores. The Hub only reads them.
+The Hub has one rule: **never own the data**. In 4.0 there are no `.shared` stores; one `LogEnvironment`, created at your composition root, owns the registry, logger and four diagnostics stores. The Hub only reads them.
 
 Think of a building's security system. The stores are cameras recording onto loop tapes. The Hub is the monitor room: it records nothing, it just plays the tapes.
 
-The producers each receive the piece they record into:
+Each producer gets the piece it records into:
 
 ```swift
 import SwiftMoLogger
@@ -51,15 +51,15 @@ The rule that matters with injection: **feed and read from the same environment*
 
 ### Loop tapes, not archives
 
-Each store is a fixed-capacity ring buffer behind an `UnfairLock`. When full, the oldest item is overwritten, like a loop tape. Defaults: 500 network events, 500 spans, 600 vitals ticks, 100 breadcrumbs (pass your own `capacity:` stores to `LogEnvironment`). `record(_:)` is O(1), and `snapshot()` returns a value-typed `Array`. Nothing mutable escapes the lock.
+Each store is a fixed-capacity ring buffer behind an `UnfairLock`. When full, the oldest item is overwritten, like a loop tape. Defaults: 500 network events, 500 spans, 600 vitals ticks, 100 breadcrumbs (pass your own `capacity:` stores to `LogEnvironment`). `record(_:)` is O(1), and `snapshot()` returns a value-typed `Array`.
 
 ### The view model
 
-`HubViewModel` (`@MainActor`, `ObservableObject`) polls every 500 ms by default, snapshots every store and publishes the results. It polls only while the Hub is on screen (`start()` on appear, `stop()` on disappear). The tick is the throttle: a burst of logs never becomes a burst of SwiftUI updates.
+`HubViewModel` (`@MainActor`) snapshots every store every 500 ms by default, but only while the Hub is on screen. The tick is the throttle: a burst of logs never becomes a burst of SwiftUI updates.
 
 The Logs tab is the exception to "never own the data". The view model registers its own `MemoryLogEngine` (2,000 entries by default) with `environment.registry`, and removes it in `deinit`. Older versions left it behind whenever a Hub closed, still receiving every line.
 
-One consequence: the Logs tab only holds entries logged after the model was created. For history from launch, create a `HubViewModel(environment:)` early, keep it alive, and show it with `DiagnosticsHubView(model:)`.
+So the Logs tab starts when the model does. For history from launch, create a `HubViewModel(environment:)` early and show it with `DiagnosticsHubView(model:)`.
 
 ## The unifying abstraction: `scrubbedTime`
 
@@ -71,9 +71,9 @@ public func inWindow(_ timestamp: Date) -> Bool {
 }
 ```
 
-`windowEnd` is `scrubbedTime ?? Date()`, so `nil` means live tail, over a 60-second window by default. Drag the slider in `TimelineScrubberView` (it reaches back 10 minutes) and `scrubbedTime` becomes a fixed instant. Every sub-view now shows that moment: requests in flight, spans running, memory at the time. "Live" snaps back.
+`windowEnd` is `scrubbedTime ?? Date()`, so `nil` means live tail, over a 60-second window by default. Drag the slider in `TimelineScrubberView` (it reaches back 10 minutes) and `scrubbedTime` becomes a fixed instant. Every sub-view shows that moment: requests in flight, spans running, memory level. "Live" snaps back.
 
-This is the **time-travel** part: rewinding every tape at once. It's one `Date` shared by five views, but "what was happening right before the crash?" becomes "drag the slider to the crash entry and look around."
+This is the **time-travel** part: rewinding every tape at once. One shared `Date`, but "what was happening right before the crash?" becomes "drag the slider to the crash entry and look around."
 
 ## The five tabs
 
@@ -120,17 +120,9 @@ Colour encodes duration: blue up to 50 ms, orange up to 250 ms, red above. The s
 
 ### Vitals charts
 
-Memory, CPU and FPS line charts, rendered with Swift Charts:
+Memory, CPU and FPS line charts in Swift Charts, with a summary card where Charts is unavailable. The data is `environment.vitals.snapshot()`, fed by `AppVitalsMonitor(logger:history:)` once you call `start(interval:)`.
 
-```swift
-Chart(ticks) { tick in
-    LineMark(x: .value("t", tick.timestamp), y: .value("MB", tick.memoryMB))
-}
-```
-
-Where Charts is unavailable, a summary card shows the latest values. The data is `environment.vitals.snapshot()`, fed by `AppVitalsMonitor(logger:history:)` once you call `start(interval:)`.
-
-Two quiet monitor bugs are fixed in 4.0. Its `CADisplayLink` retained the monitor, keeping it alive until `stop()`; a proxy now holds it weakly. And on ProMotion it held the screen at 120 Hz just to count frames; the link is now capped at 60 Hz, so FPS is measured against 60.
+Two monitor bugs are fixed in 4.0. Its `CADisplayLink` retained the monitor until `stop()`; a proxy now holds it weakly. And on ProMotion it held the screen at 120 Hz just to count frames; the link is now capped at 60 Hz, so FPS is measured against 60.
 
 ### Breadcrumbs trail
 
@@ -140,9 +132,9 @@ The Hub also builds for tvOS and watchOS and degrades gracefully: tvOS has no `S
 
 ## Why one view, not a separate Mac app
 
-A desktop tool (Charles, Pulse, Bagel) is genuinely useful, but every QA engineer needs to install it, configure proxies, trust certificates and run a Mac. The on-device Hub skips all of that. Anybody who can install your TestFlight build can open the debug tab.
+Charles, Pulse or Bagel are genuinely useful, but every QA engineer needs to install them, configure proxies, trust certificates and run a Mac. Anybody who can install your TestFlight build can open the Hub.
 
-The `swiftmologger-inspector` CLI complements it, tailing logs from devices running a `LiveSink` over Bonjour. But it's not the *primary* surface. The Hub is.
+The `swiftmologger-inspector` CLI, which tails `LiveSink` devices over Bonjour, complements it. But the Hub is the *primary* surface.
 
 ## What I'd add next
 
@@ -152,4 +144,4 @@ The `swiftmologger-inspector` CLI complements it, tailing logs from devices runn
 
 The third is closer than it looks: since stores are injected, a recovered session could be poured into a fresh `LogEnvironment` and handed to the Hub. The Flight Recorder is covered in [the production playbook](05-production-playbook.md); next up is [Bonjour and Swift Macros](04-bonjour-and-macros.md).
 
-→ See [`Sources/SwiftMoLoggerUI/Hub/`](../Sources/SwiftMoLoggerUI/Hub) for the implementation, the [README](../README.md) for setup, and [MIGRATION.md](../MIGRATION.md) if you're coming from 3.x.
+→ Implementation: [`Sources/SwiftMoLoggerUI/Hub/`](../Sources/SwiftMoLoggerUI/Hub). Setup: [README](../README.md). Coming from 3.x: [MIGRATION.md](../MIGRATION.md).

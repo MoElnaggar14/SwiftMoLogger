@@ -261,14 +261,12 @@ SwiftMoLogger Inspector — discovering _swiftmologger._tcp on local network…
 ◉ discovered MyApp-iPhone-15
 ◉ discovered MyApp-iPad-Pro
 ● connected MyApp-iPhone-15
-● connected MyApp-iPad-Pro
-
-14:22:01.124 INFO  MyApp-iPhone-15 [API]      HTTP response status=200 duration_ms=132
-14:22:01.221 WARN  MyApp-iPad-Pro  [Layout]   Auto-layout broke 3 constraints
-14:22:01.337 ERROR MyApp-iPhone-15 [Database] Migration v4 → v5 timed out
+2026-10-05T14:22:01.124Z INFO  MyApp-iPhone-15 [API] [thread] HTTP response 200
+2026-10-05T14:22:01.221Z WARN  MyApp-iPad-Pro [Layout] [main] Auto-layout broke 3 constraints
+2026-10-05T14:22:01.337Z ERROR MyApp-iPhone-15 [Database] [thread] Migration v4 → v5 timed out
 ```
 
-Multiple devices, one terminal, no Xcode needed.
+Each line shows timestamp (UTC), level, device, tag, thread and message. Metadata isn't printed, so keep the key fact in the message. Multiple devices, one terminal, no Xcode needed.
 
 ### 3. Swift Macros — zero-boilerplate call sites
 
