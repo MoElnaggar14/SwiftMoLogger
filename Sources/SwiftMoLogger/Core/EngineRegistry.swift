@@ -165,6 +165,19 @@ public final class EngineRegistry: @unchecked Sendable {
         }
     }
 
+    // MARK: - Flush
+
+    /// Asks every engine to write or send what it has buffered: files are synced and
+    /// remote shippers start their upload. Call it when the app moves to the background
+    /// (in SwiftUI, when `scenePhase` becomes `.background`) and before a bug report.
+    /// Engines are flushed outside the registry lock, so an engine may log while flushing.
+    public func flush() {
+        lock.lock()
+        let snapshot = engines
+        lock.unlock()
+        for engine in snapshot { engine.flush() }
+    }
+
     // MARK: - Dispatch
 
     /// Hot path. Branches early on level, snapshots engines under the lock,

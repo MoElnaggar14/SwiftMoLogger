@@ -23,6 +23,9 @@ public final class RedactingLogEngine: LogEngine, @unchecked Sendable {
         self.minimumLevel = wrapped.minimumLevel
     }
 
+    /// Forwards to the wrapped engine.
+    public func flush() { wrapped.flush() }
+
     public func log(_ entry: LogEntry) {
         let (redactedMessage, _) = redactor.redact(entry.message)
         let redactedMetadata = redactor.redact(entry.metadata)

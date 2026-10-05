@@ -19,6 +19,9 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - Macros take their dependency explicitly: `#log(logger, …)`, `#measure(signposter, …)`. `@AutoLog` uses the type's `logger` property.
 
 ### Added
+- **`flush()` on every engine** and `EngineRegistry.flush()`. `FileLogEngine` and the remote shippers write or send what they buffer, and decorators forward the call. The protocol requirement has a do-nothing default, so existing engines still compile. Call it when the app moves to the background; the example app does.
+- **visionOS 1+** is a supported platform, and CI builds for it.
+- The README compares SwiftMoLogger with Pulse: Pulse wins on network request and response bodies.
 - `SwiftMoLoggerTesting` re-exports `SwiftMoLogger`, so `import SwiftMoLoggerTesting` is enough in a test file.
 - **Agent skill** for Claude Code (installable as a plugin) and Codex: `plugin/skills/swiftmologger`. It teaches AI coding agents the 4.0 setup, which engines belong in debug and which in release, redaction, debug-only `LiveSink`, testing and the 3.x migration. It includes `audit_logging.py`, which lists 3.x calls and release-safety issues and also runs in CI. `AGENTS.md` covers contributors.
 - **Swift Testing support.** `RecordingLogEngine` gains `entries(…)`, `contains(…)` and `count(…)` queries (filter by level, substring, tag domain and metadata key) that work with `#expect` as well as XCTest. The XCTest assertions now use them.

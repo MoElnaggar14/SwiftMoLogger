@@ -105,6 +105,7 @@ Keep these facts in mind:
 - Messages are autoclosures, so expensive string building is skipped when the level is filtered. Metadata isn't an autoclosure, so don't compute heavy metadata on a hot path.
 - `SentryLogEngine(dsn:)` and `WebSocketTailEngine(url:)` are failable, and `TraceContext(traceID:spanID:)` returns nil for invalid IDs. Unwrap them; never force-unwrap a value that comes from remote config.
 - Don't embed a Datadog API key (`DatadogLogEngine(apiKey:)`) in an App Store binary, because anyone can extract it. Prefer sending logs to your own backend with `HTTPLogShipper(configuration: .init(endpoint:headers:))` and forwarding them from there. If the user insists, use the most restricted key available and say what the risk is.
+- Call `logging.registry.flush()` when the scene moves to `.background`, because iOS can terminate a suspended app without warning. A custom engine that buffers should override `flush()`.
 - An engine's `engineID` decides replacement: adding an engine with an existing ID replaces the old one. Two shippers to different endpoints both stay registered.
 
 ### 4. Privacy and redaction

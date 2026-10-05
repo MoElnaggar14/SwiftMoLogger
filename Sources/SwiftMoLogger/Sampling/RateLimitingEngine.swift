@@ -33,6 +33,9 @@ public final class RateLimitingLogEngine: LogEngine, @unchecked Sendable {
         self.minimumLevel = wrapped.minimumLevel
     }
 
+    /// Forwards to the wrapped engine.
+    public func flush() { wrapped.flush() }
+
     public func log(_ entry: LogEntry) {
         if acquire() {
             wrapped.log(entry)

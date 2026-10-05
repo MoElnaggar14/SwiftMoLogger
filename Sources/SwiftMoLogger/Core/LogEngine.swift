@@ -36,6 +36,12 @@ public protocol LogEngine: AnyObject, Sendable {
     /// dropped before any work happens. Defaults to ``LogLevel/trace``
     /// (accept everything).
     var minimumLevel: LogLevel { get }
+
+    /// Writes or sends anything the engine has buffered. Called by
+    /// ``EngineRegistry/flush()``, e.g. when the app moves to the background or
+    /// before a bug report. Defaults to doing nothing; engines that buffer
+    /// (``FileLogEngine``, remote shippers) override it, and decorators forward it.
+    func flush()
 }
 
 public extension LogEngine {
@@ -43,6 +49,8 @@ public extension LogEngine {
         "\(String(describing: type(of: self)))#\(UInt(bitPattern: ObjectIdentifier(self).hashValue))"
     }
     var minimumLevel: LogLevel { .trace }
+
+    func flush() {}
 
     func info(message: String) {
         log(LogEntry(level: .info, message: message))

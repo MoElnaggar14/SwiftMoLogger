@@ -3,8 +3,8 @@
 > **The logging package iOS teams wish they'd written.**
 > Structured, multi-engine, Swift-Concurrency-native — with an in-app Instruments dashboard, zero-config live tail to your Mac, opt-in PII redaction, Sentry/Datadog/Loki shippers, and Swift Macros. All in one package, all opt-in.
 
-[![Swift](https://img.shields.io/badge/Swift-6.0_→_6.4-orange.svg)](https://swift.org)
-[![Platforms](https://img.shields.io/badge/iOS_16_•_macOS_13_•_tvOS_16_•_watchOS_9-lightgrey.svg)](https://developer.apple.com)
+[![Swift](https://img.shields.io/badge/Swift-6.1_→_6.4_tested-orange.svg)](https://swift.org)
+[![Platforms](https://img.shields.io/badge/iOS_16_•_macOS_13_•_tvOS_16_•_watchOS_9_•_visionOS_1-lightgrey.svg)](https://developer.apple.com)
 [![SPM](https://img.shields.io/badge/SPM-supported-brightgreen.svg)](https://swift.org/package-manager/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -137,7 +137,7 @@ targets: [
 ]
 ```
 
-**Requirements:** Swift 6.0+ (Xcode 16+). CI builds and tests with Swift 6.4 (Xcode 27), 6.3 (Xcode 26.6) and 6.1 (Xcode 16.4), and the macros against swift-syntax 509 through 604.
+**Requirements:** Xcode 16+ (swift-tools-version 6.0). iOS 16, macOS 13, tvOS 16, watchOS 9, visionOS 1. CI tests with Swift 6.4 (Xcode 27), 6.3 (Xcode 26.6) and 6.1 (Xcode 16.4), builds for every platform, and builds the macros against swift-syntax 509 through 604.
 
 ---
 
@@ -355,6 +355,18 @@ final class AnalyticsEngine: LogEngine {
 }
 logging.registry.addEngine(AnalyticsEngine())
 ```
+
+### Flushing
+
+Engines that buffer (`FileLogEngine`, the remote shippers) write or send what they hold when you call `registry.flush()`. iOS can terminate a suspended app without warning, so flush when the app moves to the background:
+
+```swift
+.onChange(of: scenePhase) { _, phase in
+    if phase == .background { logging.registry.flush() }
+}
+```
+
+Custom engines get a do-nothing `flush()` by default; override it if your engine buffers. The redaction, sampling, rate-limiting and grouping decorators forward it to the engine they wrap. The flight recorder flushes itself.
 
 ### Child loggers — per-component tagging
 
@@ -790,6 +802,8 @@ import SwiftMoLoggerTesting
 | Flight recorder | ✅ | ❌ | ❌ | ❌ |
 | Smart error grouping | ✅ | ❌ | ❌ | ❌ |
 | Xcode code snippets bundled | ✅ | ❌ | ❌ | ❌ |
+
+**Compared with [Pulse](https://github.com/kean/Pulse).** Pulse is the closest alternative, and it's the better pick if you mainly want a network inspector: it records full request and response bodies, and it has a polished console and a Mac app. SwiftMoLogger's `NetworkLogger` records method, URL, status, timing and sizes, but not bodies. SwiftMoLogger is the pick when you want logging *architecture*: injected loggers with no singletons, fan-out to several engines, redaction and sampling decorators, remote shippers, tracing, a flight recorder, a free Bonjour live tail, and assertions for tests.
 
 Spotted something out of date for another library? Please open an issue. For SwiftMoLogger's own numbers, see [PERFORMANCE.md](PERFORMANCE.md).
 

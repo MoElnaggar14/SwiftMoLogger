@@ -60,6 +60,9 @@ public final class ErrorGroupingEngine: LogEngine, @unchecked Sendable {
         self.minimumLevel = wrapped.minimumLevel
     }
 
+    /// Forwards to the wrapped engine.
+    public func flush() { wrapped.flush() }
+
     public func log(_ entry: LogEntry) {
         guard entry.level >= fingerprintMinLevel else {
             wrapped.log(entry)

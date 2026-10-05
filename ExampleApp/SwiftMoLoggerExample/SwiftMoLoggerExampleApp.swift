@@ -9,6 +9,7 @@ struct SwiftMoLoggerExampleApp: App {
     /// logging object is built exactly once, here, and handed down through
     /// initializers.
     private let dependencies: AppDependencies
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         let dependencies = AppDependencies()
@@ -19,6 +20,10 @@ struct SwiftMoLoggerExampleApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(dependencies: dependencies)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // iOS can terminate a suspended app without warning: write buffered logs first.
+            if phase == .background { dependencies.logging.registry.flush() }
         }
     }
 
