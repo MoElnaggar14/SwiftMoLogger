@@ -19,6 +19,7 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - Macros take their dependency explicitly: `#log(logger, …)`, `#measure(signposter, …)`. `@AutoLog` uses the type's `logger` property.
 
 ### Added
+- `SwiftMoLoggerTesting` re-exports `SwiftMoLogger`, so `import SwiftMoLoggerTesting` is enough in a test file.
 - **Agent skill** for Claude Code (installable as a plugin) and Codex: `plugin/skills/swiftmologger`. It teaches AI coding agents the 4.0 setup, which engines belong in debug and which in release, redaction, debug-only `LiveSink`, testing and the 3.x migration. It includes `audit_logging.py`, which lists 3.x calls and release-safety issues and also runs in CI. `AGENTS.md` covers contributors.
 - **Swift Testing support.** `RecordingLogEngine` gains `entries(…)`, `contains(…)` and `count(…)` queries (filter by level, substring, tag domain and metadata key) that work with `#expect` as well as XCTest. The XCTest assertions now use them.
 - `URLRedaction` for `NetworkLogger`: URLs in log entries, breadcrumbs and network events drop `user:password@` and redact secret query values (`token`, `code`, `api_key`, `signature`, …) by default. `.withoutQuery` and `.full` are also available.

@@ -106,6 +106,8 @@ def main():
                 findings.append((rel, number, "release", "URLRedaction.full logs URLs with secrets; keep it to debug builds"))
             if re.search(r"\bSystemLogger\s*\([^)]*privacy:\s*\.public", code):
                 findings.append((rel, number, "note", "SystemLogger(privacy: .public) makes messages readable in sysdiagnose"))
+            if re.search(r"try!\s*FileLogEngine\s*\(", code):
+                findings.append((rel, number, "note", "try! FileLogEngine traps at launch if the file can't be opened; use try? and wrap it in RedactingLogEngine"))
             if re.search(r"\bFlightRecorder\s*\(\s*environment:", code) and "redactor:" not in code:
                 findings.append((rel, number, "note", "FlightRecorder without redactor: writes raw entries to disk"))
             if re.search(r"^\s*(?:public\s+|private\s+|fileprivate\s+)?(?:let|var)\s+\w+\s*=\s*LogEnvironment\s*\(", line) and line == line.lstrip():

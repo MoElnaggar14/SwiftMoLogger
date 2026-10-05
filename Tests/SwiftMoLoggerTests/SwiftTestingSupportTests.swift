@@ -1,4 +1,4 @@
-import SwiftMoLogger
+// Only the testing module: it re-exports SwiftMoLogger, as the README promises.
 import SwiftMoLoggerTesting
 import Testing
 

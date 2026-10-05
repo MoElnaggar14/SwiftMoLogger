@@ -1,5 +1,6 @@
 import Foundation
-import SwiftMoLogger
+// Re-exported so `import SwiftMoLoggerTesting` alone gives tests MoLogger and LogEnvironment.
+@_exported import SwiftMoLogger
 
 /// Test-only engine that records every entry for later assertions.
 ///

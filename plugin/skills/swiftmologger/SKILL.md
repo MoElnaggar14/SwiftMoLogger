@@ -90,7 +90,9 @@ enum LoggingSetup {
         logging.registry.minimumLevel = .trace
         #else
         logging.registry.minimumLevel = .info
-        if let sentry = SentryLogEngine(dsn: Config.sentryDSN, release: Config.version, environment: "production") {
+        // dsn is a URL; the init returns nil for a malformed DSN.
+        if let dsn = URL(string: Config.sentryDSN),
+           let sentry = SentryLogEngine(dsn: dsn, release: Config.version, environment: "production") {
             logging.registry.addEngine(RedactingLogEngine(wrapping: sentry, redactor: redactor))
         }
         #endif
@@ -143,7 +145,7 @@ logging.registry.addEngine(sink)
 ```
 
 - On a real iOS device, `LiveSink` needs `NSLocalNetworkUsageDescription` and `NSBonjourServices` = `[_swiftmologger._tcp]`. Put them in the Debug configuration's Info.plist only.
-- `LiveSink.start()` refuses to open the listener in release builds unless you pass `allowInRelease: true`. Use that only for internal QA builds.
+- `start()` refuses to open the listener in release builds unless the sink was created with `LiveSink(statusLogger:allowInRelease: true)`. Use that only for internal QA builds. The registry retains the sink once you've added it.
 - The Mac side is `swift run swiftmologger-inspector`, run from a checkout of the package.
 - In-app tools: `DiagnosticsHubView(environment: logging)` or `LogConsoleView(stream: logging.stream)`. For vitals charts, run `AppVitalsMonitor(logger: logging.logger, history: logging.vitals).start(interval: 5)`.
 
@@ -164,6 +166,8 @@ import SwiftMoLoggerTesting
     #expect(logs.count(.fault) == 0)
 }
 ```
+
+When the type under test also takes a `BreadcrumbStore` (or other stores), use `let (logging, logs) = LogEnvironment.recording()`, inject `logging.logger` and `logging.breadcrumbs`, then check `logging.breadcrumbs.snapshot()`.
 
 With XCTest, use `XCTAssertLogged(.error, contains: "declined", tag: .api, in: logs)` and `XCTAssertLogCount(0, atLevel: .fault, in: logs)`. `logs.entries(_:containing:tag:withMetadataKey:)` returns the matching entries for finer checks. Assert on behaviour that matters, such as an error being reported, not on exact message wording.
 

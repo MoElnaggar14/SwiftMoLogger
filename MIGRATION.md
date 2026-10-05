@@ -32,7 +32,10 @@ struct ShopApp: App {
 
     init() {
         logging.registry.addEngine(MemoryLogEngine())
-        logging.registry.addEngine(try! FileLogEngine(fileURL: logsURL))
+        // FileLogEngine's init throws (e.g. an unwritable directory); don't trap at launch.
+        if let file = try? FileLogEngine(fileURL: logsURL) {
+            logging.registry.addEngine(RedactingLogEngine(wrapping: file))
+        }
     }
 
     var body: some Scene {
