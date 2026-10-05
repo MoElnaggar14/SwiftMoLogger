@@ -146,12 +146,20 @@ final class InspectorRuntime: @unchecked Sendable {
 }
 
 enum Ansi {
-    static func bold(_ s: String) -> String { "\u{1B}[1m\(s)\u{1B}[0m" }
-    static func dim(_ s: String) -> String { "\u{1B}[2m\(s)\u{1B}[0m" }
-    static func red(_ s: String) -> String { "\u{1B}[31m\(s)\u{1B}[0m" }
-    static func green(_ s: String) -> String { "\u{1B}[32m\(s)\u{1B}[0m" }
-    static func yellow(_ s: String) -> String { "\u{1B}[33m\(s)\u{1B}[0m" }
-    static func blue(_ s: String) -> String { "\u{1B}[34m\(s)\u{1B}[0m" }
-    static func magenta(_ s: String) -> String { "\u{1B}[35m\(s)\u{1B}[0m" }
-    static func cyan(_ s: String) -> String { "\u{1B}[36m\(s)\u{1B}[0m" }
+    /// Off when `NO_COLOR` is set (https://no-color.org) or output isn't a terminal.
+    static let enabled = ProcessInfo.processInfo.environment["NO_COLOR"] == nil && isatty(STDOUT_FILENO) != 0
+
+    private static func style(_ code: String, _ s: String) -> String {
+        enabled ? "\u{1B}[\(code)m\(s)\u{1B}[0m" : s
+    }
+
+    static func bold(_ s: String) -> String { style("1", s) }
+    static func dim(_ s: String) -> String { style("2", s) }
+    static func red(_ s: String) -> String { style("31", s) }
+    static func green(_ s: String) -> String { style("32", s) }
+    static func yellow(_ s: String) -> String { style("33", s) }
+    static func blue(_ s: String) -> String { style("34", s) }
+    static func magenta(_ s: String) -> String { style("35", s) }
+    static func cyan(_ s: String) -> String { style("36", s) }
+}
 }
