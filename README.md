@@ -449,7 +449,7 @@ logging.registry.addEngine(RedactingLogEngine(wrapping: networkEngine, redactor:
 Register the wrapper *instead of* the engine. If the engine is already registered, swap it in place, or the raw copy keeps logging unredacted:
 
 ```swift
-EngineRegistry.shared.replaceEngine(id: networkEngine.engineID) { RedactingLogEngine(wrapping: $0, redactor: redactor) }
+logging.registry.replaceEngine(id: networkEngine.engineID) { RedactingLogEngine(wrapping: $0, redactor: redactor) }
 ```
 
 ### Breadcrumbs
