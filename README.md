@@ -350,6 +350,19 @@ swift-log metadata keeps its structure. Metadata providers are supported.
 
 ## Production hardening
 
+### Keep PII out of sysdiagnose
+
+The unified log ends up in sysdiagnose archives that users send to support.
+Choose how the system logger exposes messages:
+
+```swift
+// Same subsystem/category as the default system logger, so this replaces it in place:
+// readable in Xcode, redacted in the field.
+SwiftMoLogger.addEngine(SystemLogger(privacy: .privateInRelease))
+```
+
+`.hashed` redacts while keeping a stable hash, so identical messages can still be correlated.
+
 ### PII redaction
 
 Every log line passes through a regex-based scrubber **before** it leaves your process.

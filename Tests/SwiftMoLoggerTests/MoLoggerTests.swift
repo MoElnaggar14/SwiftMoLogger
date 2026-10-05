@@ -74,4 +74,22 @@ final class MoLoggerTests: XCTestCase {
         XCTAssertEqual(recorder.recorded().last?.message, "through facade")
         XCTAssertEqual(recorder.recorded().last?.source.column, 9)
     }
+
+    func testSystemLoggerPrivacyResolvesPerBuild() {
+        #if DEBUG
+        XCTAssertEqual(SystemLogger(privacy: .privateInRelease).privacy, .public)
+        #else
+        XCTAssertEqual(SystemLogger(privacy: .privateInRelease).privacy, .private)
+        #endif
+        XCTAssertEqual(SystemLogger().privacy, .public)
+        // Replaces the default system logger in place rather than adding a second one.
+        let registry = EngineRegistry()
+        registry.addEngine(SystemLogger(privacy: .private))
+        XCTAssertEqual(registry.engineCount, 1)
+        XCTAssertEqual((registry.allEngines().first as? SystemLogger)?.privacy, .private)
+        // Every privacy level can log without trapping.
+        for privacy in [SystemLogger.Privacy.public, .private, .hashed] {
+            SystemLogger(privacy: privacy).log(LogEntry(level: .info, message: "privacy \(privacy)"))
+        }
+    }
 }

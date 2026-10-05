@@ -10,6 +10,7 @@ A correctness release. No breaking API changes; see "Behaviour changes".
 
 ### Added
 - **`MoLogger`**, an injectable logger value: a registry, a default tag and bound metadata, with `with(tag:)` / `with(metadata:)` for child loggers. Components can receive their logger instead of reaching for a global, and tests can use isolated registries and run in parallel. The static API now delegates to `MoLogger.shared`.
+- `SystemLogger(privacy:)`: `.public` (default, unchanged), `.private`, `.hashed`, or `.privateInRelease` (readable while debugging, redacted in shipped builds), so log messages don't leak into sysdiagnose archives.
 - **`SwiftMoLoggerSwiftLog`** product: `SwiftMoLogHandler` routes swift-log `Logger` calls (SwiftNIO, AsyncHTTPClient, gRPC, AWS SDK, …) into SwiftMoLogger engines, with label tags, structured metadata and metadata providers.
 
 ### Fixed
