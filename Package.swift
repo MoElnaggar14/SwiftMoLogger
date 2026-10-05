@@ -26,7 +26,7 @@ let package = Package(
         // Wide range (Swift 5.9 through 6.2) so the macro target never forces a
         // swift-syntax version that conflicts with other packages in an app.
         // CI builds against both the pinned and the newest resolvable version.
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.0.0"..<"603.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.0.0"..<"605.0.0"),
         // Only linked by the SwiftMoLoggerSwiftLog product.
         .package(url: "https://github.com/apple/swift-log.git", from: "1.12.0"),
     ],

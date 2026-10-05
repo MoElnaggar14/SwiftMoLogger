@@ -78,8 +78,9 @@ A correctness release. No breaking API changes; see "Behaviour changes".
 - `NetworkLoggingProtocol.sensitiveHeaders` is now lock-protected.
 
 ### Changed
-- swift-syntax range widened to `509.0.0..<603.0.0`, so the macro target no longer conflicts with packages that need a newer swift-syntax.
-- CI: rebuilt on macOS 15 and the latest Xcode. It builds every library for iOS, Mac Catalyst, tvOS and watchOS, tests against the newest swift-syntax, and builds DocC. The always-failing manifest grep and the masked iOS test step are gone.
+- **Ready for Swift 6.4 / Xcode 27.** CI tests with Swift 6.4 (Xcode 27), 6.3 (Xcode 26.6) and 6.1 (Xcode 16.4), and the swift-syntax range now goes up to 604 (`509.0.0..<605.0.0`), so apps on Swift 6.3 or 6.4 don't hit a dependency conflict.
+- PR validation, dependency and release workflows move off the retired Xcode 15.4 onto the latest Xcode. The secret scan now looks for hard-coded credential values instead of failing on any mention of "token" or "password".
+- CI: rebuilt on the latest Xcode. It builds every library for iOS, Mac Catalyst, tvOS and watchOS, tests against the newest swift-syntax, and builds DocC. The always-failing manifest grep and the masked iOS test step are gone.
 
 ### Behaviour changes
 - `MemoryLogEngine().engineID` and `RecordingLogEngine().engineID` are no longer constants. If you removed one with `removeEngine(id: "swiftmologger.memory")`, use `removeEngine(id: engine.engineID)` or construct it with `MemoryLogEngine(id:)`.
