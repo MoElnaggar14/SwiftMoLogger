@@ -78,7 +78,8 @@ final class MoLoggerTests: LoggingTestCase {
         #else
         XCTAssertEqual(SystemLogger(privacy: .privateInRelease).privacy, .private)
         #endif
-        XCTAssertEqual(SystemLogger().privacy, .public)
+        // The default keeps messages out of sysdiagnose archives from release builds.
+        XCTAssertEqual(SystemLogger().privacy, SystemLogger(privacy: .privateInRelease).privacy)
         // Replaces the default system logger in place rather than adding a second one.
         let registry = EngineRegistry()
         registry.addEngine(SystemLogger(privacy: .private))

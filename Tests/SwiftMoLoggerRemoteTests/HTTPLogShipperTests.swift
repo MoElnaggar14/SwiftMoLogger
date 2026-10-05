@@ -16,11 +16,17 @@ final class HTTPLogShipperTests: XCTestCase {
         XCTAssertTrue(raw.contains("two"))
     }
 
-    func testSentryEnvelopeURLDerivedFromDSN() {
+    func testSentryEnvelopeURLDerivedFromDSN() throws {
         let dsn = URL(string: "https://abcdef@o123.ingest.sentry.io/456789")!
-        let engine = SentryLogEngine(dsn: dsn, release: "1.0", environment: "test")
+        let engine = try XCTUnwrap(SentryLogEngine(dsn: dsn, release: "1.0", environment: "test"))
         XCTAssertEqual(engine.configuration.endpoint.absoluteString, "https://o123.ingest.sentry.io/api/456789/envelope/")
         XCTAssertNotNil(engine.configuration.headers["X-Sentry-Auth"])
+    }
+
+    func testInvalidSentryDSNIsRejectedInsteadOfCrashing() {
+        XCTAssertNil(SentryLogEngine(dsn: URL(string: "ftp://key@o1.ingest.sentry.io/2")!))
+        XCTAssertNil(SentryLogEngine(dsn: URL(string: "https://o1.ingest.sentry.io/2")!), "no public key")
+        XCTAssertNil(SentryLogEngine(dsn: URL(string: "https://key@o1.ingest.sentry.io")!), "no project")
     }
 
     func testDatadogConfiguresAPIKey() {

@@ -8,7 +8,11 @@ import SwiftMoLogger
 /// Mac to get a zero-config live tail.
 ///
 /// **Use in dev/QA builds only.** It opens a local network port and emits
-/// every log line in the clear.
+/// every log line in the clear, so ``start()`` does nothing in release builds
+/// unless you pass `allowInRelease: true` (for example for an internal QA build).
+///
+/// On iOS the app's Info.plist needs `NSLocalNetworkUsageDescription` and
+/// `NSBonjourServices` containing `_swiftmologger._tcp`.
 ///
 /// ```swift
 /// #if DEBUG
@@ -32,15 +36,20 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
     private let lock = UnfairLock()
     private var clients: [NWConnection] = []
     private let statusLogger: MoLogger?
+    private let allowInRelease: Bool
 
-    /// - Parameter statusLogger: Receives "ready" / "failed" notices about the listener.
+    /// - Parameters:
+    ///   - statusLogger: Receives "ready" / "failed" notices about the listener.
+    ///   - allowInRelease: Lets ``start()`` open the listener in non-DEBUG builds.
     public init(
         port: NWEndpoint.Port = .any,
         serviceName: String? = nil,
         minimumLevel: LogLevel = .trace,
-        statusLogger: MoLogger? = nil
+        statusLogger: MoLogger? = nil,
+        allowInRelease: Bool = false
     ) {
         self.statusLogger = statusLogger
+        self.allowInRelease = allowInRelease
         self.port = port
         self.minimumLevel = minimumLevel
         self.serviceName = serviceName ?? Bundle.main.bundleIdentifier ?? "SwiftMoLogger"
@@ -50,6 +59,15 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
 
     public func start() throws {
         guard listener == nil else { return }
+        #if !DEBUG
+        guard allowInRelease else {
+            statusLogger?.warning(
+                "LiveSink not started in a release build. Pass allowInRelease: true for internal QA builds.",
+                tag: .Development.debug
+            )
+            return
+        }
+        #endif
         let parameters = NWParameters.tcp
         let listener = try NWListener(using: parameters, on: port)
         listener.service = NWListener.Service(name: serviceName, type: LiveSink.serviceType)

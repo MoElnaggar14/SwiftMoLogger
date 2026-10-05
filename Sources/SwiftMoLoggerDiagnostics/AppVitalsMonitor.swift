@@ -70,8 +70,12 @@ public final class AppVitalsMonitor: @unchecked Sendable {
             self.displayLink?.invalidate()
             self.fpsStart = CACurrentMediaTime()
             self.frameCount = 0
-            self.displayLink = CADisplayLink(target: self, selector: #selector(self.tickFrame))
-            self.displayLink?.add(to: .main, forMode: .common)
+            // The proxy holds the monitor weakly: a display link retains its target.
+            let link = CADisplayLink(target: DisplayLinkProxy(self), selector: #selector(DisplayLinkProxy.tick))
+            // Capped at 60 Hz so ProMotion screens aren't kept at 120 Hz just to be measured.
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+            link.add(to: .main, forMode: .common)
+            self.displayLink = link
         }
         #endif
 
@@ -82,6 +86,15 @@ public final class AppVitalsMonitor: @unchecked Sendable {
         }
         timer.resume()
         self.timer = timer
+    }
+
+    deinit {
+        timer?.cancel()
+        #if canImport(QuartzCore) && (os(iOS) || os(tvOS))
+        // Only touched on the main queue, where it's invalidated.
+        nonisolated(unsafe) let link = displayLink
+        DispatchQueue.main.async { link?.invalidate() }
+        #endif
     }
 
     public func stop() {
@@ -209,8 +222,12 @@ public final class AppVitalsMonitor: @unchecked Sendable {
         // UIDevice is main-actor isolated; samples are taken on a background queue.
         return DispatchQueue.main.sync {
             MainActor.assumeIsolated {
-                UIDevice.current.isBatteryMonitoringEnabled = true
-                return Double(UIDevice.current.batteryLevel)
+                // Battery monitoring is app-wide state: leave it as the app had it.
+                let device = UIDevice.current
+                let wasEnabled = device.isBatteryMonitoringEnabled
+                if !wasEnabled { device.isBatteryMonitoringEnabled = true }
+                defer { if !wasEnabled { device.isBatteryMonitoringEnabled = false } }
+                return Double(device.batteryLevel)
             }
         }
         #else
@@ -219,8 +236,23 @@ public final class AppVitalsMonitor: @unchecked Sendable {
     }
 
     #if canImport(QuartzCore) && (os(iOS) || os(tvOS))
-    @objc private func tickFrame() {
+    fileprivate func tickFrame() {
         frameCount += 1
     }
     #endif
 }
+
+#if canImport(QuartzCore) && (os(iOS) || os(tvOS))
+/// Forwards display-link callbacks without retaining the monitor.
+private final class DisplayLinkProxy: NSObject {
+    private weak var monitor: AppVitalsMonitor?
+
+    init(_ monitor: AppVitalsMonitor) {
+        self.monitor = monitor
+    }
+
+    @objc func tick() {
+        monitor?.tickFrame()
+    }
+}
+#endif

@@ -420,12 +420,12 @@ swift-log metadata keeps its structure. Metadata providers are supported.
 ### Keep PII out of sysdiagnose
 
 The unified log ends up in sysdiagnose archives that users send to support.
-Choose how the system logger exposes messages:
+By default the system logger uses `.privateInRelease`: messages are readable while you
+debug and show as `<private>` in release builds. Choose another level if you need to:
 
 ```swift
-// Same subsystem/category as the default system logger, so this replaces it in place:
-// readable in Xcode, redacted in the field.
-logging.registry.addEngine(SystemLogger(privacy: .privateInRelease))
+// Same subsystem/category as the default system logger, so this replaces it in place.
+logging.registry.addEngine(SystemLogger(privacy: .public))   // readable everywhere
 ```
 
 `.hashed` redacts while keeping a stable hash, so identical messages can still be correlated.
@@ -486,11 +486,14 @@ Token-bucket rate limiter, thread-local PRNG for sampling — both ~ns-class ove
 ```swift
 import SwiftMoLoggerRemote
 
-logging.registry.addEngine(SentryLogEngine(
+// nil for a malformed DSN, so a bad remote-config value can't crash the app.
+if let sentry = SentryLogEngine(
     dsn: URL(string: "https://abc@o123.ingest.sentry.io/456")!,
     release: "1.4.2",
     environment: "production"
-))
+) {
+    logging.registry.addEngine(sentry)
+}
 
 logging.registry.addEngine(DatadogLogEngine(
     apiKey: "<DD_API_KEY>",

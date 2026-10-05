@@ -66,7 +66,7 @@ public final class MemoryLogEngine: LogEngine, @unchecked Sendable {
     public func recent(_ requested: Int) -> [LogEntry] {
         let all = snapshot()
         guard requested < all.count else { return all }
-        return Array(all.suffix(requested))
+        return Array(all.suffix(max(0, requested)))
     }
 
     /// Filter snapshot by level / tag domain / substring without re-acquiring

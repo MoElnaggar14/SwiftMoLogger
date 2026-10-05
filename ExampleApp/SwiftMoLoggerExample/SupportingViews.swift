@@ -130,7 +130,7 @@ struct DiagnosticsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("""
-                logging.registry.addEngine(SentryLogEngine(dsn: dsn))
+                if let sentry = SentryLogEngine(dsn: dsn) { logging.registry.addEngine(sentry) }
                 logging.registry.addEngine(DatadogLogEngine(apiKey: key, service: \"app\"))
                 logging.registry.addEngine(LokiLogEngine(endpoint: url))
                 """)

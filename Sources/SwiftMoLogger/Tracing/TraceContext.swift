@@ -11,18 +11,30 @@ public struct TraceContext: Sendable, Hashable, Codable, CustomStringConvertible
     public let spanID: String    // 16 lowercase hex chars
     public let sampled: Bool
 
-    public init(traceID: String, spanID: String, sampled: Bool = true) {
-        precondition(traceID.count == 32, "traceID must be 32 hex chars")
-        precondition(spanID.count == 16, "spanID must be 16 hex chars")
+    /// A context from IDs you received (for example from a backend header).
+    /// Returns `nil` unless `traceID` is 32 and `spanID` 16 hex characters, and
+    /// neither is all zeros (W3C treats those as invalid).
+    public init?(traceID: String, spanID: String, sampled: Bool = true) {
+        guard Self.isValidID(traceID, length: 32), Self.isValidID(spanID, length: 16) else { return nil }
+        self.init(validTraceID: traceID.lowercased(), spanID: spanID.lowercased(), sampled: sampled)
+    }
+
+    private init(validTraceID traceID: String, spanID: String, sampled: Bool) {
         self.traceID = traceID
         self.spanID = spanID
         self.sampled = sampled
     }
 
+    private static func isValidID(_ id: String, length: Int) -> Bool {
+        id.utf8.count == length
+            && id.allSatisfy(\.isHexDigit)
+            && id.contains { $0 != "0" }
+    }
+
     /// Generate a fresh root context.
     public static func generate(sampled: Bool = true) -> TraceContext {
         TraceContext(
-            traceID: randomHex(byteCount: 16),
+            validTraceID: randomHex(byteCount: 16),
             spanID: randomHex(byteCount: 8),
             sampled: sampled
         )
@@ -31,7 +43,7 @@ public struct TraceContext: Sendable, Hashable, Codable, CustomStringConvertible
     /// Spawn a child span sharing this trace.
     public func childSpan() -> TraceContext {
         TraceContext(
-            traceID: traceID,
+            validTraceID: traceID,
             spanID: TraceContext.randomHex(byteCount: 8),
             sampled: sampled
         )
@@ -42,11 +54,8 @@ public struct TraceContext: Sendable, Hashable, Codable, CustomStringConvertible
         let parts = traceparent.split(separator: "-")
         guard parts.count == 4 else { return nil }
         guard parts[0] == "00" else { return nil }
-        let traceID = String(parts[1])
-        let spanID = String(parts[2])
-        guard traceID.count == 32, spanID.count == 16 else { return nil }
         let flagsValue = UInt8(parts[3], radix: 16) ?? 0
-        return TraceContext(traceID: traceID, spanID: spanID, sampled: (flagsValue & 0x01) != 0)
+        return TraceContext(traceID: String(parts[1]), spanID: String(parts[2]), sampled: (flagsValue & 0x01) != 0)
     }
 
     /// Render as `traceparent` header value.

@@ -25,6 +25,22 @@ final class TraceContextTests: LoggingTestCase {
         XCTAssertNil(TraceContext.parse(traceparent: "00-tooshort-tooshort-00"))
     }
 
+    func testInvalidIDsAreRejectedInsteadOfCrashing() {
+        let span = "00f067aa0ba902b7"
+        let trace = "4bf92f3577b34da6a3ce929d0e0e4736"
+        XCTAssertNotNil(TraceContext(traceID: trace, spanID: span))
+        XCTAssertNil(TraceContext(traceID: "short", spanID: span))
+        XCTAssertNil(TraceContext(traceID: String(repeating: "z", count: 32), spanID: span), "not hex")
+        XCTAssertNil(TraceContext(traceID: String(repeating: "0", count: 32), spanID: span), "all zeros")
+        XCTAssertNil(TraceContext.parse(traceparent: "00-\(trace)-0000000000000000-01"))
+        XCTAssertEqual(TraceContext(traceID: trace.uppercased(), spanID: span)?.traceID, trace)
+    }
+
+    func testDuplicateMetadataKeysKeepTheLastValue() {
+        let metadata: LogMetadata = ["key": "first", "key": "second"]
+        XCTAssertEqual(metadata["key"], .string("second"))
+    }
+
     func testChildSpanKeepsTraceID() {
         let parent = TraceContext.generate()
         let child = parent.childSpan()

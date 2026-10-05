@@ -11,7 +11,9 @@ import SwiftMoLogger
 /// ```bash
 /// wscat -l 9001
 /// # in the app:
-/// logging.registry.addEngine(WebSocketTailEngine(url: URL(string: "ws://192.168.1.42:9001")!))
+/// if let tail = WebSocketTailEngine(url: URL(string: "ws://192.168.1.42:9001")!) {
+///     logging.registry.addEngine(tail)
+/// }
 /// ```
 public final class WebSocketTailEngine: NSObject, LogEngine, @unchecked Sendable, URLSessionWebSocketDelegate {
     public let engineID: String = "swiftmologger.diagnostics.wstail"
@@ -25,8 +27,9 @@ public final class WebSocketTailEngine: NSObject, LogEngine, @unchecked Sendable
     private let lock = UnfairLock()
     private var connected = false
 
-    public init(url: URL, minimumLevel: LogLevel = .trace) {
-        precondition(url.scheme == "ws" || url.scheme == "wss")
+    /// Returns `nil` unless `url` is `ws://` or `wss://`.
+    public init?(url: URL, minimumLevel: LogLevel = .trace) {
+        guard url.scheme == "ws" || url.scheme == "wss" else { return nil }
         self.url = url
         self.minimumLevel = minimumLevel
         self.encoder = JSONEncoder()

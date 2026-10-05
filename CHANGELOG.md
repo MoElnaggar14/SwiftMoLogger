@@ -10,6 +10,7 @@ Dependency injection everywhere: SwiftMoLogger no longer has any singletons or
 global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 
 ### Breaking
+- **Safe by default, crash-free on bad input.** `SystemLogger` defaults to `privacy: .privateInRelease` (messages show as `<private>` in release builds' unified log). `TraceContext(traceID:spanID:)`, `SentryLogEngine(dsn:)` and `WebSocketTailEngine(url:)` are failable instead of trapping on malformed input, which often comes from headers or remote config.
 - **Swift 6.** Library targets compile in the Swift 6 language mode, with full data-race checking. Requires Xcode 16 or later (swift-tools-version 6.0).
 - Removed the static `SwiftMoLogger.*` facade and every `.shared` instance (`EngineRegistry`, `MoLogger`, `BreadcrumbStore`, `NetworkEventStore`, `SignpostEventStore`, `VitalsHistoryStore`, `LogStream`, `CombineLogPublisher`, `AppVitalsMonitor`).
 - `LogSignpost` replaced by the injectable `Signposter`; `LogTagged` replaced by `MoLogger.with(tag:)`.
@@ -27,6 +28,9 @@ global state. See [MIGRATION.md](MIGRATION.md) for the full API map.
 - `FlightRecorder(defaults:)` / `recoverLastSession(from:defaults:)`, so tests and app groups can supply their own `UserDefaults`.
 
 ### Fixed (found in review of the 4.0 changes)
+- **`AppVitalsMonitor` leaked and drained battery.** Its display link retained the monitor (so it lived until `stop()`), ran at 120 Hz on ProMotion screens, and switched on app-wide battery monitoring for good. It now uses a weak proxy, caps the link at 60 Hz (FPS is measured against 60), restores the battery-monitoring setting after each read, and cleans up on release.
+- **`LiveSink` could ship.** `start()` does nothing in non-DEBUG builds unless you pass `allowInRelease: true`, because it streams every log line unencrypted to the local network.
+- Metadata literals with a repeated key keep the last value instead of trapping, and `MemoryLogEngine.recent(_:)` with a negative count returns nothing instead of trapping.
 - **The Articles linked from the README use the 3.x API.** Each one (and the README section) now says so and points to MIGRATION.md.
 - **Network failures logged the full failing URL.** The error description was `String(describing:)` of the `URLError`, whose userInfo holds the unredacted URL.
 - **Requests weren't logged on the per-task delegate path.** With `session.data(for:delegate:)`, the request was never logged; it's now logged together with the outcome.

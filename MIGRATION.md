@@ -103,6 +103,18 @@ final class CheckoutService {
 | `@AutoLog` | unchanged, but the type needs a `logger: MoLogger` property |
 | `SwiftMoLogger.installRecorder()` | `let (logging, logs) = LogEnvironment.recording()` or `MoLogger.recording()` |
 
+## Safer defaults
+
+- **System log privacy.** `SystemLogger` now defaults to `.privateInRelease`: readable while debugging, `<private>` in release builds' unified log (and so in sysdiagnose archives). Pass `privacy: .public` to keep 3.x behaviour.
+- **No traps on bad input.** These initializers are failable, because their input usually comes from outside the app:
+
+  ```swift
+  // 3.x                                         // 4.0
+  TraceContext(traceID: id, spanID: span)        TraceContext(traceID: id, spanID: span)   // TraceContext?
+  SentryLogEngine(dsn: dsn)                      if let sentry = SentryLogEngine(dsn: dsn) { … }
+  WebSocketTailEngine(url: url)                  if let tail = WebSocketTailEngine(url: url) { … }
+  ```
+
 ## Network logging
 
 `URLProtocol` subclasses are instantiated by the URL loading system, so they

@@ -16,7 +16,7 @@ public final class SystemLogger: LogEngine, @unchecked Sendable {
     /// The unified log ends up in sysdiagnose archives that users share with
     /// support, so anything `public` there should be safe to leak.
     public enum Privacy: Sendable {
-        /// Always readable. The historical default.
+        /// Always readable, including in sysdiagnose archives from release builds.
         case `public`
         /// Shown as `<private>` unless a debugger is attached or a logging
         /// profile is installed.
@@ -25,7 +25,7 @@ public final class SystemLogger: LogEngine, @unchecked Sendable {
         /// messages can still be correlated.
         case hashed
         /// `public` in DEBUG builds, `private` otherwise. Apple's recommended
-        /// setting for apps.
+        /// setting for apps, and the default.
         case privateInRelease
 
         var resolved: Privacy {
@@ -49,7 +49,7 @@ public final class SystemLogger: LogEngine, @unchecked Sendable {
         subsystem: String? = nil,
         category: String = "General",
         minimumLevel: LogLevel = .trace,
-        privacy: Privacy = .public,
+        privacy: Privacy = .privateInRelease,
         usePrintFallback: Bool = false
     ) {
         let resolvedSubsystem = subsystem ?? Bundle.main.bundleIdentifier ?? "SwiftMoLogger"
