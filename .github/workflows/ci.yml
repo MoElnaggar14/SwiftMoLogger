@@ -114,6 +114,16 @@ jobs:
       - name: Install SwiftLint
         run: which swiftlint || brew install swiftlint
       - run: swiftlint lint --reporter github-actions-logging
+      - name: No 3.x API in the package or example (agent skill audit)
+        # plugin/skills/swiftmologger/scripts/audit_logging.py is what the agent skill
+        # runs in apps; running it here keeps its migration table honest.
+        run: |
+          AUDIT=plugin/skills/swiftmologger/scripts/audit_logging.py
+          for dir in Sources ExampleApp; do
+            if python3 "$AUDIT" "$dir" | grep '\[migrate\]'; then
+              echo "::error::3.x API found in $dir"; exit 1
+            fi
+          done
 
   docs:
     name: Documentation

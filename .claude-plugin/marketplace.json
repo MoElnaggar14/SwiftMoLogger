@@ -1,0 +1,12 @@
+{
+  "name": "swiftmologger",
+  "description": "Agent skill for the SwiftMoLogger Swift package",
+  "owner": { "name": "Mohammed Elnaggar", "url": "https://github.com/MoElnaggar14" },
+  "plugins": [
+    {
+      "name": "swiftmologger",
+      "source": "./plugin",
+      "description": "Set up SwiftMoLogger 4.x correctly: LogEnvironment, engines, redaction, debug tooling, tests and 3.x migration."
+    }
+  ]
+}

@@ -87,6 +87,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 - [Testing](#testing)
 - [Comparison](#comparison)
 - [Upgrading](#upgrading)
+- [Use with AI coding agents](#use-with-ai-coding-agents)
 - [Development model (GitFlow)](#development-model-gitflow)
 - [📚 Article series](#-article-series)
 - [Xcode code snippets](#xcode-code-snippets)
@@ -810,6 +811,32 @@ Spotted something out of date for another library? Please open an issue. For Swi
 | no signpost integration | `environment.signposter.measure` | |
 | no SwiftUI console | `LogConsoleView(stream:)`, `DiagnosticsHubView(environment:)` | |
 | logging through a shared registry | `MoLogger` injected from one `LogEnvironment` | No singletons; see [MIGRATION.md](MIGRATION.md) |
+
+---
+
+## Use with AI coding agents
+
+The repository ships an [agent skill](plugin/skills/swiftmologger/SKILL.md) that teaches AI coding agents to set up SwiftMoLogger the 4.0 way. It covers one injected `LogEnvironment`, which engines belong in debug and which in release builds, redaction, network logging, keeping `LiveSink` debug-only, testing, and the 3.x → 4.0 migration. It also includes an audit script that lists every 3.x call with its replacement and flags release-safety problems:
+
+```bash
+python3 plugin/skills/swiftmologger/scripts/audit_logging.py path/to/YourApp
+```
+
+**Claude Code**: install it as a plugin:
+
+```
+/plugin marketplace add MoElnaggar14/SwiftMoLogger
+/plugin install swiftmologger@swiftmologger
+```
+
+**Codex and other agents that read `SKILL.md`**: copy the skill into your app's repository:
+
+```bash
+git clone --depth 1 https://github.com/MoElnaggar14/SwiftMoLogger /tmp/SwiftMoLogger
+mkdir -p .agents/skills && cp -R /tmp/SwiftMoLogger/plugin/skills/swiftmologger .agents/skills/
+```
+
+(Use `.claude/skills/` instead of `.agents/skills/` to give it to Claude Code without the plugin.) Agents working on this repository itself read [AGENTS.md](AGENTS.md).
 
 ---
 
