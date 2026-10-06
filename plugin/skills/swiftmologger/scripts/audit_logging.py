@@ -104,6 +104,8 @@ def main():
                 findings.append((rel, number, "release", "hard-coded Datadog API key ships in the binary; proxy through your backend with HTTPLogShipper"))
             if re.search(r"urlRedaction:\s*\.full\b", code) and not in_debug[number - 1]:
                 findings.append((rel, number, "release", "URLRedaction.full logs URLs with secrets; keep it to debug builds"))
+            if re.search(r"\brevealsPrivateValues\s*=\s*true\b", code) and not in_debug[number - 1]:
+                findings.append((rel, number, "release", "revealsPrivateValues = true sends .private values to every engine; keep it inside #if DEBUG"))
             if re.search(r"\bSystemLogger\s*\([^)]*privacy:\s*\.public", code):
                 findings.append((rel, number, "note", "SystemLogger(privacy: .public) makes messages readable in sysdiagnose"))
             if re.search(r"try!\s*FileLogEngine\s*\(", code):

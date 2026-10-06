@@ -4,6 +4,11 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Per-value privacy.** Mark one value in a message instead of hiding the whole message, as with `os.Logger`: `log.info("Signed in \(email, privacy: .private)")` logs `Signed in <private>`. `LogPrivacy` has `.public`, `.private`, `.sensitive` (never revealed) and a `.hash` mask for a stable `<hash:…>`. Values are replaced before the `LogEntry` is created, so no engine sees them; `registry.revealsPrivateValues = true` shows `.private` values in DEBUG builds. The `LogMessage` overloads sit alongside the `String` ones, so existing call sites are unchanged, and filtered calls still don't build the message. ([#21](https://github.com/MoElnaggar14/SwiftMoLogger/issues/21))
+
 ## [4.2.0] — 2026-10-06
 
 Runtime control and better evidence: per-tag log levels you can drive from remote config, Swift task names on every entry, the system log in bug reports, and recorded logs attached to failing Swift Testing tests. Additive; no API changes.

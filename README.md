@@ -75,6 +75,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
   - [3. Swift Macros](#3-swift-macros--zero-boilerplate-call-sites)
 - [Core logging](#core-logging)
 - [Production hardening](#production-hardening)
+  - [Per-value privacy](#per-value-privacy)
   - [PII redaction](#pii-redaction)
   - [Breadcrumbs](#breadcrumbs)
   - [Per-tag levels and remote config](#per-tag-levels-and-remote-config)
@@ -452,6 +453,33 @@ logging.registry.addEngine(SystemLogger(privacy: .public))   // readable everywh
 ```
 
 `.hashed` redacts while keeping a stable hash, so identical messages can still be correlated.
+
+### Per-value privacy
+
+Mark the sensitive value instead of hiding the whole message, as with `os.Logger`:
+
+```swift
+log.info("Signed in \(email, privacy: .private) on \(device)")   // "Signed in <private> on iPhone"
+log.info("Account \(userID, privacy: .private(mask: .hash))")    // "Account <hash:07ee7e07b4b19223>"
+log.notice("Refreshed \(token, privacy: .sensitive)")            // "Refreshed <sensitive>"
+```
+
+| Privacy | Rendered as | Revealed by `revealsPrivateValues` |
+|---|---|---|
+| none, or `.public` | the value | — |
+| `.private` | `<private>` | yes |
+| `.sensitive` | `<sensitive>` | never |
+| `.private(mask: .hash)`, `.sensitive(mask: .hash)` | `<hash:…>`, a stable 64-bit hash for correlation | as above |
+
+The value is replaced before the `LogEntry` exists, so no engine (file, remote shipper, live tail) ever receives it. To read private values while you debug:
+
+```swift
+#if DEBUG
+logging.registry.revealsPrivateValues = true
+#endif
+```
+
+Plain messages and `String` values don't change: a literal becomes a `LogMessage` only when it uses `privacy:`. Engine privacy and redaction still apply to the rendered message. The `#log` macro takes a `String`, so use the logger methods for per-value privacy. Design notes: [docs/design/per-value-privacy.md](docs/design/per-value-privacy.md).
 
 ### PII redaction
 
