@@ -14,7 +14,27 @@ import Foundation
 /// Rotation is triggered when the active file exceeds ``maxFileSizeBytes``.
 /// The current file is renamed to `<name>.1`, older numbered files shift
 /// down, and the oldest beyond ``maxRotatedFiles`` is deleted.
+///
+/// Log files can hold personal data even with redaction on, so every file is
+/// created with ``protection`` (see ``Protection``).
 public final class FileLogEngine: LogEngine, @unchecked Sendable {
+    /// How log files are encrypted at rest on iOS, tvOS, watchOS and visionOS.
+    /// Ignored on macOS, which has no per-file data protection.
+    public enum Protection: Sendable, Equatable {
+        /// Readable whenever the device is on. Only for logs with nothing personal in them.
+        case unprotected
+        /// Encrypted from boot until the first unlock. The iOS default for app files;
+        /// background logging keeps working.
+        case completeUntilFirstUserAuthentication
+        /// Open files stay writable while the device is locked and new files can still be
+        /// created (so rotation works), but nothing can be read back until it's unlocked.
+        /// The strongest class that keeps background logging working.
+        case completeUnlessOpen
+        /// Encrypted whenever the device is locked. Writes fail while it's locked, so only
+        /// for apps that never log in the background.
+        case complete
+    }
+
     public let engineID: String
     public let minimumLevel: LogLevel
 
@@ -23,6 +43,8 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
     public let maxRotatedFiles: Int
     /// Most entries that may wait to be written before new ones are dropped.
     public let maxPendingEntries: Int
+    /// The data-protection class of every log file, including rotated ones.
+    public let protection: Protection
 
     private let queue: DispatchQueue
     private let backlogLock = UnfairLock()
@@ -38,12 +60,14 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
         maxFileSizeBytes: Int = 1_048_576,
         maxRotatedFiles: Int = 3,
         maxPendingEntries: Int = 10_000,
+        protection: Protection = .completeUntilFirstUserAuthentication,
         minimumLevel: LogLevel = .info
     ) throws {
         self.fileURL = fileURL
         self.maxFileSizeBytes = maxFileSizeBytes
         self.maxRotatedFiles = max(0, maxRotatedFiles)
         self.maxPendingEntries = max(1, maxPendingEntries)
+        self.protection = protection
         self.minimumLevel = minimumLevel
         // Keyed by full path: two engines for the same file replace each other,
         // same-named files in different directories don't.
@@ -52,7 +76,9 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
         self.encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601WithFractionalSeconds
 
-        try Self.ensureFileExists(at: fileURL)
+        try Self.ensureFileExists(at: fileURL, protection: protection)
+        // A file written by an earlier version keeps its old class otherwise.
+        Self.apply(protection, to: fileURL)
         self.handle = try Self.openForAppending(fileURL)
         self.currentSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0
     }
@@ -176,7 +202,7 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
 
     private func reopenActiveFile() {
         do {
-            try Self.ensureFileExists(at: fileURL)
+            try Self.ensureFileExists(at: fileURL, protection: protection)
             handle = try Self.openForAppending(fileURL)
             currentSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int) ?? 0
         } catch {
@@ -194,14 +220,43 @@ public final class FileLogEngine: LogEngine, @unchecked Sendable {
         return FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
     }
 
-    private static func ensureFileExists(at url: URL) throws {
+    private static func ensureFileExists(at url: URL, protection: Protection) throws {
         let manager = FileManager.default
         let directory = url.deletingLastPathComponent()
         if !manager.fileExists(atPath: directory.path) {
             try manager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
         if !manager.fileExists(atPath: url.path) {
-            manager.createFile(atPath: url.path, contents: nil)
+            manager.createFile(atPath: url.path, contents: nil, attributes: protection.fileAttributes)
         }
     }
+
+    /// Best effort: a file that can't be updated keeps working with its current class.
+    private static func apply(_ protection: Protection, to url: URL) {
+        let attributes = protection.fileAttributes
+        guard !attributes.isEmpty else { return }
+        try? FileManager.default.setAttributes(attributes, ofItemAtPath: url.path)
+    }
+}
+
+extension FileLogEngine.Protection {
+    /// The attributes that apply this class to a file; empty on macOS.
+    var fileAttributes: [FileAttributeKey: Any] {
+        #if os(macOS)
+        return [:]
+        #else
+        return [.protectionKey: fileProtectionType]
+        #endif
+    }
+
+    #if !os(macOS)
+    var fileProtectionType: FileProtectionType {
+        switch self {
+        case .unprotected: return .none
+        case .completeUntilFirstUserAuthentication: return .completeUntilFirstUserAuthentication
+        case .completeUnlessOpen: return .completeUnlessOpen
+        case .complete: return .complete
+        }
+    }
+    #endif
 }

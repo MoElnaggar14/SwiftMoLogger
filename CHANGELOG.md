@@ -8,6 +8,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - **`OTLPLogEngine`** in `SwiftMoLoggerRemote` exports to any OpenTelemetry logs endpoint over OTLP/HTTP JSON (Collector, Grafana, Honeycomb, Datadog, New Relic). Levels map to OpenTelemetry severity numbers; metadata, the tag, the source location and the thread name become attributes; entries logged inside a `TraceContext` carry its `traceId` and `spanId`. No protobuf dependency. ([#16](https://github.com/MoElnaggar14/SwiftMoLogger/issues/16))
+- **File protection.** `FileLogEngine(…, protection:)` sets a data-protection class on every log file it creates, including rotated files and a file left by an earlier version. The default, `.completeUntilFirstUserAuthentication`, keeps background logging working; `.completeUnlessOpen` makes logs unreadable while the device is locked without stopping writes. Ignored on macOS. ([#19](https://github.com/MoElnaggar14/SwiftMoLogger/issues/19))
 
 ### Documentation
 - Article 5 covers `flush()`: why buffered engines lose their last batch when iOS terminates a suspended app, and flushing the registry on `scenePhase == .background`.

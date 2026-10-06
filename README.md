@@ -271,6 +271,8 @@ SwiftMoLogger Inspector — discovering _swiftmologger._tcp on local network…
 
 Each line shows timestamp (UTC), level, device, tag, thread and message. Metadata isn't printed, so keep the key fact in the message. Multiple devices, one terminal, no Xcode needed.
 
+**Ask your AI agent.** [`swiftmologger-mcp`](Tools/swiftmologger-mcp) is an MCP server that gives Claude Code, Codex or Cursor the same live tail, with tools to search, read an entry in context, list failed HTTP requests and wait for the next error while you reproduce a bug. Entries are redacted before the agent sees them.
+
 ### 3. Swift Macros — zero-boilerplate call sites
 
 ```swift
@@ -340,9 +342,12 @@ logging.registry.addEngine(MemoryLogEngine(capacity: 1_000))
 logging.registry.addEngine(try FileLogEngine(
     fileURL: URL.documentsDirectory.appending(path: "app.log"),
     maxFileSizeBytes: 2 * 1_048_576,
-    maxRotatedFiles: 3
+    maxRotatedFiles: 3,
+    protection: .completeUnlessOpen   // unreadable while locked, still writable in the background
 ))
 ```
+
+Log files can hold personal data even with redaction on, so `FileLogEngine` sets a data-protection class on every file it creates, rotated ones included. The default, `.completeUntilFirstUserAuthentication`, matches iOS's own default and states it explicitly, so an app-wide `.complete` entitlement can't silently break background logging. `.completeUnlessOpen` is the strongest class that keeps logging (and rotation) working while the device is locked. Avoid `.complete` unless the app never logs in the background. macOS has no per-file protection, so the option does nothing there.
 
 Write your own in 3 lines:
 

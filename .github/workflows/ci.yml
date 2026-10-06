@@ -113,6 +113,19 @@ jobs:
             -skipMacroValidation -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO -quiet
 
+  mcp-server:
+    name: MCP server (build + test)
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '27.0'
+      - name: Build
+        run: swift build --package-path Tools/swiftmologger-mcp
+      - name: Test
+        run: swift test --package-path Tools/swiftmologger-mcp
+
   lint:
     name: SwiftLint
     runs-on: macos-15
