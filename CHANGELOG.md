@@ -4,7 +4,9 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.5.0] — 2026-10-06
+
+Response bodies for `async` URLSession requests, and the iOS 27 / macOS 27 `MetricManager` API as the default MetricKit source on those systems. Additive; no API changes for existing callers.
 
 ### Added
 - **`LogPublicValue`**, to prepare for private-by-default messages in 5.0. A type that conforms declares its `description` safe to log, so `"Step \(step)"` stays public when 5.0 makes unmarked interpolations private. The integer types, `Float`, `Double`, `Bool`, `StaticString`, `LogLevel`, `LogTag` and optionals of them conform; `String`, `UUID` and collections don't. Nothing renders differently in 4.x: unmarked values are still shown. The package's own messages (MetricKit, signposts, `@AutoLog`, the swift-log bridge) now say `privacy: .public` or `LogMessage(verbatim:)` explicitly, so 5.0 doesn't change them. ([#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48))
