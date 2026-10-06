@@ -340,9 +340,12 @@ logging.registry.addEngine(MemoryLogEngine(capacity: 1_000))
 logging.registry.addEngine(try FileLogEngine(
     fileURL: URL.documentsDirectory.appending(path: "app.log"),
     maxFileSizeBytes: 2 * 1_048_576,
-    maxRotatedFiles: 3
+    maxRotatedFiles: 3,
+    protection: .completeUnlessOpen   // unreadable while locked, still writable in the background
 ))
 ```
+
+Log files can hold personal data even with redaction on, so `FileLogEngine` sets a data-protection class on every file it creates, rotated ones included. The default, `.completeUntilFirstUserAuthentication`, matches iOS's own default and states it explicitly, so an app-wide `.complete` entitlement can't silently break background logging. `.completeUnlessOpen` is the strongest class that keeps logging (and rotation) working while the device is locked. Avoid `.complete` unless the app never logs in the background. macOS has no per-file protection, so the option does nothing there.
 
 Write your own in 3 lines:
 
