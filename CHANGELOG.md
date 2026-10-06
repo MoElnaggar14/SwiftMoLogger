@@ -7,6 +7,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Per-tag minimum levels.** `registry.setMinimumLevel(.trace, for: .Data.database)` turns on verbose logs for one area, and `.error` quiets a noisy one, without changing the level everywhere. Overrides match a tag domain and everything below it, the most specific wins, and `registry.levelOverrides = LevelOverrides(levels)` replaces them all at once, for example from remote config (`LogLevel(name:)` parses level names). Filtered calls still return before the message is built. ([#18](https://github.com/MoElnaggar14/SwiftMoLogger/issues/18))
 - **Recorded logs as test attachments.** `RecordingLogEngine.attach(named:)` adds the recorded entries to the current Swift Testing test as a text file, one line per entry with time, level, tag, metadata and source location. Call it in a `defer`, and a failing test's report shows what was logged. Requires Swift 6.2 or later; the package still builds with Swift 6.1, without the method. ([#14](https://github.com/MoElnaggar14/SwiftMoLogger/issues/14))
 
 ## [4.1.0] — 2026-10-06

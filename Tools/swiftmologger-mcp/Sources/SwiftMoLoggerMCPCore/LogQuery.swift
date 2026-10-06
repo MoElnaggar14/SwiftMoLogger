@@ -72,23 +72,6 @@ public struct LogQuery: Sendable, Equatable {
     }
 }
 
-public extension LogLevel {
-    /// Parses `trace`, `debug`, `info`, `notice`, `warning`/`warn`, `error`, `critical` or `fault`.
-    init?(name: String) {
-        switch name.lowercased() {
-        case "trace": self = .trace
-        case "debug": self = .debug
-        case "info": self = .info
-        case "notice": self = .notice
-        case "warning", "warn": self = .warning
-        case "error": self = .error
-        case "critical": self = .critical
-        case "fault": self = .fault
-        default: return nil
-        }
-    }
-}
-
 public enum TimeExpression {
     /// Parses a relative duration (`90s`, `5m`, `2h`, `1d`) back from `now`, or an ISO 8601 date.
     public static func date(from text: String, now: Date = Date()) -> Date? {

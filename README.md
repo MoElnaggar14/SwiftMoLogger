@@ -77,6 +77,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 - [Production hardening](#production-hardening)
   - [PII redaction](#pii-redaction)
   - [Breadcrumbs](#breadcrumbs)
+  - [Per-tag levels and remote config](#per-tag-levels-and-remote-config)
   - [Sampling + rate limiting](#sampling--rate-limiting)
   - [Remote shipping](#remote-shipping-sentry--datadog--loki--opentelemetry)
   - [Crash reporters and analytics](#crash-reporters-and-analytics)
@@ -332,6 +333,7 @@ logger.info("custom", tag: .custom("Checkout", domain: "checkout"))
 
 // Registry-wide level filter — short-circuits before any allocation
 logging.registry.minimumLevel = .info  // drops trace + debug for every logger on this registry
+logging.registry.setMinimumLevel(.trace, for: .Data.database)  // except one area; see Per-tag levels
 ```
 
 ### Engines
@@ -488,6 +490,29 @@ let crumbs: [Breadcrumb] = breadcrumbs.snapshot()
 ```
 
 Bounded ring buffer (default 100), O(1) append, `Sendable` value type matching the Sentry / Bugsnag shape so shipping is a 1:1 mapping.
+
+### Per-tag levels and remote config
+
+Turn on verbose logs for one area of a shipped app without flooding the rest. An override matches a tag domain and everything below it (`data` covers `data.database`), the most specific one wins, and it can lower or raise the threshold:
+
+```swift
+logging.registry.minimumLevel = .info
+logging.registry.setMinimumLevel(.trace, for: .Data.database)   // verbose for one area
+logging.registry.setMinimumLevel(.error, for: .ThirdParty.thirdparty) // quiet a noisy SDK
+logging.registry.removeMinimumLevel(for: .Data.database)
+```
+
+Filtered calls still return before the message is built. In release builds `debug(_:)` is compiled out, so use `.trace` for verbose logging there. Per-engine levels apply afterwards: a `FileLogEngine(minimumLevel: .info)` still drops trace entries.
+
+SwiftMoLogger never fetches anything. To drive the levels from Firebase Remote Config, LaunchDarkly or your own backend, fetch the config and apply it:
+
+```swift
+// e.g. {"data.database": "trace", "thirdparty": "error"}
+func apply(levels json: [String: String], to registry: EngineRegistry) {
+    let levels = json.compactMapValues(LogLevel.init(name:))  // unknown names are skipped
+    registry.levelOverrides = LevelOverrides(levels)          // replaces every override atomically
+}
+```
 
 ### Sampling + rate limiting
 
