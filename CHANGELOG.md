@@ -6,6 +6,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **`ForwardingLogEngine`** hands entries to a closure, with an optional level, filter and flush hook. It's the bridge to SDKs the package doesn't depend on: Firebase Crashlytics, Bugsnag, Embrace, or an analytics SDK for selected events. The README has recipes and explains why vendor SDKs stay out of the package.
+
 ### Documentation
 - Article 5 covers `flush()`: why buffered engines lose their last batch when iOS terminates a suspended app, and flushing the registry on `scenePhase == .background`.
 

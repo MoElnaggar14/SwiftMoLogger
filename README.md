@@ -79,6 +79,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
   - [Breadcrumbs](#breadcrumbs)
   - [Sampling + rate limiting](#sampling--rate-limiting)
   - [Remote shipping](#remote-shipping-sentry--datadog--loki)
+  - [Crash reporters and analytics](#crash-reporters-and-analytics)
   - [Auto network logging](#auto-network-logging)
   - [Privacy manifest](#privacy-manifest)
 - [Distributed tracing](#distributed-tracing-w3c)
@@ -356,6 +357,8 @@ final class AnalyticsEngine: LogEngine {
 logging.registry.addEngine(AnalyticsEngine())
 ```
 
+Or skip the class: `ForwardingLogEngine(minimumLevel: .warning) { entry in … }` does the same with a closure. See [Crash reporters and analytics](#crash-reporters-and-analytics).
+
 ### Flushing
 
 Engines that buffer (`FileLogEngine`, the remote shippers) write or send what they hold when you call `registry.flush()`. iOS can terminate a suspended app without warning, so flush when the app moves to the background:
@@ -527,6 +530,32 @@ logging.registry.addEngine(LokiLogEngine(
 ```
 
 All shippers: batch (50–100), debounce (5 s), retry with exponential backoff, cap buffered entries on long offline spells. `log()` is O(1) — network happens off the caller's thread.
+
+### Crash reporters and analytics
+
+SwiftMoLogger depends on no vendor SDK: SwiftPM downloads every dependency a package declares, so a Firebase or Amplitude product would land in every app that uses this one. Instead, `ForwardingLogEngine` hands entries to a closure, and the app keeps its own SDK:
+
+```swift
+import FirebaseCrashlytics
+
+// Crashlytics attaches recent log lines to the next crash report.
+let crashlytics = ForwardingLogEngine(id: "crashlytics", minimumLevel: .info) { entry in
+    Crashlytics.crashlytics().log(entry.formatted())
+}
+logging.registry.addEngine(RedactingLogEngine(wrapping: crashlytics))
+```
+
+The same three lines work for Bugsnag (`Bugsnag.leaveBreadcrumb`), Embrace or any SDK with a log call.
+
+Product analytics (Amplitude, Google Analytics, Mixpanel, PostHog, Segment) answers a different question: what users do, not why the app broke. Track curated events with your analytics SDK directly. When some log entries really are events, forward only those:
+
+```swift
+logging.registry.addEngine(ForwardingLogEngine(where: { $0.tag?.domain.hasPrefix("business") == true }) { entry in
+    Amplitude.instance.track(eventType: entry.message, eventProperties: entry.metadata.storage.mapValues(\.description))
+})
+```
+
+The closure runs on the logging thread, so only hand off to the SDK there. Wrap it in `RedactingLogEngine` before anything leaves the device, and remember that analytics may need user consent and App Tracking Transparency.
 
 ### Auto network logging
 
