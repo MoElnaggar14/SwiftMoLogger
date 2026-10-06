@@ -91,9 +91,11 @@ POST checkout     ████████░░  423ms  [201]
 GET products      ███████████ 891ms  [500]
 ```
 
-Offset encodes start time within the window; width encodes duration. Colour follows status: green 2xx, yellow 3xx, orange 4xx, red for 5xx or a transport error. Tap a row for method, URL, status, sizes, duration, error and timestamps.
+Offset encodes start time within the window; width encodes duration. Colour follows status: green 2xx, yellow 3xx, orange 4xx, red for 5xx or a transport error. Tap a row for method, URL, headers, status, sizes, duration, error and timestamps, plus a **Copy as cURL** button that copies the request with its secrets still redacted.
 
 The data comes from `NetworkLogger`, which records each task when `urlSession(_:task:didFinishCollecting:)` fires. Use it on a session you own, or per request: `URLSession.shared.data(for: request, delegate: network)`. It only observes, and redacts URLs before they reach the store (see `NetworkLogger(environment:urlRedaction:)`).
+
+Bodies are off by default. `NetworkLogger(environment: logging, bodies: .debugOnly(maxBytes: 64 * 1_024))` captures redacted, truncated text bodies in debug builds and nothing in release builds, and the detail view shows them. Response bodies need the logger as the session delegate on a task created without a completion handler; the `async` APIs don't hand the delegate their data.
 
 ### Signpost flame graph
 

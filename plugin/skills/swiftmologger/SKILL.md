@@ -126,12 +126,14 @@ Treat everything logged as potentially leaving the device: sysdiagnose, files, r
 
 ```swift
 import SwiftMoLoggerNetwork
-let network = NetworkLogger(environment: logging)   // a URLSessionTaskDelegate
+let network = NetworkLogger(environment: logging)   // a URLSessionDataDelegate
 let session = URLSession(configuration: .default, delegate: network, delegateQueue: nil)
 // or one request: try await URLSession.shared.data(for: request, delegate: network)
 ```
 
 There is no global hook: only sessions and requests you give it are logged. It redacts sensitive headers and secret query items by default. Use `urlRedaction: .withoutQuery` for stricter apps. `.full` (nothing redacted) is for local debugging only.
+
+Bodies are off by default. For debugging, pass `bodies: .debugOnly(maxBytes: NetworkBodyCapture.defaultMaxBytes)`: it captures nothing in release builds. Only use `.always(maxBytes:)` when the user explicitly wants bodies in production. Captured bodies are redacted (add app rules through `redactor:`), truncated, limited to text types, and kept in `NetworkEvent.requestBody` / `responseBody` for the Hub, never in log entries. Response bodies only arrive for data tasks created without a completion handler on a session whose delegate is the logger; `async` and completion-handler requests get the request body only. `NetworkEvent.curlCommand` (and the Hub's Copy as cURL button) gives a redacted, shell-quoted `curl` command.
 
 ### 6. Debug tooling (optional)
 

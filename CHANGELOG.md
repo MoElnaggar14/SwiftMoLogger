@@ -4,6 +4,11 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Network bodies and cURL export.** `NetworkLogger(…, bodies: .debugOnly(maxBytes:))` captures request bodies (from `httpBody`) and response bodies (from `urlSession(_:dataTask:didReceive:)`) into `NetworkEvent.requestBody` / `responseBody`. Capture is off by default, `.debugOnly` captures nothing in release builds, and `.always(maxBytes:)` is the explicit opt-in for every build. Bodies go through a `Redactor`, are cut at `maxBytes` and marked as truncated, are kept only for text content types, and never go into log entries. `NetworkEvent.requestHeaders` records the redacted headers, and `NetworkEvent.curlCommand` builds a shell-quoted `curl` command from the redacted URL, headers and body. The Hub's request detail shows headers and bodies and has a Copy as cURL button where the platform has a pasteboard. `NetworkLogger` is now a `URLSessionDataDelegate`; with capture off, the new callback returns at once. ([#13](https://github.com/MoElnaggar14/SwiftMoLogger/issues/13))
+
 ## [4.2.0] — 2026-10-06
 
 Runtime control and better evidence: per-tag log levels you can drive from remote config, Swift task names on every entry, the system log in bug reports, and recorded logs attached to failing Swift Testing tests. Additive; no API changes.

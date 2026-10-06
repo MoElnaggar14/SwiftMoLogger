@@ -269,7 +269,18 @@ public final class FlightRecorder: @unchecked Sendable {
             statusCode: event.statusCode,
             responseBytes: event.responseBytes,
             requestBytes: event.requestBytes,
-            errorDescription: event.errorDescription.map { redactor.redact($0).output }
+            errorDescription: event.errorDescription.map { redactor.redact($0).output },
+            requestHeaders: event.requestHeaders?.mapValues { redactor.redact($0).output },
+            requestBody: event.requestBody.map { redacted($0, with: redactor) },
+            responseBody: event.responseBody.map { redacted($0, with: redactor) }
+        )
+    }
+
+    private func redacted(_ body: NetworkBody, with redactor: Redactor) -> NetworkBody {
+        NetworkBody(
+            text: redactor.redact(body.text).output,
+            contentType: body.contentType,
+            isTruncated: body.isTruncated
         )
     }
 

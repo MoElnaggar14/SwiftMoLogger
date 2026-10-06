@@ -175,7 +175,7 @@ Everything hangs off one `LogEnvironment` that you create at your composition ro
 |---|---|
 | **`SwiftMoLogger`** | Core: `LogEnvironment`, `MoLogger`, levels, tags, metadata, engines, registry, MetricKit, breadcrumbs, redaction, sampling, rate-limiting, Combine, signposts |
 | **`SwiftMoLoggerUI`** | SwiftUI console (`LogConsoleView`) + **`DiagnosticsHubView`** (the headline) |
-| **`SwiftMoLoggerNetwork`** | `NetworkLogger`, a `URLSessionTaskDelegate` you inject to log `URLSession` traffic |
+| **`SwiftMoLoggerNetwork`** | `NetworkLogger`, a `URLSessionDataDelegate` you inject to log `URLSession` traffic, with opt-in bodies and cURL export |
 | **`SwiftMoLoggerRemote`** | `HTTPLogShipper` + ready-made `SentryLogEngine` / `DatadogLogEngine` / `LokiLogEngine` / `OTLPLogEngine` |
 | **`SwiftMoLoggerDiagnostics`** | `LiveSink` (Bonjour), `AppVitalsMonitor`, `BugReporter`, `WebSocketTailEngine` |
 | **`SwiftMoLoggerTesting`** | `XCTAssertLogged` + `RecordingLogEngine` |
@@ -218,7 +218,7 @@ struct DebugTab: View {
 You get:
 
 - **Timeline scrubber** with log-density bar — rewind up to 10 minutes
-- **Network waterfall** of every request logged by a [`NetworkLogger`](#auto-network-logging) (colour-coded by status)
+- **Network waterfall** of every request logged by a [`NetworkLogger`](#auto-network-logging) (colour-coded by status), with headers, opt-in bodies and **Copy as cURL** in the detail view
 - **Signpost flame graph** with automatic lane assignment
 - **Vitals charts** (memory / CPU / FPS / thermal) via Swift Charts
 - **Breadcrumb trail** with category-coloured pins
@@ -613,7 +613,7 @@ let (data, _) = try await URLSession.shared.data(for: request, delegate: network
 // recorded, and the Hub's network waterfall is fed. Sensitive headers are redacted.
 ```
 
-`NetworkLogger` is a `URLSessionTaskDelegate` you inject where you create sessions; there is no global hook, so only sessions (or requests) you hand it are logged. It only observes: it never changes requests, buffers bodies or affects redirects. `Authorization`, `Cookie`, `Set-Cookie`, `X-API-Key`, `X-Auth-Token` and `Proxy-Authorization` values are redacted by default; pass `sensitiveHeaders:` to `NetworkLogger(logger:events:breadcrumbs:sensitiveHeaders:urlRedaction:)` to change the list (start from `NetworkLogger.defaultSensitiveHeaders`).
+`NetworkLogger` is a `URLSessionDataDelegate` you inject where you create sessions; there is no global hook, so only sessions (or requests) you hand it are logged. It only observes: it never changes requests or affects redirects. `Authorization`, `Cookie`, `Set-Cookie`, `X-API-Key`, `X-Auth-Token` and `Proxy-Authorization` values are redacted by default; pass `sensitiveHeaders:` to `NetworkLogger(logger:events:breadcrumbs:sensitiveHeaders:urlRedaction:)` to change the list (start from `NetworkLogger.defaultSensitiveHeaders`).
 
 URLs are redacted too, everywhere they're written (log entries, breadcrumbs, the Hub's waterfall, error descriptions). By default `user:password@` is dropped and the values of common secret query items (`token`, `access_token`, `code`, `api_key`, `signature`, `X-Amz-Signature`, …) become `REDACTED`. Pick another `URLRedaction` per logger:
 
@@ -622,6 +622,25 @@ NetworkLogger(environment: logging, urlRedaction: .withoutQuery)                
 NetworkLogger(environment: logging, urlRedaction: .redactingQueryItems(URLRedaction.defaultSensitiveQueryItems.union(["otp"])))
 NetworkLogger(environment: logging, urlRedaction: .full)                            // local debugging only
 ```
+
+#### Request and response bodies
+
+Bodies aren't captured by default. Turn capture on for debug builds:
+
+```swift
+let network = NetworkLogger(environment: logging, bodies: .debugOnly(maxBytes: NetworkBodyCapture.defaultMaxBytes))
+```
+
+`.debugOnly` captures nothing in release builds. `.always(maxBytes:)` captures in every build; use it only if you've decided bodies may sit in memory (and in the flight recorder) on users' devices. Captured bodies:
+
+- go through a `Redactor` (pass `redactor:` to add your own rules) before they're stored,
+- are cut at `maxBytes` and marked as truncated,
+- are kept only for text: JSON, XML, `text/*`, form-encoded, JavaScript, GraphQL, YAML. Images, video, protobuf and multipart bodies are skipped. A body with no content type is kept only if it reads as UTF-8 text,
+- are stored in the `NetworkEvent` (`requestBody`, `responseBody`) for the Hub. They're never written to log entries, so they don't reach your engines.
+
+Request bodies come from `URLRequest.httpBody`. Response bodies come from `urlSession(_:dataTask:didReceive:)`, which URLSession only calls for data tasks created without a completion handler on a session whose delegate is the logger. The `async` and completion-handler APIs keep the data to themselves, so for those you get the request body only. If your app already has a data delegate, forward that callback to the logger.
+
+Every `NetworkEvent` also has a `curlCommand`: the request as a shell-quoted `curl` command, built from the redacted URL and headers and the captured body. The Hub's request detail has a **Copy as cURL** button (iOS, Mac Catalyst, macOS and visionOS; tvOS and watchOS show the command without one). Redacted values stay redacted, so put a real token back in before you replay it.
 
 ### Privacy manifest
 
@@ -907,7 +926,7 @@ With Swift 6.2 or later, `logs.attach()` adds the recorded entries to the test a
 | Smart error grouping | ✅ | ❌ | ❌ | ❌ |
 | Xcode code snippets bundled | ✅ | ❌ | ❌ | ❌ |
 
-**Compared with [Pulse](https://github.com/kean/Pulse).** Pulse is the closest alternative, and it's the better pick if you mainly want a network inspector: it records full request and response bodies, and it has a polished console and a Mac app. SwiftMoLogger's `NetworkLogger` records method, URL, status, timing and sizes, but not bodies. SwiftMoLogger is the pick when you want logging *architecture*: injected loggers with no singletons, fan-out to several engines, redaction and sampling decorators, remote shippers, tracing, a flight recorder, a free Bonjour live tail, and assertions for tests.
+**Compared with [Pulse](https://github.com/kean/Pulse).** Pulse is the closest alternative, and it's the better pick if you mainly want a network inspector: it records full request and response bodies for every API, and it has a polished console and a Mac app. SwiftMoLogger's `NetworkLogger` records method, URL, headers, status, timing and sizes, and can capture redacted text bodies (off by default, debug builds only unless you opt in) with Copy as cURL in the Hub. It only observes through the session delegate, so it doesn't see response bodies of `async` and completion-handler requests. SwiftMoLogger is the pick when you want logging *architecture*: injected loggers with no singletons, fan-out to several engines, redaction and sampling decorators, remote shippers, tracing, a flight recorder, a free Bonjour live tail, and assertions for tests.
 
 Spotted something out of date for another library? Please open an issue. For SwiftMoLogger's own numbers, see [PERFORMANCE.md](PERFORMANCE.md).
 
