@@ -4,7 +4,9 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.2.0] — 2026-10-06
+
+Runtime control and better evidence: per-tag log levels you can drive from remote config, Swift task names on every entry, the system log in bug reports, and recorded logs attached to failing Swift Testing tests. Additive; no API changes.
 
 ### Added
 - **Task names.** `LogEntry.taskName` records the name of the Swift task that logged the entry (`Task(name:)`, SE-0469; Swift 6.2 with iOS 26 / macOS 26 and later). The console, the Hub and `swiftmologger-inspector` show it next to the thread, OTLP sends `swift.task.name` and Datadog `task`. It's optional, so files written by 4.0 still decode, and Swift 6.1 builds leave it `nil`. ([#15](https://github.com/MoElnaggar14/SwiftMoLogger/issues/15))

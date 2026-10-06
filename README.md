@@ -122,7 +122,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.1.0")
+    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.2.0")
 ],
 targets: [
     .target(name: "App", dependencies: [
