@@ -1,7 +1,7 @@
 {
   "name": "swiftmologger",
   "description": "Teaches Claude to set up SwiftMoLogger 4.x: one injected LogEnvironment, the right engines for debug vs release, redaction, network logging, debug tooling, tests and the 3.x migration.",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "author": { "name": "Mohammed Elnaggar", "url": "https://github.com/MoElnaggar14" },
   "homepage": "https://github.com/MoElnaggar14/SwiftMoLogger",
   "repository": "https://github.com/MoElnaggar14/SwiftMoLogger",
