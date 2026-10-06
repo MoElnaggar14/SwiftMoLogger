@@ -25,7 +25,7 @@ Analogy: the environment is a building's electrical panel. Engines are the circu
 | `SwiftMoLoggerTesting` | Test targets only |
 
 ```swift
-.package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.4.0")
+.package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.5.0")
 ```
 
 ### 2. Build the environment once and inject loggers
