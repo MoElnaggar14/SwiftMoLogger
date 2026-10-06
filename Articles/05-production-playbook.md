@@ -144,6 +144,8 @@ let strict = NetworkLogger(environment: logging, urlRedaction: .withoutQuery)   
 let raw = NetworkLogger(environment: logging, urlRedaction: .full)              // local debugging only
 ```
 
+Bodies are the riskiest part of an exchange, so they're off unless you ask. `bodies: .debugOnly(maxBytes:)` captures nothing in a release build; `.always(maxBytes:)` is the explicit opt-in for production. Captured bodies go through the `Redactor`, binary types are skipped, and they stay in the Hub's store, never in log entries.
+
 ### Layer 4: what you still have to declare
 
 `SwiftMoLogger` and `SwiftMoLoggerDiagnostics` each ship a `PrivacyInfo.xcprivacy` for the required-reason APIs they use, declaring no tracking and no collected data, because the package sends nothing off the device by itself. Add a remote engine and that changes: declare what you ship in your app's own manifest and App Store privacy details, typically diagnostics and crash data, plus whatever your log messages contain.
