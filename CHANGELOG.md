@@ -6,6 +6,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **File protection.** `FileLogEngine(…, protection:)` sets a data-protection class on every log file it creates, including rotated files and a file left by an earlier version. The default, `.completeUntilFirstUserAuthentication`, keeps background logging working; `.completeUnlessOpen` makes logs unreadable while the device is locked without stopping writes. Ignored on macOS. ([#19](https://github.com/MoElnaggar14/SwiftMoLogger/issues/19))
+
 ### Documentation
 - Article 5 covers `flush()`: why buffered engines lose their last batch when iOS terminates a suspended app, and flushing the registry on `scenePhase == .background`.
 

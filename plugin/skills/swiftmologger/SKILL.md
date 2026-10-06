@@ -72,7 +72,7 @@ The core question is: where should each log go, and who can read it there?
 | --- | :-: | :-: | --- |
 | `SystemLogger` (default, `.privateInRelease`) | ✓ | ✓ | Messages show as `<private>` in release sysdiagnose. Keep this default unless the logs contain no user data. |
 | `MemoryLogEngine(capacity:)` | ✓ | ✓ | A cheap ring buffer that `BugReporter` and the console read. |
-| `FileLogEngine(fileURL:maxFileSizeBytes:maxRotatedFiles:)` | ✓ | wrap with redaction | It persists to disk. Its init `throws`. |
+| `FileLogEngine(fileURL:maxFileSizeBytes:maxRotatedFiles:protection:)` | ✓ | wrap with redaction | It persists to disk. Its init `throws`. Pass `protection: .completeUnlessOpen` when logs may hold personal data; never `.complete` if the app logs in the background. |
 | `FlightRecorder(environment:redactor:)` | ✓ | ✓ with `redactor:` | Keeps a crash black box in Caches. |
 | Sentry / Datadog / Loki / `HTTPLogShipper` | usually off | ✓ wrapped in `RedactingLogEngine` | Sends data off the device. Declare it in the app's privacy manifest and App Store privacy details. |
 | `LiveSink` | ✓ only | ✗ | Streams unencrypted, unauthenticated logs to anyone on the Wi-Fi. |
