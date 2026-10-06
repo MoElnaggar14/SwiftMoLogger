@@ -751,7 +751,7 @@ metricKit.startMonitoring()
 
 Every payload becomes a structured entry. Each crash is a `.critical` entry tagged `.crash` with the exception and signal names, the termination reason, an uncaught Objective-C exception (iOS 17+) and the binaries on the crashing thread. Hangs, CPU exceptions, disk-write exceptions and slow launches (iOS 16+) are `.warning` entries tagged `.performance`. On iOS the daily metric payload is one `.info` entry tagged `.performance`, with time to first draw, resume time and hang time (count, average, p50 and p95 from MetricKit's histograms), peak and suspended memory, disk writes, CPU time, memory-limit and jetsam exits, the app version and the period it covers. Durations are in milliseconds (`_ms` keys) and sizes in bytes (`_bytes`).
 
-The reporter parses each payload's `jsonRepresentation()` into `MetricPayloadSummary` and `DiagnosticPayloadSummary`, so you can test against recorded payloads without building MetricKit objects. Payloads come from a `MetricPayloadSource`: the default subscribes to `MXMetricManager`, and you can pass your own, for example one that replays recorded JSON:
+The reporter parses each payload's `jsonRepresentation()` into `MetricPayloadSummary` and `DiagnosticPayloadSummary`, so you can test against recorded payloads without building MetricKit objects. Payloads come from a `MetricPayloadSource`. By default the reporter reads the async `MetricManager` API on iOS 27 and macOS 27 (`MetricManagerPayloadSource`, built with Xcode 27) and subscribes to `MXMetricManager` on earlier systems (`MXMetricManagerPayloadSource`). `MetricManager` reports have no `jsonRepresentation()`, so the source writes their values in the same JSON shape, and the logged entries are the same either way. `crashReportDelegate` and `hangReportDelegate` take `MX` objects, so setting one before `startMonitoring()` keeps the reporter on `MXMetricManager`. You can also pass your own source, for example one that replays recorded JSON:
 
 ```swift
 // ReplaySource is your own type conforming to MetricPayloadSource.
@@ -761,7 +761,7 @@ let reporter = MetricKitCrashReporter(logger: logger, source: ReplaySource(files
 MetricKitPayloadLogger(logger: logger).log(MetricKitPayload(kind: .metrics, json: payload.jsonRepresentation()))
 ```
 
-The source is also where a newer system API plugs in. The iOS 27 `MetricManager` API isn't adopted yet; the CHANGELOG explains why.
+If the app reads `MetricManager` reports elsewhere too, share one manager: `MetricKitCrashReporter(logger: logger, source: MetricManagerPayloadSource(manager: manager))`.
 
 And for a "Send Bug Report" button, `BugReporter` bundles device info, breadcrumbs, recent logs and the last vitals sample into a directory you can hand to `ShareLink` or an uploader:
 
