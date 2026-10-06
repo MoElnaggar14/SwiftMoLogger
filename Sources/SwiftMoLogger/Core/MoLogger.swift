@@ -64,11 +64,12 @@ public struct MoLogger: Sendable {
         line: Int = #line,
         column: Int = #column
     ) {
-        guard level >= registry.minimumLevel else { return }
+        let resolvedTag = tag ?? self.tag
+        guard registry.accepts(level, tag: resolvedTag) else { return }
         registry.dispatch(LogEntry(
             level: level,
             message: message(),
-            tag: tag ?? self.tag,
+            tag: resolvedTag,
             metadata: self.metadata.isEmpty ? metadata : self.metadata.merging(metadata),
             source: SourceLocation(file: file, function: function, line: line, column: column)
         ))

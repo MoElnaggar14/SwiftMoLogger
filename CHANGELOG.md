@@ -4,6 +4,11 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Per-tag minimum levels.** `registry.setMinimumLevel(.trace, for: .Data.database)` turns on verbose logs for one area, and `.error` quiets a noisy one, without changing the level everywhere. Overrides match a tag domain and everything below it, the most specific wins, and `registry.levelOverrides = LevelOverrides(levels)` replaces them all at once, for example from remote config (`LogLevel(name:)` parses level names). Filtered calls still return before the message is built. ([#18](https://github.com/MoElnaggar14/SwiftMoLogger/issues/18))
+
 ## [4.1.0] — 2026-10-06
 
 Agents, OpenTelemetry and crash reporters: an MCP server that lets AI coding agents read a running app's logs, an OTLP exporter with trace correlation, a forwarding engine for Crashlytics and other SDKs, and data protection for log files. Additive; no API changes.

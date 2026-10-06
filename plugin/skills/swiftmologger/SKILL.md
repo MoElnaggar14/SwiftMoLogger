@@ -102,6 +102,7 @@ enum LoggingSetup {
 
 Keep these facts in mind:
 - `logger.debug(…)` is compiled out of release builds of the package (`#if DEBUG`), but `trace` is not. Gate verbose logs with `registry.minimumLevel`, which filters before any allocation.
+- To get verbose logs from one area without lowering the level everywhere, use a per-tag override: `registry.setMinimumLevel(.trace, for: .Data.database)`. Overrides cover the tag's domain and everything below it. For remote config, map the fetched names with `LogLevel(name:)` and assign `registry.levelOverrides = LevelOverrides(levels)`; the package never fetches config itself.
 - Messages are autoclosures, so expensive string building is skipped when the level is filtered. Metadata isn't an autoclosure, so don't compute heavy metadata on a hot path.
 - `SentryLogEngine(dsn:)` and `WebSocketTailEngine(url:)` are failable, and `TraceContext(traceID:spanID:)` returns nil for invalid IDs. Unwrap them; never force-unwrap a value that comes from remote config.
 - Don't embed a Datadog API key (`DatadogLogEngine(apiKey:)`) in an App Store binary, because anyone can extract it. Prefer sending logs to your own backend with `HTTPLogShipper(configuration: .init(endpoint:headers:))` and forwarding them from there. If the user insists, use the most restricted key available and say what the risk is.
