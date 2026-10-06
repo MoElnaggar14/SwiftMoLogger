@@ -4,6 +4,22 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] — 2026-10-06
+
+Agents, OpenTelemetry and crash reporters: an MCP server that lets AI coding agents read a running app's logs, an OTLP exporter with trace correlation, a forwarding engine for Crashlytics and other SDKs, and data protection for log files. Additive; no API changes.
+
+### Added
+- **`swiftmologger-mcp`**, an MCP server in `Tools/swiftmologger-mcp`, lets AI coding agents (Claude Code, Codex, Cursor) read the live logs of debug builds running `LiveSink` on the local network. Five read-only tools: `list_devices`, `search_logs`, `get_entry`, `wait_for` and `network_requests`. Entries are redacted before the agent sees them, and `SWIFTMOLOGGER_MCP_APPS` limits which apps it reads. It's a separate package, so apps never resolve the MCP SDK.
+- **`OTLPLogEngine`** in `SwiftMoLoggerRemote` exports to any OpenTelemetry logs endpoint over OTLP/HTTP JSON (Collector, Grafana, Honeycomb, Datadog, New Relic). Levels map to OpenTelemetry severity numbers; metadata, the tag, the source location and the thread name become attributes; entries logged inside a `TraceContext` carry its `traceId` and `spanId`. No protobuf dependency. ([#16](https://github.com/MoElnaggar14/SwiftMoLogger/issues/16))
+- **File protection.** `FileLogEngine(…, protection:)` sets a data-protection class on every log file it creates, including rotated files and a file left by an earlier version. The default, `.completeUntilFirstUserAuthentication`, keeps background logging working; `.completeUnlessOpen` makes logs unreadable while the device is locked without stopping writes. Ignored on macOS. ([#19](https://github.com/MoElnaggar14/SwiftMoLogger/issues/19))
+- **`ForwardingLogEngine`** hands entries to a closure, with an optional level, filter and flush hook. It's the bridge to SDKs the package doesn't depend on: Firebase Crashlytics, Bugsnag, Embrace, or an analytics SDK for selected events. The README has recipes and explains why vendor SDKs stay out of the package.
+
+### Fixed
+- Release notes on GitHub link to `MIGRATION.md` and other repository files at the released tag, instead of relative links that didn't resolve.
+
+### Documentation
+- Article 5 covers `flush()`: why buffered engines lose their last batch when iOS terminates a suspended app, and flushing the registry on `scenePhase == .background`.
+
 ## [4.0.0] — 2026-10-05
 
 Dependency injection everywhere: SwiftMoLogger no longer has any singletons or

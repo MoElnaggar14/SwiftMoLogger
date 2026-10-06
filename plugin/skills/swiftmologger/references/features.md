@@ -107,6 +107,8 @@ logging.registry.addEngine(grouper)
 
 Decorators compose. A typical remote stack, from the outside in: rate limit → error grouping → redaction → shipper.
 
+For an OpenTelemetry backend (Collector, Grafana, Honeycomb, New Relic), the shipper is `OTLPLogEngine(endpoint: URL(string: "https://…:4318/v1/logs")!, serviceName: "app-ios")`. Logs written inside a `TraceContext` carry its trace and span IDs, so they join the backend's traces.
+
 ## Custom engines
 
 ```swift

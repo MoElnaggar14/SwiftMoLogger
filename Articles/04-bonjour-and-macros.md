@@ -35,7 +35,7 @@ func attachLiveTail(to logging: LogEnvironment) {
 
 The `serviceName` defaults to the bundle identifier, so ten devices running one app would announce the same name. Picking your own keeps the terminal readable. The `statusLogger` hears "LiveSink ready" or "LiveSink failed".
 
-Each `LogEntry` goes out as one line of JSON: JSON-Lines over TCP, no framing protocol, no handshake beyond Bonjour discovery. A new client first gets a `"kind": "hello"` line with the app, its version, the OS and the protocol version. Every later line without a `kind` is a `LogEntry`, and clients skip control lines they don't recognise, so new message types can be added without breaking older inspectors. Encoding and sending happen on a background queue, so the call site never waits on the network.
+Each `LogEntry` goes out as one line of JSON: JSON-Lines over TCP, no framing protocol, no handshake beyond Bonjour discovery. A new client first gets a `"kind": "hello"` line with the service name, the app version, the OS and the protocol version. Every later line without a `kind` is a `LogEntry`, and clients skip control lines they don't recognise, so new message types can be added without breaking older inspectors. Encoding and sending happen on a background queue, so the call site never waits on the network.
 
 ### Info.plist and safety
 
@@ -76,14 +76,14 @@ SwiftMoLogger Inspector — discovering _swiftmologger._tcp on local network…
 ◉ discovered MyApp-iPhone-15
 ◉ discovered MyApp-iPad-Pro
 ● connected MyApp-iPhone-15
-…connected to MyApp-iPhone-15: com.example.MyApp 1.4.2
+…connected to MyApp-iPhone-15: MyApp-iPhone-15 1.4.2
 2026-10-05T14:22:01.124Z INFO  MyApp-iPhone-15 [API] [thread] HTTP response 200
 2026-10-05T14:22:01.221Z WARN  MyApp-iPad-Pro [Layout] [main] Auto-layout broke 3 constraints
 2026-10-05T14:22:01.337Z ERROR MyApp-iPhone-15 [Database] [thread] Migration v4 → v5 timed out
 ◌ gone MyApp-iPad-Pro
 ```
 
-Metadata isn't printed, so keep the key fact in the message. No certificates, no cables, no Xcode. The tool is one file of about 150 lines of `Network.framework`, because Apple's APIs are good when you let them be.
+Metadata isn't printed, so keep the key fact in the message. No certificates, no cables, no Xcode. The tool is one file of under 200 lines of `Network.framework`, because Apple's APIs are good when you let them be.
 
 ## Swift Macros: the call site you don't have to think about
 
@@ -104,7 +104,7 @@ import SwiftMoLoggerSugar
 #log(logger, "user signed in", level: .info, tag: .api)
 ```
 
-The first argument is any `MoLogger` expression; `level` defaults to `.info`, `tag` to `nil`. The expansion, straight from the macro tests, is what you'd write by hand:
+The first argument is any `MoLogger` expression; `level` defaults to `.info`, `tag` to `nil`. The expansion (the same shape the macro tests check) is what you'd write by hand:
 
 ```swift
 logger.log(.info, "user signed in", tag: .api, file: #fileID, function: #function, line: #line)

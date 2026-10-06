@@ -78,7 +78,8 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
   - [PII redaction](#pii-redaction)
   - [Breadcrumbs](#breadcrumbs)
   - [Sampling + rate limiting](#sampling--rate-limiting)
-  - [Remote shipping](#remote-shipping-sentry--datadog--loki)
+  - [Remote shipping](#remote-shipping-sentry--datadog--loki--opentelemetry)
+  - [Crash reporters and analytics](#crash-reporters-and-analytics)
   - [Auto network logging](#auto-network-logging)
   - [Privacy manifest](#privacy-manifest)
 - [Distributed tracing](#distributed-tracing-w3c)
@@ -120,7 +121,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.0.0")
+    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.1.0")
 ],
 targets: [
     .target(name: "App", dependencies: [
@@ -174,7 +175,7 @@ Everything hangs off one `LogEnvironment` that you create at your composition ro
 | **`SwiftMoLogger`** | Core: `LogEnvironment`, `MoLogger`, levels, tags, metadata, engines, registry, MetricKit, breadcrumbs, redaction, sampling, rate-limiting, Combine, signposts |
 | **`SwiftMoLoggerUI`** | SwiftUI console (`LogConsoleView`) + **`DiagnosticsHubView`** (the headline) |
 | **`SwiftMoLoggerNetwork`** | `NetworkLogger`, a `URLSessionTaskDelegate` you inject to log `URLSession` traffic |
-| **`SwiftMoLoggerRemote`** | `HTTPLogShipper` + ready-made `SentryLogEngine` / `DatadogLogEngine` / `LokiLogEngine` |
+| **`SwiftMoLoggerRemote`** | `HTTPLogShipper` + ready-made `SentryLogEngine` / `DatadogLogEngine` / `LokiLogEngine` / `OTLPLogEngine` |
 | **`SwiftMoLoggerDiagnostics`** | `LiveSink` (Bonjour), `AppVitalsMonitor`, `BugReporter`, `WebSocketTailEngine` |
 | **`SwiftMoLoggerTesting`** | `XCTAssertLogged` + `RecordingLogEngine` |
 | **`SwiftMoLoggerSugar`** | `#log` / `#measure` / `@AutoLog` Swift Macros |
@@ -271,6 +272,8 @@ SwiftMoLogger Inspector — discovering _swiftmologger._tcp on local network…
 
 Each line shows timestamp (UTC), level, device, tag, thread and message. Metadata isn't printed, so keep the key fact in the message. Multiple devices, one terminal, no Xcode needed.
 
+**Ask your AI agent.** [`swiftmologger-mcp`](Tools/swiftmologger-mcp) is an MCP server that gives Claude Code, Codex or Cursor the same live tail, with tools to search, read an entry in context, list failed HTTP requests and wait for the next error while you reproduce a bug. Entries are redacted before the agent sees them.
+
 ### 3. Swift Macros — zero-boilerplate call sites
 
 ```swift
@@ -340,9 +343,12 @@ logging.registry.addEngine(MemoryLogEngine(capacity: 1_000))
 logging.registry.addEngine(try FileLogEngine(
     fileURL: URL.documentsDirectory.appending(path: "app.log"),
     maxFileSizeBytes: 2 * 1_048_576,
-    maxRotatedFiles: 3
+    maxRotatedFiles: 3,
+    protection: .completeUnlessOpen   // unreadable while locked, still writable in the background
 ))
 ```
+
+Log files can hold personal data even with redaction on, so `FileLogEngine` sets a data-protection class on every file it creates, rotated ones included. The default, `.completeUntilFirstUserAuthentication`, matches iOS's own default and states it explicitly, so an app-wide `.complete` entitlement can't silently break background logging. `.completeUnlessOpen` is the strongest class that keeps logging (and rotation) working while the device is locked. Avoid `.complete` unless the app never logs in the background. macOS has no per-file protection, so the option does nothing there.
 
 Write your own in 3 lines:
 
@@ -355,6 +361,8 @@ final class AnalyticsEngine: LogEngine {
 }
 logging.registry.addEngine(AnalyticsEngine())
 ```
+
+Or skip the class: `ForwardingLogEngine(minimumLevel: .warning) { entry in … }` does the same with a closure. See [Crash reporters and analytics](#crash-reporters-and-analytics).
 
 ### Flushing
 
@@ -500,7 +508,7 @@ logging.registry.addEngine(RateLimitingLogEngine(
 
 Token-bucket rate limiter, thread-local PRNG for sampling — both ~ns-class overhead.
 
-### Remote shipping (Sentry / Datadog / Loki)
+### Remote shipping (Sentry / Datadog / Loki / OpenTelemetry)
 
 ```swift
 import SwiftMoLoggerRemote
@@ -524,9 +532,44 @@ logging.registry.addEngine(LokiLogEngine(
     endpoint: URL(string: "https://loki.example.com/loki/api/v1/push")!,
     labels: ["job": "ios", "env": "prod"]
 ))
+
+// Any OpenTelemetry (OTLP/HTTP JSON) endpoint: a Collector, Grafana, Honeycomb, New Relic…
+logging.registry.addEngine(OTLPLogEngine(
+    endpoint: URL(string: "https://otel.example.com:4318/v1/logs")!,
+    serviceName: "shop-ios",
+    resource: ["deployment.environment": "production"]
+))
 ```
 
+`OTLPLogEngine` maps levels to OpenTelemetry severities, metadata, tag and source location to attributes, and entries logged inside a `TraceContext` to the record's `traceId`/`spanId`, so logs line up with your backend traces.
+
 All shippers: batch (50–100), debounce (5 s), retry with exponential backoff, cap buffered entries on long offline spells. `log()` is O(1) — network happens off the caller's thread.
+
+### Crash reporters and analytics
+
+SwiftMoLogger depends on no vendor SDK: SwiftPM downloads every dependency a package declares, so a Firebase or Amplitude product would land in every app that uses this one. Instead, `ForwardingLogEngine` hands entries to a closure, and the app keeps its own SDK:
+
+```swift
+import FirebaseCrashlytics
+
+// Crashlytics attaches recent log lines to the next crash report.
+let crashlytics = ForwardingLogEngine(id: "crashlytics", minimumLevel: .info) { entry in
+    Crashlytics.crashlytics().log(entry.formatted())
+}
+logging.registry.addEngine(RedactingLogEngine(wrapping: crashlytics))
+```
+
+The same three lines work for Bugsnag (`Bugsnag.leaveBreadcrumb`), Embrace or any SDK with a log call.
+
+Product analytics (Amplitude, Google Analytics, Mixpanel, PostHog, Segment) answers a different question: what users do, not why the app broke. Track curated events with your analytics SDK directly. When some log entries really are events, forward only those:
+
+```swift
+logging.registry.addEngine(ForwardingLogEngine(where: { $0.tag?.domain.hasPrefix("business") == true }) { entry in
+    Amplitude.instance.track(eventType: entry.message, eventProperties: entry.metadata.storage.mapValues(\.description))
+})
+```
+
+The closure runs on the logging thread, so only hand off to the SDK there. Wrap it in `RedactingLogEngine` before anything leaves the device, and remember that analytics may need user consent and App Tracking Transparency.
 
 ### Auto network logging
 

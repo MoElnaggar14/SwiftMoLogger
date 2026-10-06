@@ -97,7 +97,7 @@ The data comes from `NetworkLogger`, which records each task when `urlSession(_:
 
 ### Signpost flame graph
 
-Greedy lane assignment: walk spans by start time and put each in the lowest lane whose occupant has already ended. Concurrent spans stack; sequential spans share a lane.
+Greedy lane assignment: walk spans by start time and put each in the lowest lane whose occupant has already ended. Concurrent spans stack; sequential spans share a lane. Simplified from the source:
 
 ```swift
 private func laneAssignments(for events: [SignpostEvent]) -> [UUID: Int] {

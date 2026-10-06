@@ -3,7 +3,8 @@ name: PR Validation
 on:
   pull_request:
     branches: [ main, develop ]
-    types: [opened, synchronize, reopened, ready_for_review]
+    # edited: renaming a PR re-runs the title check instead of leaving it red.
+    types: [opened, edited, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

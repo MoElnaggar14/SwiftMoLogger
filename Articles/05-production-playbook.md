@@ -138,7 +138,7 @@ let raw = NetworkLogger(environment: logging, urlRedaction: .full)              
 
 ## Shipping logs without shipping secrets
 
-The remote engines (`SentryLogEngine`, `DatadogLogEngine`, `LokiLogEngine`, built on `HTTPLogShipper`) batch, retry with backoff and cap their buffer offline. Three notes:
+The remote engines (`SentryLogEngine`, `DatadogLogEngine`, `LokiLogEngine`, `OTLPLogEngine`, built on `HTTPLogShipper`) batch, retry with backoff and cap their buffer offline. Three notes:
 
 - **`SentryLogEngine(dsn:)` is failable.** A malformed DSN from remote config returns `nil` instead of crashing.
 - **Watch your keys.** `DatadogLogEngine(apiKey:service:)` sends that key from every device, and anything compiled into an app can be extracted. Never embed an org-wide secret. To keep keys off the device, point a plain `HTTPLogShipper(configuration: .init(endpoint: yourURL))` at your own backend and forward from there.
@@ -155,6 +155,20 @@ logging.registry.addEngine(
 ```
 
 Redacting first helps grouping: a scrubbed email reads the same in every message. `ErrorGroupingEngine` fingerprints warnings and above by normalising the message (UUIDs, hex, quoted strings and numbers become placeholders) and forwards only the first `emitThreshold` occurrences of each shape (default 1). It remembers up to `maxGroups` shapes (default 1,000); `snapshot()` returns the counts. `RateLimitingLogEngine` is a token bucket, and `SamplingLogEngine(wrapping:strategy:)` keeps a fraction of entries, uniformly or per level.
+
+### Flush before iOS suspends you
+
+Batching is what makes shipping cheap, and it's also what loses the last batch. iOS can terminate a suspended app without warning, and whatever a shipper or `FileLogEngine` was still holding goes with it. That's usually the batch you wanted, because it leads up to the moment the user gave up.
+
+So `LogEngine` has a `flush()` requirement. It does nothing by default, buffering engines override it to write or send what they hold, and every decorator above forwards it to the engine it wraps. Flush the whole registry when the scene goes to the background:
+
+```swift
+.onChange(of: scenePhase) { _, phase in
+    if phase == .background { logging.registry.flush() }
+}
+```
+
+Write a custom engine that buffers? Override `flush()` too. Otherwise the decorators forward to a no-op and the batch is lost anyway.
 
 ## Flight recorder: the black box
 
@@ -194,7 +208,7 @@ metricKit.startMonitoring()
 
 ## What ties them together
 
-Each of these is a small piece of code. They fit because the core abstractions are small: `LogEntry` is a plain value and a `LogEngine` mostly just implements `log(_:)`, so they compose. Tracing stamps metadata. Redaction rewrites it. Grouping fingerprints messages. The flight recorder snapshots everything. None needed a new architectural concept: each is another engine, another decorator, or another reader of the stores.
+Each of these is a small piece of code. They fit because the core abstractions are small: `LogEntry` is a plain value and a `LogEngine` mostly just implements `log(_:)` (plus `flush()` if it buffers), so they compose. Tracing stamps metadata. Redaction rewrites it. Grouping fingerprints messages. The flight recorder snapshots everything. None needed a new architectural concept: each is another engine, another decorator, or another reader of the stores.
 
 4.0 added one rule: nothing is global. Each piece takes the environment or logger it works with, which is also what lets tests run in parallel, each with its own environment.
 
