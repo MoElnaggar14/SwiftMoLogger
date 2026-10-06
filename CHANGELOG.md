@@ -4,6 +4,11 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Recorded logs as test attachments.** `RecordingLogEngine.attach(named:)` adds the recorded entries to the current Swift Testing test as a text file, one line per entry with time, level, tag, metadata and source location. Call it in a `defer`, and a failing test's report shows what was logged. Requires Swift 6.2 or later; the package still builds with Swift 6.1, without the method. ([#14](https://github.com/MoElnaggar14/SwiftMoLogger/issues/14))
+
 ## [4.1.0] — 2026-10-06
 
 Agents, OpenTelemetry and crash reporters: an MCP server that lets AI coding agents read a running app's logs, an OTLP exporter with trace correlation, a forwarding engine for Crashlytics and other SDKs, and data protection for log files. Additive; no API changes.

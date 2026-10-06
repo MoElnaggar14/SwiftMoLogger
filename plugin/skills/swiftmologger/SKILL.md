@@ -171,11 +171,14 @@ import SwiftMoLoggerTesting
 
 @Test func declinedPaymentIsLogged() async throws {
     let (log, logs) = MoLogger.recording()          // or LogEnvironment.recording()
+    defer { logs.attach() }                         // logs appear in the test report (Swift 6.2+)
     try await CheckoutService(log: log).purchase(invalid: true)
     #expect(logs.contains(.error, containing: "declined", tag: .api))
     #expect(logs.count(.fault) == 0)
 }
 ```
+
+`logs.attach(named:)` records the entries as a text attachment, so a failing test's report shows what was logged without a rerun. It needs Swift 6.2 or later; leave it out if the project still builds with Swift 6.1.
 
 When the type under test also takes a `BreadcrumbStore` (or other stores), use `let (logging, logs) = LogEnvironment.recording()`, inject `logging.logger` and `logging.breadcrumbs`, then check `logging.breadcrumbs.snapshot()`.
 
