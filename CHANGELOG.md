@@ -4,6 +4,14 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`MetricManagerPayloadSource`** reads the iOS 27 and macOS 27 `MetricManager` API: it iterates `metricReports` and `diagnosticReports` and writes each report's values in the JSON shape of `jsonRepresentation()`, so the summaries, `MetricKitPayloadLogger` and the logged entries are the same as with `MXMetricManager`. It's compiled with Swift 6.4 (Xcode 27) only, on iOS and macOS. `MetricManagerPayloadSource(manager:)` takes a `MetricManager` the app already holds. ([#47](https://github.com/MoElnaggar14/SwiftMoLogger/issues/47))
+
+### Changed
+- `MetricKitCrashReporter(logger:)` reads `MetricManager` on iOS 27 and macOS 27, and `MXMetricManager` on earlier systems. It picks the source when `startMonitoring()` is first called: if `crashReportDelegate` or `hangReportDelegate` is set by then, it stays on `MXMetricManager`, because those delegates take `MX` objects. Each `MetricManager` diagnostic report holds one event, so it's logged as its own payload (one "Received 1 diagnostic payload(s)" entry each), and memory-exception diagnostics aren't logged. On macOS 27 the daily metric report is logged too. ([#47](https://github.com/MoElnaggar14/SwiftMoLogger/issues/47))
+
 ## [4.4.0] — 2026-10-06
 
 `#log` accepts per-value privacy, and the async `LogContext.with` and `TraceContext.run` no longer warn on Swift 6.4. Additive; no API changes for existing callers.
