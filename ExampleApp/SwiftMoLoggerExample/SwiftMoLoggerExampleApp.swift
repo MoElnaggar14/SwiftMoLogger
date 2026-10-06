@@ -118,7 +118,8 @@ struct AppDependencies {
         self.memory = MemoryLogEngine(capacity: 2_000)
         self.session = URLSession(
             configuration: .default,
-            delegate: NetworkLogger(environment: logging),
+            // Request bodies show in the Hub's detail view in debug builds only.
+            delegate: NetworkLogger(environment: logging, bodies: .debugOnly(maxBytes: 16 * 1_024)),
             delegateQueue: nil
         )
         self.vitals = AppVitalsMonitor(logger: logging.logger, history: logging.vitals)

@@ -12,6 +12,7 @@
 | Argument evaluation | Every message string is built even when no engine consumes it | `@autoclosure` on every level helper — message is built only when the entry survives filtering |
 | Source location capture | `Thread.callStackSymbols` (~ms) | `#fileID` / `#function` / `#line` compile-time literals |
 | Thread label | `Thread.current.description` allocates | `"main"` via `Thread.isMainThread`, otherwise the thread's name (no description string) |
+| Per-value privacy | — | `LogMessage` is an autoclosure like `String`: a filtered call never runs the interpolation. A kept message without private values builds one string; the first `.private` value starts a second rendering (for `revealsPrivateValues`), and only then is the flag read |
 | Task label | — | `Task.name` read once per *kept* entry (a task-local lookup); filtered calls never build the entry, so they never read it |
 | Concurrency model | GCD callbacks only | Native `AsyncStream` for streaming, `async` overloads for context |
 
@@ -23,6 +24,8 @@
 | `info("…")` — `MemoryLogEngine` only | **310 ns** | 460 ns | full `LogEntry` materialisation + append |
 | `info("…")` filtered by `minimumLevel = .error` | **35 ns** | 60 ns | confirms short-circuit before allocation |
 | `info("…")` filtered with three per-tag `levelOverrides` | not yet measured | — | `testFilteredWithLevelOverrides`; a scan of the override keys with `hasPrefix`, no allocation |
+| `info("…\(v, privacy: .private)")` — `MemoryLogEngine` only | not yet measured | — | `testHotPathWithPrivateValue`; one extra string for the revealed rendering |
+| `info("…\(v, privacy: .private)")` filtered by `minimumLevel = .error` | not yet measured | — | `testFilteredPrivateValue`; same short-circuit, no allocation |
 | `info("…")` — `SystemLogger` (os.log) only | **820 ns** | 1.3 µs | dominated by `os_log` itself, not by us |
 | `info("…")` — 4 engines (System+Memory+File+Stream) | **3.1 µs** | 5.0 µs | parallelisable across cores, see below |
 | Concurrent dispatch — 8 threads, 2 000 calls each | **22 ms** total | — | linear scaling vs. single thread (4 cores busy) |

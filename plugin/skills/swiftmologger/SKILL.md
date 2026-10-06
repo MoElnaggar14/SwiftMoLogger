@@ -120,18 +120,21 @@ Treat everything logged as potentially leaving the device: sysdiagnose, files, r
   logging.registry.replaceEngine(id: engine.engineID) { RedactingLogEngine(wrapping: $0, redactor: redactor) }
   ```
 - The default rules cover JWTs, Bearer/Basic tokens, AWS/GCP keys, emails, card numbers, phone numbers, IPv4 addresses and UUIDs, and they walk metadata recursively. Add rules for app-specific identifiers: `try redactor.add(Redactor.Rule(name: "ssn", pattern: #"\d{3}-\d{2}-\d{4}"#))`.
+- When a message needs a personal value, mark that value instead of hiding the whole message: `log.info("Signed in \(email, privacy: .private)")` logs `Signed in <private>`. Use `.sensitive` for tokens, secrets and health data (never revealed), and `.private(mask: .hash)` when you need to correlate entries for the same user. The value is replaced before any engine sees it. `logging.registry.revealsPrivateValues = true` shows `.private` values; set it only under `#if DEBUG`. Plain literals and `String` values keep working unchanged. `#log` takes a `String`, so use the logger methods for this.
 - Redaction is a safety net, not a licence. Prefer logging IDs over names, emails or free text the user typed.
 
 ### 5. Network logging (optional)
 
 ```swift
 import SwiftMoLoggerNetwork
-let network = NetworkLogger(environment: logging)   // a URLSessionTaskDelegate
+let network = NetworkLogger(environment: logging)   // a URLSessionDataDelegate
 let session = URLSession(configuration: .default, delegate: network, delegateQueue: nil)
 // or one request: try await URLSession.shared.data(for: request, delegate: network)
 ```
 
 There is no global hook: only sessions and requests you give it are logged. It redacts sensitive headers and secret query items by default. Use `urlRedaction: .withoutQuery` for stricter apps. `.full` (nothing redacted) is for local debugging only.
+
+Bodies are off by default. For debugging, pass `bodies: .debugOnly(maxBytes: NetworkBodyCapture.defaultMaxBytes)`: it captures nothing in release builds. Only use `.always(maxBytes:)` when the user explicitly wants bodies in production. Captured bodies are redacted (add app rules through `redactor:`), truncated, limited to text types, and kept in `NetworkEvent.requestBody` / `responseBody` for the Hub, never in log entries. Response bodies only arrive for data tasks created without a completion handler on a session whose delegate is the logger; `async` and completion-handler requests get the request body only. `NetworkEvent.curlCommand` (and the Hub's Copy as cURL button) gives a redacted, shell-quoted `curl` command.
 
 ### 6. Debug tooling (optional)
 
@@ -187,7 +190,7 @@ With XCTest, use `XCTAssertLogged(.error, contains: "declined", tag: .api, in: l
 
 ## Migrating from 3.x
 
-Run the scanner from the app's root. It lists every 3.x call with its 4.0 replacement, and flags release-safety problems (LiveSink outside `#if DEBUG`, missing Bonjour keys, hard-coded Datadog keys):
+Run the scanner from the app's root. It lists every 3.x call with its 4.0 replacement, and flags release-safety problems (LiveSink outside `#if DEBUG`, missing Bonjour keys, hard-coded Datadog keys, private values revealed in release):
 
 ```bash
 python3 <skill-dir>/scripts/audit_logging.py .
@@ -200,6 +203,7 @@ Then follow [references/migration-3x.md](references/migration-3x.md). The approa
 - There is exactly one `LogEnvironment` in the app target, created at the composition root, with no globals or `.shared`.
 - Every engine that persists or ships data is wrapped in `RedactingLogEngine`, and the flight recorder gets `redactor:`.
 - `LiveSink` and its Info.plist keys exist only in debug builds.
+- `registry.revealsPrivateValues = true`, if used, is inside `#if DEBUG`.
 - Remote shippers are declared in the privacy manifest, and no secrets are hard-coded.
 - Tests use `MoLogger.recording()` or `LogEnvironment.recording()`.
 - `audit_logging.py` reports nothing to fix.

@@ -12,6 +12,13 @@ public struct NetworkEvent: Sendable, Hashable, Codable, Identifiable {
     public let responseBytes: Int64
     public let requestBytes: Int64
     public let errorDescription: String?
+    /// Request header fields as recorded, with sensitive values already
+    /// redacted. `nil` for events recorded by older versions or built without them.
+    public let requestHeaders: [String: String]?
+    /// The captured request body, when body capture is on and the body is text.
+    public let requestBody: NetworkBody?
+    /// The captured response body, when body capture is on and the body is text.
+    public let responseBody: NetworkBody?
 
     public var durationSeconds: TimeInterval {
         endedAt.timeIntervalSince(startedAt)
@@ -26,7 +33,10 @@ public struct NetworkEvent: Sendable, Hashable, Codable, Identifiable {
         statusCode: Int,
         responseBytes: Int64,
         requestBytes: Int64,
-        errorDescription: String? = nil
+        errorDescription: String? = nil,
+        requestHeaders: [String: String]? = nil,
+        requestBody: NetworkBody? = nil,
+        responseBody: NetworkBody? = nil
     ) {
         self.id = id
         self.startedAt = startedAt
@@ -37,6 +47,26 @@ public struct NetworkEvent: Sendable, Hashable, Codable, Identifiable {
         self.responseBytes = responseBytes
         self.requestBytes = requestBytes
         self.errorDescription = errorDescription
+        self.requestHeaders = requestHeaders
+        self.requestBody = requestBody
+        self.responseBody = responseBody
+    }
+}
+
+/// A request or response body captured by `NetworkLogger`'s opt-in body
+/// capture. The text has already been through the redactor.
+public struct NetworkBody: Sendable, Hashable, Codable {
+    /// The body as UTF-8 text, redacted, and cut at the capture limit.
+    public let text: String
+    /// The `Content-Type` (or response MIME type) it was sent with, if known.
+    public let contentType: String?
+    /// `true` when the body was longer than the capture limit and `text` holds only its start.
+    public let isTruncated: Bool
+
+    public init(text: String, contentType: String? = nil, isTruncated: Bool = false) {
+        self.text = text
+        self.contentType = contentType
+        self.isTruncated = isTruncated
     }
 }
 
