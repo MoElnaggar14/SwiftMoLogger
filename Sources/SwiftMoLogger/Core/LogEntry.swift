@@ -14,6 +14,11 @@ public struct LogEntry: Sendable, Hashable, Codable, Identifiable {
     public let metadata: LogMetadata
     public let source: SourceLocation
     public let threadName: String
+    /// The name of the Swift task that logged the entry (`Task(name:)`, SE-0469), or
+    /// `nil` for unnamed tasks, code outside a task, and systems before iOS 26 /
+    /// macOS 26. More telling than ``threadName`` under Swift concurrency, where
+    /// tasks hop between threads. Optional, so entries written by 4.0 still decode.
+    public let taskName: String?
 
     public init(
         id: UUID = UUID(),
@@ -23,7 +28,8 @@ public struct LogEntry: Sendable, Hashable, Codable, Identifiable {
         tag: LogTag? = nil,
         metadata: LogMetadata = LogMetadata(),
         source: SourceLocation = SourceLocation(),
-        threadName: String = LogEntry.currentThreadName()
+        threadName: String = LogEntry.currentThreadName(),
+        taskName: String? = LogEntry.currentTaskName()
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -33,6 +39,7 @@ public struct LogEntry: Sendable, Hashable, Codable, Identifiable {
         self.metadata = metadata
         self.source = source
         self.threadName = threadName
+        self.taskName = taskName
     }
 
     /// Best-effort current-thread label. Cheap on the hot path: avoids
@@ -42,6 +49,16 @@ public struct LogEntry: Sendable, Hashable, Codable, Identifiable {
         if Thread.isMainThread { return "main" }
         let name = Thread.current.name ?? ""
         return name.isEmpty ? "thread" : name
+    }
+
+    /// The current task's name, or `nil`. A task-local read, so it costs no allocation.
+    public static func currentTaskName() -> String? {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, visionOS 26.0, *) {
+            return Task.name
+        }
+        #endif
+        return nil
     }
 
     /// Human-readable single-line rendering used by `SystemLogger` and console

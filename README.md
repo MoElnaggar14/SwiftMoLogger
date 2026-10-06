@@ -77,6 +77,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 - [Production hardening](#production-hardening)
   - [PII redaction](#pii-redaction)
   - [Breadcrumbs](#breadcrumbs)
+  - [Per-tag levels and remote config](#per-tag-levels-and-remote-config)
   - [Sampling + rate limiting](#sampling--rate-limiting)
   - [Remote shipping](#remote-shipping-sentry--datadog--loki--opentelemetry)
   - [Crash reporters and analytics](#crash-reporters-and-analytics)
@@ -121,7 +122,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.1.0")
+    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.2.0")
 ],
 targets: [
     .target(name: "App", dependencies: [
@@ -332,6 +333,7 @@ logger.info("custom", tag: .custom("Checkout", domain: "checkout"))
 
 // Registry-wide level filter — short-circuits before any allocation
 logging.registry.minimumLevel = .info  // drops trace + debug for every logger on this registry
+logging.registry.setMinimumLevel(.trace, for: .Data.database)  // except one area; see Per-tag levels
 ```
 
 ### Engines
@@ -488,6 +490,29 @@ let crumbs: [Breadcrumb] = breadcrumbs.snapshot()
 ```
 
 Bounded ring buffer (default 100), O(1) append, `Sendable` value type matching the Sentry / Bugsnag shape so shipping is a 1:1 mapping.
+
+### Per-tag levels and remote config
+
+Turn on verbose logs for one area of a shipped app without flooding the rest. An override matches a tag domain and everything below it (`data` covers `data.database`), the most specific one wins, and it can lower or raise the threshold:
+
+```swift
+logging.registry.minimumLevel = .info
+logging.registry.setMinimumLevel(.trace, for: .Data.database)   // verbose for one area
+logging.registry.setMinimumLevel(.error, for: .ThirdParty.thirdparty) // quiet a noisy SDK
+logging.registry.removeMinimumLevel(for: .Data.database)
+```
+
+Filtered calls still return before the message is built. In release builds `debug(_:)` is compiled out, so use `.trace` for verbose logging there. Per-engine levels apply afterwards: a `FileLogEngine(minimumLevel: .info)` still drops trace entries.
+
+SwiftMoLogger never fetches anything. To drive the levels from Firebase Remote Config, LaunchDarkly or your own backend, fetch the config and apply it:
+
+```swift
+// e.g. {"data.database": "trace", "thirdparty": "error"}
+func apply(levels json: [String: String], to registry: EngineRegistry) {
+    let levels = json.compactMapValues(LogLevel.init(name:))  // unknown names are skipped
+    registry.levelOverrides = LevelOverrides(levels)          // replaces every override atomically
+}
+```
 
 ### Sampling + rate limiting
 
@@ -676,6 +701,19 @@ let report = try reporter.generate()
 // report.directory → ShareLink / UIActivityViewController / custom uploader
 ```
 
+Apple frameworks and SDKs log through `os_log`, not SwiftMoLogger, so a networking or Core Data error raised inside a framework never reaches your engines. Pass `systemLog:` to add the last few minutes of the app's own unified log as `system-log.txt`, redacted and capped at 1 MB (newest entries kept):
+
+```swift
+let reporter = BugReporter(
+    environment: logging,
+    memoryEngine: memory,
+    systemLog: SystemLogOptions(window: 600)   // last 10 minutes
+)
+let report = try await Task.detached { try reporter.generate() }.value   // reading the log takes a moment
+```
+
+iOS only lets an app read its own process's log, which is what a report needs. If the log can't be read, the file says why and the rest of the report is still written.
+
 ---
 
 ## Error grouping
@@ -714,6 +752,18 @@ logger.info("outside scope")          // ← clean
 ```
 
 Backed by `@TaskLocal` — concurrent `Task`s see their own scope without interfering. The registry merges the ambient context at dispatch, so every logger sees it without anything being injected.
+
+### Task names
+
+Under Swift concurrency a thread name says little, because tasks hop between threads. Name the task and every entry logged inside it records the name (Swift 6.2, iOS 26 / macOS 26 and later):
+
+```swift
+Task(name: "checkout.pay") {
+    logger.info("charging card")   // entry.taskName == "checkout.pay"
+}
+```
+
+The console, the Mac inspector and the Hub show it next to the thread, and the OTLP and Datadog engines send it as `swift.task.name` / `task`. Unnamed tasks and older systems leave `taskName` `nil`.
 
 ### AsyncStream of entries
 
@@ -817,6 +867,17 @@ import SwiftMoLoggerTesting
 ```
 
 `entries(_:containing:tag:withMetadataKey:)`, `contains(…)` and `count(…)` take the same filters (level, substring, tag domain, metadata key).
+
+With Swift 6.2 or later, `logs.attach()` adds the recorded entries to the test as a text attachment, one line per entry. Call it in a `defer` and a failing test's report shows what was logged, with no rerun and no print statements. Xcode shows it in the test report; `swift test` saves it with `--attachments-path`.
+
+```swift
+@Test func declinedPaymentIsLogged() async throws {
+    let (log, logs) = MoLogger.recording()
+    defer { logs.attach() }   // or attach(named: "checkout")
+    try await CheckoutService(log: log).purchase(invalid: true)
+    #expect(logs.contains(.error, containing: "declined"))
+}
+```
 
 `LogEnvironment.recording()` returns a fresh environment whose only engine (besides its stream) is a `RecordingLogEngine`; `MoLogger.recording()` does the same and hands back just the logger. Inject it into the system under test, then assert on *what* it logged. Nothing global is touched, so every test is isolated and suites are safe to run in parallel.
 

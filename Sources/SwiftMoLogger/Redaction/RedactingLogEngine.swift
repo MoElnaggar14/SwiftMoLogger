@@ -37,7 +37,8 @@ public final class RedactingLogEngine: LogEngine, @unchecked Sendable {
             tag: entry.tag,
             metadata: redactedMetadata,
             source: entry.source,
-            threadName: entry.threadName
+            threadName: entry.threadName,
+            taskName: entry.taskName
         )
         wrapped.log(redacted)
     }

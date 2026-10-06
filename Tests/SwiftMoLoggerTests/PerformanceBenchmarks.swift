@@ -49,6 +49,24 @@ final class PerformanceBenchmarks: LoggingTestCase {
         registry.minimumLevel = .info
     }
 
+    /// Filtering with per-tag overrides in place: a short scan of the override
+    /// keys, still before the message is built. Should stay close to
+    /// `testFilteredByLevelShortCircuit`.
+    func testFilteredWithLevelOverrides() {
+        registry.removeAllEngines()
+        registry.addEngine(MemoryLogEngine(capacity: 1_000))
+        registry.minimumLevel = .error
+        registry.levelOverrides = ["data.database": .trace, "network": .warning, "thirdparty": .fault]
+        let tagged = log.with(tag: .UI.navigation)
+        measure(metrics: [XCTClockMetric()]) {
+            for index in 0..<10_000 {
+                tagged.info("filtered-\(index)")
+            }
+        }
+        registry.levelOverrides = LevelOverrides()
+        registry.minimumLevel = .info
+    }
+
     /// Highly-contended dispatch across many threads. Validates the lock
     /// strategy isn't the bottleneck.
     func testConcurrentDispatchThroughput() {

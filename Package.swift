@@ -89,6 +89,11 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
+            name: "SwiftMoLoggerDiagnosticsTests",
+            dependencies: ["SwiftMoLoggerDiagnostics"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
             name: "SwiftMoLoggerUITests",
             dependencies: ["SwiftMoLoggerUI"],
             swiftSettings: [.swiftLanguageMode(.v5)]

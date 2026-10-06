@@ -17,6 +17,7 @@ public final class EngineRegistry: @unchecked Sendable {
     private var engines: ContiguousArray<any LogEngine> = []
     private let lock = UnfairLock()
     private var globalMinimumLevel: LogLevel = .trace
+    private var overrides = LevelOverrides()
     /// The system logger installed by the registry itself. Protected from
     /// ``removeEngine(at:)`` / ``removeEngine(id:)`` by identity, so it stays
     /// protected wherever it sits in the list (and nothing else is protected
@@ -137,6 +138,7 @@ public final class EngineRegistry: @unchecked Sendable {
         engines.append(contentsOf: persistentEngines)
         defaultSystemLogger = logger
         globalMinimumLevel = .trace
+        overrides = LevelOverrides()
     }
 
     /// Drop every engine, persistent ones included (``reset()`` brings those
@@ -150,8 +152,9 @@ public final class EngineRegistry: @unchecked Sendable {
 
     // MARK: - Global filtering
 
-    /// Lowest level the registry accepts. Cheaper than per-engine filtering —
-    /// entries below the threshold short-circuit before any allocation.
+    /// Lowest level the registry accepts for entries no ``levelOverrides`` key
+    /// matches. Cheaper than per-engine filtering: entries below the threshold
+    /// short-circuit before any allocation.
     public var minimumLevel: LogLevel {
         get {
             lock.lock()
@@ -163,6 +166,54 @@ public final class EngineRegistry: @unchecked Sendable {
             defer { lock.unlock() }
             globalMinimumLevel = newValue
         }
+    }
+
+    /// Minimum levels for parts of the app, by tag domain. They take precedence
+    /// over ``minimumLevel`` for matching tags, in either direction. Change them at
+    /// runtime, for example from remote config, to get verbose logs from one area
+    /// without a new build. Per-engine minimum levels still apply afterwards.
+    ///
+    /// In release builds `debug(_:)` calls are compiled out, so use `.trace`
+    /// to turn on verbose logging there.
+    public var levelOverrides: LevelOverrides {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return overrides
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            overrides = newValue
+        }
+    }
+
+    /// Sets the minimum level for `tag`'s domain and every domain below it.
+    public func setMinimumLevel(_ level: LogLevel, for tag: LogTag) {
+        lock.lock()
+        defer { lock.unlock() }
+        overrides[tag.domain] = level
+    }
+
+    /// Removes the override for `tag`'s domain, so it inherits again.
+    public func removeMinimumLevel(for tag: LogTag) {
+        lock.lock()
+        defer { lock.unlock() }
+        overrides[tag.domain] = nil
+    }
+
+    /// Whether an entry at `level` with `tag` passes the registry's filter.
+    /// ``MoLogger`` calls this before building the message, so a filtered call
+    /// costs a lock and a comparison (plus a short scan when overrides exist).
+    public func accepts(_ level: LogLevel, tag: LogTag?) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return level >= effectiveMinimumLevel(for: tag)
+    }
+
+    /// Call with the lock held.
+    private func effectiveMinimumLevel(for tag: LogTag?) -> LogLevel {
+        overrides.isEmpty ? globalMinimumLevel : overrides.minimumLevel(for: tag?.domain, fallback: globalMinimumLevel)
     }
 
     // MARK: - Flush
@@ -185,8 +236,7 @@ public final class EngineRegistry: @unchecked Sendable {
     /// cannot block writers. The ambient ``LogContext`` is merged in here.
     public func dispatch(_ entry: LogEntry) {
         lock.lock()
-        let level = globalMinimumLevel
-        guard entry.level >= level else {
+        guard entry.level >= effectiveMinimumLevel(for: entry.tag) else {
             lock.unlock()
             return
         }
@@ -206,7 +256,8 @@ public final class EngineRegistry: @unchecked Sendable {
                 tag: entry.tag,
                 metadata: ambient.merging(entry.metadata),
                 source: entry.source,
-                threadName: entry.threadName
+                threadName: entry.threadName,
+                taskName: entry.taskName
             )
         }
 

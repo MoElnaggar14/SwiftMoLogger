@@ -14,6 +14,8 @@ import UIKit
 ///                          ``MemoryLogEngine``
 /// - `vitals.json`        — last vitals sample (if a monitor is attached)
 /// - `metadata.json`      — caller-supplied extras
+/// - `system-log.txt`     — recent unified-log entries from Apple frameworks and SDKs,
+///                          redacted, when you pass ``SystemLogOptions``
 ///
 /// The directory URL is returned so the caller can hand it directly to
 /// `UIActivityViewController` / `ShareLink` / a custom uploader.
@@ -27,21 +29,26 @@ public struct BugReporter: Sendable {
     public let memoryEngine: MemoryLogEngine?
     public let vitalsMonitor: AppVitalsMonitor?
     public let appName: String
+    public let systemLog: SystemLogOptions?
 
     /// - Parameters:
     ///   - environment: Supplies breadcrumbs and the list of active engines.
     ///   - memoryEngine: Recent entries to include as `logs.json`.
     ///   - vitalsMonitor: Its last sample is included as `vitals.json`.
+    ///   - systemLog: Adds the last ``SystemLogOptions/window`` seconds of this process's
+    ///     unified log as `system-log.txt`. Off by default; reading it takes a moment.
     public init(
         environment: LogEnvironment,
         memoryEngine: MemoryLogEngine? = nil,
         vitalsMonitor: AppVitalsMonitor? = nil,
-        appName: String = "App"
+        appName: String = "App",
+        systemLog: SystemLogOptions? = nil
     ) {
         self.environment = environment
         self.memoryEngine = memoryEngine
         self.vitalsMonitor = vitalsMonitor
         self.appName = appName
+        self.systemLog = systemLog
     }
 
     public func generate(extras: LogMetadata = [:]) throws -> Report {
@@ -49,7 +56,8 @@ public struct BugReporter: Sendable {
             .replacingOccurrences(of: ":", with: "-")
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("BugReports", isDirectory: true)
-            .appendingPathComponent("\(appName)-\(timestamp)", isDirectory: true)
+            // The suffix keeps two reports generated in the same second apart.
+            .appendingPathComponent("\(appName)-\(timestamp)-\(UUID().uuidString.prefix(8))", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
         let info = deviceInfo()
@@ -76,6 +84,18 @@ public struct BugReporter: Sendable {
         if let sample = vitalsMonitor?.lastSample {
             try encoder.encode(sample)
                 .write(to: root.appendingPathComponent("vitals.json"))
+        }
+
+        if let systemLog {
+            let text: String
+            do {
+                let since = Date().addingTimeInterval(-systemLog.window)
+                text = systemLog.render(try systemLog.source.entries(since: since))
+            } catch {
+                // The rest of the report is still worth sending.
+                text = "System log unavailable: \(error.localizedDescription)"
+            }
+            try text.write(to: root.appendingPathComponent("system-log.txt"), atomically: true, encoding: .utf8)
         }
 
         return Report(directory: root, info: info)

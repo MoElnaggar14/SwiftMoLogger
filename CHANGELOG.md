@@ -4,6 +4,19 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.0] — 2026-10-06
+
+Runtime control and better evidence: per-tag log levels you can drive from remote config, Swift task names on every entry, the system log in bug reports, and recorded logs attached to failing Swift Testing tests. Additive; no API changes.
+
+### Added
+- **Task names.** `LogEntry.taskName` records the name of the Swift task that logged the entry (`Task(name:)`, SE-0469; Swift 6.2 with iOS 26 / macOS 26 and later). The console, the Hub and `swiftmologger-inspector` show it next to the thread, OTLP sends `swift.task.name` and Datadog `task`. It's optional, so files written by 4.0 still decode, and Swift 6.1 builds leave it `nil`. ([#15](https://github.com/MoElnaggar14/SwiftMoLogger/issues/15))
+- **Per-tag minimum levels.** `registry.setMinimumLevel(.trace, for: .Data.database)` turns on verbose logs for one area, and `.error` quiets a noisy one, without changing the level everywhere. Overrides match a tag domain and everything below it, the most specific wins, and `registry.levelOverrides = LevelOverrides(levels)` replaces them all at once, for example from remote config (`LogLevel(name:)` parses level names). Filtered calls still return before the message is built. ([#18](https://github.com/MoElnaggar14/SwiftMoLogger/issues/18))
+- **System log in bug reports.** `BugReporter(…, systemLog: SystemLogOptions(window: 600))` adds the app's recent unified-log entries (`os_log` and `Logger`, where Apple frameworks and SDKs log) as `system-log.txt`. Entries go through the redactor, the file keeps the newest entries within 1 MB, and an unreadable log is noted instead of failing the report. `SystemLogSource` lets tests inject entries. ([#20](https://github.com/MoElnaggar14/SwiftMoLogger/issues/20))
+- **Recorded logs as test attachments.** `RecordingLogEngine.attach(named:)` adds the recorded entries to the current Swift Testing test as a text file, one line per entry with time, level, tag, metadata and source location. Call it in a `defer`, and a failing test's report shows what was logged. Requires Swift 6.2 or later; the package still builds with Swift 6.1, without the method. ([#14](https://github.com/MoElnaggar14/SwiftMoLogger/issues/14))
+
+### Fixed
+- Two bug reports generated in the same second no longer share a directory, where one could overwrite or delete the other's files. Report directories now end in a short unique suffix.
+
 ## [4.1.0] — 2026-10-06
 
 Agents, OpenTelemetry and crash reporters: an MCP server that lets AI coding agents read a running app's logs, an OTLP exporter with trace correlation, a forwarding engine for Crashlytics and other SDKs, and data protection for log files. Additive; no API changes.

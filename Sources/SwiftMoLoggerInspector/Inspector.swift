@@ -136,7 +136,9 @@ final class InspectorRuntime: @unchecked Sendable {
         let level = Self.levelString(from: object["level"])
         let message = object["message"] as? String ?? ""
         let tag = (object["tag"] as? [String: Any])?["rawValue"] as? String ?? ""
-        let thread = object["threadName"] as? String ?? ""
+        let threadName = object["threadName"] as? String ?? ""
+        // `taskName` is only present for entries logged inside a named Swift task.
+        let thread = (object["taskName"] as? String).map { "\($0) · \(threadName)" } ?? threadName
         let timestamp = object["timestamp"] as? String ?? ""
         print("\(Ansi.dim(timestamp)) \(level) \(Ansi.cyan(source)) \(Ansi.magenta(tag)) \(Ansi.dim("[" + thread + "]")) \(message)")
     }

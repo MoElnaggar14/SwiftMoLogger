@@ -150,7 +150,8 @@ public actor DeviceHub {
             tag: entry.tag,
             metadata: redactor.redact(entry.metadata),
             source: entry.source,
-            threadName: entry.threadName
+            threadName: entry.threadName,
+            taskName: entry.taskName
         )
     }
 
