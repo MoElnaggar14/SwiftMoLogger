@@ -25,6 +25,28 @@ final class LogMacroTests: XCTestCase {
         )
     }
 
+    func testLogMacroPassesPrivacyInterpolationsThrough() {
+        assertMacroExpansion(
+            #"#log(logger, "Signed in \(email, privacy: .private) on \(device)", level: .notice)"#,
+            expandedSource: """
+            logger.log(.notice, "Signed in \\(email, privacy: .private) on \\(device)", tag: nil, \
+            file: #fileID, function: #function, line: #line)
+            """,
+            macros: macros
+        )
+    }
+
+    func testLogMacroPassesMessageExpressionsThrough() {
+        assertMacroExpansion(
+            #"#log(logger, { evaluated = true; return "payload" }(), tag: .api)"#,
+            expandedSource: """
+            logger.log(.info, { evaluated = true; return "payload" }(), tag: .api, \
+            file: #fileID, function: #function, line: #line)
+            """,
+            macros: macros
+        )
+    }
+
     func testMeasureMacroLowersToInjectedSignposter() {
         assertMacroExpansion(
             """

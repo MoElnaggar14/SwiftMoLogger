@@ -112,6 +112,8 @@ logger.log(.info, "user signed in", tag: .api, file: #fileID, function: #functio
 
 Why bother? `#log(` is trivial to grep for and code-mod, Xcode shows the expansion in place, and one short shape is easier to teach. It doesn't take `metadata:`; for that, call `logger.info(…, metadata:)` directly.
 
+Per-value privacy works too: `#log(logger, "Signed in \(email, privacy: .private)")` logs `Signed in <private>`. The message goes into the expansion unchanged, so the logger's own overloads decide, just as for a direct call.
+
 ### `#measure` — a signpost in one line
 
 ```swift

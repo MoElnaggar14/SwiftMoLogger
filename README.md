@@ -284,6 +284,9 @@ import SwiftMoLoggerSugar
 #log(logger, "user signed in", level: .info, tag: .api)
 // Captures #fileID / #function / #line at the call site.
 
+#log(logger, "Signed in \(email, privacy: .private)")
+// Per-value privacy, as with logger.info(…): logs "Signed in <private>".
+
 let users = try #measure(signposter, "loadUsers") {
     try repo.all()
 }
@@ -479,7 +482,7 @@ logging.registry.revealsPrivateValues = true
 #endif
 ```
 
-Plain messages and `String` values don't change: a literal becomes a `LogMessage` only when it uses `privacy:`. Engine privacy and redaction still apply to the rendered message. The `#log` macro takes a `String`, so use the logger methods for per-value privacy. Design notes: [docs/design/per-value-privacy.md](docs/design/per-value-privacy.md).
+Plain messages and `String` values don't change: a literal becomes a `LogMessage` only when it uses `privacy:`. Engine privacy and redaction still apply to the rendered message. `#log(logger, "Signed in \(email, privacy: .private)")` works the same way. Design notes: [docs/design/per-value-privacy.md](docs/design/per-value-privacy.md).
 
 ### PII redaction
 
