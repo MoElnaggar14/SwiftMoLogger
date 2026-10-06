@@ -5,9 +5,11 @@ import Testing
 
 @Suite("Swift task names")
 struct TaskNameTests {
-    @Test func entriesOutsideANamedTaskHaveNoTaskName() {
+    @Test func entriesFromAnUnnamedTaskHaveNoTaskName() async {
         let (log, logs) = MoLogger.recording()
-        log.info("plain")
+        // Swift Testing names the task each test runs in, so log from a detached,
+        // unnamed task instead.
+        await Task.detached { log.info("plain") }.value
         #expect(logs.recorded().first?.taskName == nil)
     }
 
@@ -57,8 +59,8 @@ struct TaskNameTests {
 
     @Test func entriesWithoutATaskNameOmitTheKey() throws {
         let data = try encoder.encode(LogEntry(level: .info, message: "hi", taskName: nil))
-        let json = String(decoding: data, as: UTF8.self)
-        #expect(!json.contains("taskName"))
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(object["taskName"] == nil)
     }
 
     @Test func redactionKeepsTheTaskName() {
