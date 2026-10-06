@@ -142,7 +142,7 @@ From [PERFORMANCE.md](../PERFORMANCE.md): release build, M1 MacBook Pro, iOS 17 
 
 The filtered case matters most: hundreds of `trace` call sites in an app running at `.info` cost a level check each. You can leave them in.
 
-`FileLogEngine.log(_:)` only enqueues onto a serial queue (~80 ns per PERFORMANCE.md); disk work happens off your thread.
+`FileLogEngine.log(_:)` only checks a backlog counter and enqueues onto a serial queue (~80 ns per PERFORMANCE.md); disk work happens off your thread.
 
 ## The Flight Recorder's bill
 
