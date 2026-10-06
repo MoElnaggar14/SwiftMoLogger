@@ -843,6 +843,17 @@ import SwiftMoLoggerTesting
 
 `entries(_:containing:tag:withMetadataKey:)`, `contains(…)` and `count(…)` take the same filters (level, substring, tag domain, metadata key).
 
+With Swift 6.2 or later, `logs.attach()` adds the recorded entries to the test as a text attachment, one line per entry. Call it in a `defer` and a failing test's report shows what was logged, with no rerun and no print statements. Xcode shows it in the test report; `swift test` saves it with `--attachments-path`.
+
+```swift
+@Test func declinedPaymentIsLogged() async throws {
+    let (log, logs) = MoLogger.recording()
+    defer { logs.attach() }   // or attach(named: "checkout")
+    try await CheckoutService(log: log).purchase(invalid: true)
+    #expect(logs.contains(.error, containing: "declined"))
+}
+```
+
 `LogEnvironment.recording()` returns a fresh environment whose only engine (besides its stream) is a `RecordingLogEngine`; `MoLogger.recording()` does the same and hands back just the logger. Inject it into the system under test, then assert on *what* it logged. Nothing global is touched, so every test is isolated and suites are safe to run in parallel.
 
 ---
