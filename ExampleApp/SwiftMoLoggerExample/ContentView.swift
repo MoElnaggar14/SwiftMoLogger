@@ -123,6 +123,22 @@ private struct DemoTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Per-value privacy") {
+                Button("privacy: .private / .sensitive") {
+                    let email = "mo@example.com"
+                    let token = "tok_\(Int.random(in: 10_000...99_999))"
+                    let userID = 42
+                    logger.info(
+                        "signed in \(email, privacy: .private) as \(userID, privacy: .private(mask: .hash))",
+                        tag: .Security.authentication
+                    )
+                    logger.notice("refreshed \(token, privacy: .sensitive)", tag: .Security.authentication)
+                }
+                Text("Only the marked values are hidden: <private>, <sensitive> or a stable <hash:…>.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Breadcrumbs") {
                 Button("Record user-action breadcrumb") {
                     breadcrumbs.record("tapped Buy", category: .userAction, metadata: [

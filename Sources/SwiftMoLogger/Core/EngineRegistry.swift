@@ -18,6 +18,7 @@ public final class EngineRegistry: @unchecked Sendable {
     private let lock = UnfairLock()
     private var globalMinimumLevel: LogLevel = .trace
     private var overrides = LevelOverrides()
+    private var revealsPrivate = false
     /// The system logger installed by the registry itself. Protected from
     /// ``removeEngine(at:)`` / ``removeEngine(id:)`` by identity, so it stays
     /// protected wherever it sits in the list (and nothing else is protected
@@ -139,6 +140,7 @@ public final class EngineRegistry: @unchecked Sendable {
         defaultSystemLogger = logger
         globalMinimumLevel = .trace
         overrides = LevelOverrides()
+        revealsPrivate = false
     }
 
     /// Drop every engine, persistent ones included (``reset()`` brings those
@@ -185,6 +187,34 @@ public final class EngineRegistry: @unchecked Sendable {
             lock.lock()
             defer { lock.unlock() }
             overrides = newValue
+        }
+    }
+
+    // MARK: - Per-value privacy
+
+    /// Whether values interpolated with `privacy: .private` are shown in the
+    /// messages engines receive. `false` (the default) replaces them with
+    /// `<private>`. Values marked `.sensitive` are never shown.
+    ///
+    /// Turn it on in DEBUG builds to read private values while you debug, as
+    /// `os_log` does with a debugger attached. Every engine then receives them,
+    /// so keep it off in builds that write files or ship logs:
+    ///
+    /// ```swift
+    /// #if DEBUG
+    /// logging.registry.revealsPrivateValues = true
+    /// #endif
+    /// ```
+    public var revealsPrivateValues: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return revealsPrivate
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            revealsPrivate = newValue
         }
     }
 
