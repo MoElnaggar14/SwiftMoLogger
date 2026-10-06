@@ -78,7 +78,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
   - [PII redaction](#pii-redaction)
   - [Breadcrumbs](#breadcrumbs)
   - [Sampling + rate limiting](#sampling--rate-limiting)
-  - [Remote shipping](#remote-shipping-sentry--datadog--loki)
+  - [Remote shipping](#remote-shipping-sentry--datadog--loki--opentelemetry)
   - [Auto network logging](#auto-network-logging)
   - [Privacy manifest](#privacy-manifest)
 - [Distributed tracing](#distributed-tracing-w3c)
@@ -174,7 +174,7 @@ Everything hangs off one `LogEnvironment` that you create at your composition ro
 | **`SwiftMoLogger`** | Core: `LogEnvironment`, `MoLogger`, levels, tags, metadata, engines, registry, MetricKit, breadcrumbs, redaction, sampling, rate-limiting, Combine, signposts |
 | **`SwiftMoLoggerUI`** | SwiftUI console (`LogConsoleView`) + **`DiagnosticsHubView`** (the headline) |
 | **`SwiftMoLoggerNetwork`** | `NetworkLogger`, a `URLSessionTaskDelegate` you inject to log `URLSession` traffic |
-| **`SwiftMoLoggerRemote`** | `HTTPLogShipper` + ready-made `SentryLogEngine` / `DatadogLogEngine` / `LokiLogEngine` |
+| **`SwiftMoLoggerRemote`** | `HTTPLogShipper` + ready-made `SentryLogEngine` / `DatadogLogEngine` / `LokiLogEngine` / `OTLPLogEngine` |
 | **`SwiftMoLoggerDiagnostics`** | `LiveSink` (Bonjour), `AppVitalsMonitor`, `BugReporter`, `WebSocketTailEngine` |
 | **`SwiftMoLoggerTesting`** | `XCTAssertLogged` + `RecordingLogEngine` |
 | **`SwiftMoLoggerSugar`** | `#log` / `#measure` / `@AutoLog` Swift Macros |
@@ -505,7 +505,7 @@ logging.registry.addEngine(RateLimitingLogEngine(
 
 Token-bucket rate limiter, thread-local PRNG for sampling — both ~ns-class overhead.
 
-### Remote shipping (Sentry / Datadog / Loki)
+### Remote shipping (Sentry / Datadog / Loki / OpenTelemetry)
 
 ```swift
 import SwiftMoLoggerRemote
@@ -529,7 +529,16 @@ logging.registry.addEngine(LokiLogEngine(
     endpoint: URL(string: "https://loki.example.com/loki/api/v1/push")!,
     labels: ["job": "ios", "env": "prod"]
 ))
+
+// Any OpenTelemetry (OTLP/HTTP JSON) endpoint: a Collector, Grafana, Honeycomb, New Relic…
+logging.registry.addEngine(OTLPLogEngine(
+    endpoint: URL(string: "https://otel.example.com:4318/v1/logs")!,
+    serviceName: "shop-ios",
+    resource: ["deployment.environment": "production"]
+))
 ```
+
+`OTLPLogEngine` maps levels to OpenTelemetry severities, metadata, tag and source location to attributes, and entries logged inside a `TraceContext` to the record's `traceId`/`spanId`, so logs line up with your backend traces.
 
 All shippers: batch (50–100), debounce (5 s), retry with exponential backoff, cap buffered entries on long offline spells. `log()` is O(1) — network happens off the caller's thread.
 
