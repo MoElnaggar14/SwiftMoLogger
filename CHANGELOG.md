@@ -4,7 +4,9 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.5.0] — 2026-10-06
+
+Response bodies for `async` URLSession requests, and the iOS 27 / macOS 27 `MetricManager` API as the default MetricKit source on those systems. Additive; no API changes for existing callers.
 
 ### Added
 - **Response bodies for `async` requests.** `try await network.data(for: request, on: session)` and `network.upload(for:from:on:)` send the request through URLSession's `async` API and capture the body it returns (and an upload's `from:` data as the request body) into the `NetworkEvent`, with the same redaction, `maxBytes` truncation, text-only filter and off-by-default policy. Before, `async` requests only got their request body, because URLSession doesn't hand their data to a delegate. With capture off the helpers are plain pass-throughs. `bytes(for:)` and `download(for:)` bodies are still not captured. ([#46](https://github.com/MoElnaggar14/SwiftMoLogger/issues/46))
