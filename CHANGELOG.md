@@ -9,6 +9,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - **`OTLPLogEngine`** in `SwiftMoLoggerRemote` exports to any OpenTelemetry logs endpoint over OTLP/HTTP JSON (Collector, Grafana, Honeycomb, Datadog, New Relic). Levels map to OpenTelemetry severity numbers; metadata, the tag, the source location and the thread name become attributes; entries logged inside a `TraceContext` carry its `traceId` and `spanId`. No protobuf dependency. ([#16](https://github.com/MoElnaggar14/SwiftMoLogger/issues/16))
 
+### Documentation
+- Article 5 covers `flush()`: why buffered engines lose their last batch when iOS terminates a suspended app, and flushing the registry on `scenePhase == .background`.
+
 ## [4.0.0] — 2026-10-05
 
 Dependency injection everywhere: SwiftMoLogger no longer has any singletons or
