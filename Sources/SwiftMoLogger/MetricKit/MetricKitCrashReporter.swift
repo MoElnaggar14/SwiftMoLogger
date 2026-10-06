@@ -28,31 +28,37 @@ public protocol HangReportDelegate: AnyObject, Sendable {
 /// reporter.startMonitoring()
 /// ```
 ///
-/// Payloads come from a ``MetricPayloadSource``. The default subscribes to
-/// `MXMetricManager`; pass another source to ``init(logger:source:)`` to replay
-/// recorded payloads or adopt a newer system API.
+/// Payloads come from a ``MetricPayloadSource``. By default the reporter reads
+/// `MetricManager` on iOS 27 and macOS 27 (``MetricManagerPayloadSource``) and
+/// `MXMetricManager` on earlier systems (``MXMetricManagerPayloadSource``); the
+/// logged entries are the same. Pass another source to ``init(logger:source:)``
+/// to replay recorded payloads.
 public final class MetricKitCrashReporter: NSObject {
     private let logger: MoLogger
     private let payloadLogger: MetricKitPayloadLogger
-    private let source: any MetricPayloadSource
+    /// `nil` until ``startMonitoring()`` picks the default source.
+    private var source: (any MetricPayloadSource)?
     private var isMonitoring = false
 
-    /// Called for each crash. Only the default `MXMetricManager` source (or calling
-    /// `didReceive(_:)` directly) provides the MetricKit objects these delegates need.
+    /// Called for each crash. Only the `MXMetricManager` source (or calling
+    /// `didReceive(_:)` directly) provides the MetricKit objects these delegates need,
+    /// so with ``init(logger:)``, setting a delegate before ``startMonitoring()``
+    /// keeps the reporter on `MXMetricManager` on iOS 27 and macOS 27 too.
     public weak var crashReportDelegate: CrashReportDelegate?
-    /// Called for each hang. Only the default `MXMetricManager` source (or calling
-    /// `didReceive(_:)` directly) provides the MetricKit objects these delegates need.
+    /// Called for each hang. Only the `MXMetricManager` source (or calling
+    /// `didReceive(_:)` directly) provides the MetricKit objects these delegates need,
+    /// so with ``init(logger:)``, setting a delegate before ``startMonitoring()``
+    /// keeps the reporter on `MXMetricManager` on iOS 27 and macOS 27 too.
     public weak var hangReportDelegate: HangReportDelegate?
 
-    /// Reads payloads from `MXMetricManager`.
+    /// Reads payloads from `MetricManager` on iOS 27 and macOS 27, and from
+    /// `MXMetricManager` on earlier systems or when a delegate is set.
+    ///
+    /// The source is chosen when ``startMonitoring()`` is first called.
     ///
     /// - Parameter logger: Receives crash, hang, diagnostic and metric summaries.
     public convenience init(logger: MoLogger) {
-        let source = MXMetricManagerPayloadSource()
-        self.init(logger: logger, source: source)
-        source.diagnosticObjectsHandler = { [weak self] payloads in
-            self?.notifyDelegates(of: payloads)
-        }
+        self.init(logger: logger, optionalSource: nil)
     }
 
     /// Reads payloads from `source`.
@@ -60,10 +66,14 @@ public final class MetricKitCrashReporter: NSObject {
     /// - Parameters:
     ///   - logger: Receives crash, hang, diagnostic and metric summaries.
     ///   - source: Delivers payloads once ``startMonitoring()`` is called.
-    public init(logger: MoLogger, source: any MetricPayloadSource) {
+    public convenience init(logger: MoLogger, source: any MetricPayloadSource) {
+        self.init(logger: logger, optionalSource: source)
+    }
+
+    private init(logger: MoLogger, optionalSource: (any MetricPayloadSource)?) {
         self.logger = logger
         self.payloadLogger = MetricKitPayloadLogger(logger: logger)
-        self.source = source
+        self.source = optionalSource
         super.init()
     }
 
@@ -73,6 +83,8 @@ public final class MetricKitCrashReporter: NSObject {
             return
         }
         let payloadLogger = self.payloadLogger
+        let source = self.source ?? makeDefaultSource()
+        self.source = source
         source.start { payloads in
             payloadLogger.log(payloads)
         }
@@ -85,7 +97,7 @@ public final class MetricKitCrashReporter: NSObject {
             logger.warning("MetricKit monitoring not active", tag: .crash)
             return
         }
-        source.stop()
+        source?.stop()
         isMonitoring = false
         logger.info("MetricKit monitoring stopped", tag: .crash)
     }
@@ -118,6 +130,19 @@ extension MetricKitCrashReporter: MXMetricManagerSubscriber {
 }
 
 private extension MetricKitCrashReporter {
+    func makeDefaultSource() -> any MetricPayloadSource {
+        #if compiler(>=6.4)
+        if #available(iOS 27, macOS 27, *), crashReportDelegate == nil, hangReportDelegate == nil {
+            return MetricManagerPayloadSource()
+        }
+        #endif
+        let source = MXMetricManagerPayloadSource()
+        source.diagnosticObjectsHandler = { [weak self] payloads in
+            self?.notifyDelegates(of: payloads)
+        }
+        return source
+    }
+
     func notifyDelegates(of payloads: [MXDiagnosticPayload]) {
         guard crashReportDelegate != nil || hangReportDelegate != nil else { return }
         for payload in payloads {

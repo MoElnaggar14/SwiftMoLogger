@@ -123,7 +123,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.4.0")
+    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.5.0")
 ],
 targets: [
     .target(name: "App", dependencies: [
@@ -669,7 +669,18 @@ let network = NetworkLogger(environment: logging, bodies: .debugOnly(maxBytes: N
 - are kept only for text: JSON, XML, `text/*`, form-encoded, JavaScript, GraphQL, YAML. Images, video, protobuf and multipart bodies are skipped. A body with no content type is kept only if it reads as UTF-8 text,
 - are stored in the `NetworkEvent` (`requestBody`, `responseBody`) for the Hub. They're never written to log entries, so they don't reach your engines.
 
-Request bodies come from `URLRequest.httpBody`. Response bodies come from `urlSession(_:dataTask:didReceive:)`, which URLSession only calls for data tasks created without a completion handler on a session whose delegate is the logger. The `async` and completion-handler APIs keep the data to themselves, so for those you get the request body only. If your app already has a data delegate, forward that callback to the logger.
+Request bodies come from `URLRequest.httpBody`. Response bodies come from `urlSession(_:dataTask:didReceive:)`, which URLSession only calls for data tasks created without a completion handler on a session whose delegate is the logger. The `async` APIs keep the data to themselves, so passing the logger as `delegate:` gets you the request body only. For `async` requests, send them through the logger instead:
+
+```swift
+let (data, response) = try await network.data(for: request, on: session)
+let (data, response) = try await network.upload(for: request, from: body, on: session)
+```
+
+These call `session.data(for:delegate:)` and `session.upload(for:from:delegate:)` with a task delegate that records the returned body (and, for an upload, `from:` as the request body) through the same redaction, `maxBytes` limit and text-only filter. The result, errors and request are the same as calling URLSession yourself, and with capture off they're plain pass-throughs. What isn't captured:
+
+- `bytes(for:)` and `download(for:)` responses: the logger can't read a stream or file without consuming it. The request and outcome are still logged.
+- Completion-handler requests (`dataTask(with:completionHandler:)`): request body only.
+- Requests you send without the logger: nothing. If your app already has a data delegate, forward `urlSession(_:dataTask:didReceive:)` to the logger.
 
 Every `NetworkEvent` also has a `curlCommand`: the request as a shell-quoted `curl` command, built from the redacted URL and headers and the captured body. The Hub's request detail has a **Copy as cURL** button (iOS, Mac Catalyst, macOS and visionOS; tvOS and watchOS show the command without one). Redacted values stay redacted, so put a real token back in before you replay it.
 
@@ -740,7 +751,7 @@ metricKit.startMonitoring()
 
 Every payload becomes a structured entry. Each crash is a `.critical` entry tagged `.crash` with the exception and signal names, the termination reason, an uncaught Objective-C exception (iOS 17+) and the binaries on the crashing thread. Hangs, CPU exceptions, disk-write exceptions and slow launches (iOS 16+) are `.warning` entries tagged `.performance`. On iOS the daily metric payload is one `.info` entry tagged `.performance`, with time to first draw, resume time and hang time (count, average, p50 and p95 from MetricKit's histograms), peak and suspended memory, disk writes, CPU time, memory-limit and jetsam exits, the app version and the period it covers. Durations are in milliseconds (`_ms` keys) and sizes in bytes (`_bytes`).
 
-The reporter parses each payload's `jsonRepresentation()` into `MetricPayloadSummary` and `DiagnosticPayloadSummary`, so you can test against recorded payloads without building MetricKit objects. Payloads come from a `MetricPayloadSource`: the default subscribes to `MXMetricManager`, and you can pass your own, for example one that replays recorded JSON:
+The reporter parses each payload's `jsonRepresentation()` into `MetricPayloadSummary` and `DiagnosticPayloadSummary`, so you can test against recorded payloads without building MetricKit objects. Payloads come from a `MetricPayloadSource`. By default the reporter reads the async `MetricManager` API on iOS 27 and macOS 27 (`MetricManagerPayloadSource`, built with Xcode 27) and subscribes to `MXMetricManager` on earlier systems (`MXMetricManagerPayloadSource`). `MetricManager` reports have no `jsonRepresentation()`, so the source writes their values in the same JSON shape, and the logged entries are the same either way. `crashReportDelegate` and `hangReportDelegate` take `MX` objects, so setting one before `startMonitoring()` keeps the reporter on `MXMetricManager`. You can also pass your own source, for example one that replays recorded JSON:
 
 ```swift
 // ReplaySource is your own type conforming to MetricPayloadSource.
@@ -750,7 +761,7 @@ let reporter = MetricKitCrashReporter(logger: logger, source: ReplaySource(files
 MetricKitPayloadLogger(logger: logger).log(MetricKitPayload(kind: .metrics, json: payload.jsonRepresentation()))
 ```
 
-The source is also where a newer system API plugs in. The iOS 27 `MetricManager` API isn't adopted yet; the CHANGELOG explains why.
+If the app reads `MetricManager` reports elsewhere too, share one manager: `MetricKitCrashReporter(logger: logger, source: MetricManagerPayloadSource(manager: manager))`.
 
 And for a "Send Bug Report" button, `BugReporter` bundles device info, breadcrumbs, recent logs and the last vitals sample into a directory you can hand to `ShareLink` or an uploader:
 

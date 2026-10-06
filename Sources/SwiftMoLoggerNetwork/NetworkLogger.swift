@@ -25,7 +25,10 @@ import SwiftMoLogger
 /// `urlSession(_:dataTask:didReceive:)`, which URLSession calls only for data
 /// tasks created without a completion handler on a session whose delegate is
 /// this logger; the `async` and completion-handler APIs keep the data to
-/// themselves. If your app has its own data delegate, forward that callback here.
+/// themselves. For `async` code, send the request through the logger's
+/// ``data(for:on:)`` or ``upload(for:from:on:)`` instead, which capture the
+/// bodies they return. If your app has its own data delegate, forward that
+/// callback here.
 ///
 /// To connect requests to a backend trace, call `request.addTraceparentHeader()`
 /// inside `TraceContext.run { … }`.
@@ -36,12 +39,12 @@ public final class NetworkLogger: NSObject, URLSessionDataDelegate, @unchecked S
     ]
 
     private let logger: MoLogger
-    private let events: NetworkEventStore?
+    let events: NetworkEventStore?
     private let breadcrumbs: BreadcrumbStore?
     private let sensitiveHeaders: Set<String>
     private let urlRedaction: URLRedaction
     /// `nil` when body capture is off for this build.
-    private let bodyEncoder: NetworkBodyEncoder?
+    let bodyEncoder: NetworkBodyEncoder?
 
     /// Tasks whose request was already logged by `didCreateTask`. That callback
     /// only reaches session-level delegates, so tasks using a per-task delegate
@@ -124,6 +127,18 @@ public final class NetworkLogger: NSObject, URLSessionDataDelegate, @unchecked S
         task: URLSessionTask,
         didFinishCollecting metrics: URLSessionTaskMetrics
     ) {
+        if let event = logOutcome(of: task, metrics: metrics) {
+            events?.record(event)
+        }
+    }
+
+    /// Logs the task's outcome and returns its event, or `nil` when there's no
+    /// event store. `requestBody` stands in for `httpBody` (an upload's data).
+    func logOutcome(
+        of task: URLSessionTask,
+        metrics: URLSessionTaskMetrics,
+        requestBody: Data? = nil
+    ) -> NetworkEvent? {
         let announced = lock.withLock { announcedTasks.remove(ObjectIdentifier(task)) != nil }
         if !announced { logRequest(of: task) }
 
@@ -158,7 +173,12 @@ public final class NetworkLogger: NSObject, URLSessionDataDelegate, @unchecked S
             breadcrumbs?.record("← \(status) \(url.lastPathComponent) (\(Int(durationMS))ms)", category: .network)
         }
 
-        events?.record(NetworkEvent(
+        guard events != nil else {
+            // Release any buffered bytes; there's nowhere to put them.
+            if bodyEncoder != nil { _ = capturedResponseBody(of: task) }
+            return nil
+        }
+        return NetworkEvent(
             startedAt: interval.start,
             endedAt: interval.end,
             method: method,
@@ -168,9 +188,9 @@ public final class NetworkLogger: NSObject, URLSessionDataDelegate, @unchecked S
             requestBytes: requestBytes,
             errorDescription: error.map(Self.describe),
             requestHeaders: request.map { redactedHeaderFields($0.allHTTPHeaderFields ?? [:]) },
-            requestBody: request.flatMap { capturedRequestBody($0) },
+            requestBody: request.flatMap { capturedRequestBody($0, body: requestBody) },
             responseBody: capturedResponseBody(of: task)
-        ))
+        )
     }
 
     // MARK: - URLSessionDataDelegate
@@ -206,8 +226,8 @@ public final class NetworkLogger: NSObject, URLSessionDataDelegate, @unchecked S
         return "\(error.domain) \(error.code): \(error.localizedDescription)"
     }
 
-    private func capturedRequestBody(_ request: URLRequest) -> NetworkBody? {
-        guard let encoder = bodyEncoder, let body = request.httpBody else { return nil }
+    private func capturedRequestBody(_ request: URLRequest, body: Data?) -> NetworkBody? {
+        guard let encoder = bodyEncoder, let body = body ?? request.httpBody else { return nil }
         return encoder.body(
             from: body,
             totalBytes: body.count,
@@ -227,7 +247,7 @@ public final class NetworkLogger: NSObject, URLSessionDataDelegate, @unchecked S
     }
 
     /// The response's `Content-Type` header, or its MIME type for non-HTTP responses.
-    private static func contentType(of response: URLResponse?) -> String? {
+    static func contentType(of response: URLResponse?) -> String? {
         if let http = response as? HTTPURLResponse {
             return http.value(forHTTPHeaderField: "Content-Type")
         }
