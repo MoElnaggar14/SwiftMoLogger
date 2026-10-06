@@ -202,15 +202,17 @@ PERFORMANCE.md's privacy row and table get `testHotPathPlainInterpolation` (an u
 - **A `Package.swift` environment variable** to define a compilation condition. It isn't reliable when Xcode resolves packages.
 - **Carry segments in `LogEntry`** so each engine applies its own default. Rejected in 4.3 for the same reason: `LogEntry` is `Codable` and reaches engines that persist it.
 
-## Open questions
+## Decisions
 
-1. **Numbers and `Bool` public by default?** Proposed: yes, like `os.Logger`. The cost is that IDs stored as integers are shown.
-2. **`String` overloads in 5.0:** unavailable with a fix-it message (proposed), kept as public, or kept as private?
-3. **`LogPublicValue`:** keep it, and under that name? Which types conform out of the box: just numbers, `Bool`, `StaticString`, `LogLevel`, `LogTag` and `Optional` of those, or also `UUID` and arrays of public values?
-4. **`revealsPrivateValues` ignored in release builds?** Proposed: yes, as the issue says. That rules out reading private values in internal QA builds made with the Release configuration.
-5. **The early opt-in:** ship the `PrivateByDefault` trait, with the tools-version bump and the wrapper-package step for Xcode apps, or ship only the audit rule in 4.x?
-6. **Metadata:** leave it out of privacy in 5.0 (proposed), or add a private metadata value now, since it can only be added in a major release?
-7. **`error(_:)`:** hide `localizedDescription` in the message (proposed, it often carries server text and paths)? What about the `error` metadata it adds?
-8. **swift-log bridge:** treat swift-log messages as verbatim and public (proposed, since swift-log has no privacy and they're already flattened), or private as a whole?
-9. **`SystemLogger`'s default:** stay `.privateInRelease`, or switch to `.public` now that values are hidden before they reach it? Then sysdiagnose would show `Signed in <private>` instead of `<private>`.
-10. **Scope:** do other `String` entry points (`BreadcrumbStore.record`, signpost names) follow the same rule in 5.0, or stay out of #48?
+Decided by the maintainer on 2026-10-06.
+
+1. **Numbers and `Bool` are public by default**, like `os.Logger`. An ID stored as an integer is marked `privacy: .private` at the call site.
+2. **The `String` overloads become unavailable in 5.0**, with a message that suggests `"\(text)"` to hide the value or `LogMessage(verbatim: text)` to show it, so every call site is decided once.
+3. **`LogPublicValue` ships under that name.** Out of the box: the numeric types, `Bool`, `StaticString`, `LogLevel`, `LogTag`, and `Optional` of those. `UUID` and arrays stay private; apps can add conformances.
+4. **Release builds ignore `revealsPrivateValues`.** A QA build that needs private values uses a Debug-like configuration.
+5. **4.x ships only the audit rule** (`audit_logging.py --privacy`, plus `--fix-privacy` for the safe list). No `PrivateByDefault` package trait, so no tools-version bump and no wrapper package for Xcode apps.
+6. **Metadata stays out of privacy in 5.0.** Private metadata values are tracked in a separate issue.
+7. **`error(_:)` hides `localizedDescription` in the message.** The error's type name stays public, so entries can still be grouped.
+8. **swift-log bridge messages are verbatim and public.** swift-log has its own rules, and its messages arrive already flattened.
+9. **`SystemLogger` keeps `.privateInRelease`.** Values are hidden before they reach it; this is defence in depth at no cost.
+10. **Breadcrumbs and signpost names follow the same rule in 5.0**, for consistency.
