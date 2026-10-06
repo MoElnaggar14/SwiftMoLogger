@@ -39,6 +39,8 @@ public struct AutoLogMacro: MemberMacro, MemberAttributeMacro {
         // (e.g. `__autoLog("purchase")`). Body rewriting via macros is still
         // an evolving area in Swift — keeping the surface minimal avoids
         // emitting code that won't typecheck for every adopter shape.
+        // The method name is marked public: it isn't user data, and the entry
+        // must read the same when 5.0 makes unmarked interpolations private.
         let helper: DeclSyntax = """
         /// Synthesised by @AutoLog. Call at the top of every traced method
         /// to emit a structured entry log; the symbol name keeps it grep-able.
@@ -46,7 +48,8 @@ public struct AutoLogMacro: MemberMacro, MemberAttributeMacro {
         fileprivate func __autoLog(_ method: String = #function,
                                    file: String = #fileID,
                                    line: Int = #line) {
-            logger.trace("→ \\(method)", tag: .Development.debug, file: file, function: method, line: line)
+            logger.trace("→ \\(method, privacy: .public)", tag: .Development.debug,
+                         file: file, function: method, line: line)
         }
         """
         return [helper]

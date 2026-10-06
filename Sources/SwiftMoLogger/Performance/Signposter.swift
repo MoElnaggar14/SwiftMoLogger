@@ -151,7 +151,7 @@ public struct Signposter: @unchecked Sendable {
         let tag = span.tag ?? .performance
         logger.log(
             .notice,
-            "⏱ \(span.name) took \(String(format: "%.3f", elapsedMS))ms",
+            "⏱ \(span.name, privacy: .public) took \(String(format: "%.3f", elapsedMS), privacy: .public)ms",
             tag: tag,
             metadata: ["elapsed_ms": .double(elapsedMS), "signpost": .string("\(span.name)")],
             file: source.file,

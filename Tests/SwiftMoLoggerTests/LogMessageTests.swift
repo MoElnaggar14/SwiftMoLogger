@@ -152,4 +152,64 @@ struct LogMessageTests {
         #expect(Array(messages.prefix(3)) == ["from a variable", "literal", "interpolated 2"])
         #expect(messages.count == 4)
     }
+
+    // MARK: LogPublicValue
+
+    private enum CheckoutStep: String, CustomStringConvertible, LogPublicValue {
+        case payment
+        var description: String { rawValue }
+    }
+
+    private func isPublicValue<T: LogPublicValue>(_: T.Type) -> Bool { true }
+
+    @Test func builtInTypesArePublicValues() {
+        #expect(isPublicValue(Int.self) && isPublicValue(Int8.self) && isPublicValue(Int16.self))
+        #expect(isPublicValue(Int32.self) && isPublicValue(Int64.self) && isPublicValue(UInt.self))
+        #expect(isPublicValue(UInt8.self) && isPublicValue(UInt16.self) && isPublicValue(UInt32.self))
+        #expect(isPublicValue(UInt64.self) && isPublicValue(Float.self) && isPublicValue(Double.self))
+        #expect(isPublicValue(Bool.self) && isPublicValue(StaticString.self))
+        #expect(isPublicValue(LogLevel.self) && isPublicValue(LogTag.self))
+        #expect(isPublicValue(Int?.self) && isPublicValue(CheckoutStep?.self))
+    }
+
+    @Test func publicValuesRenderAsBefore() {
+        let count = 3
+        let ratio = 0.5
+        let small: UInt8 = 7
+        let isOK = false
+        let name: StaticString = "load"
+        let step = CheckoutStep.payment
+        let missing: Int? = nil
+        let present: Int? = 4
+        let numbers: LogMessage = "\(count) \(ratio) \(small) \(isOK) \(missing) \(present)"
+        let names: LogMessage = "\(name) \(step) \(LogLevel.error) \(LogTag.api)"
+        #expect(numbers.rendered() == "3 0.5 7 false nil Optional(4)")
+        #expect(names.rendered() == "load payment \(LogLevel.error) \(LogTag.api)")
+        #expect(!numbers.hasPrivateValues && !names.hasPrivateValues)
+    }
+
+    @Test func unmarkedValuesStayPublicIn4x() {
+        let email = "mo@example.com"
+        let id = UUID(uuidString: "00000000-0000-0000-0000-000000000001")
+        let message: LogMessage = "Signed in \(email) as \(id)"
+        #expect(message.rendered() == "Signed in mo@example.com as \(String(describing: id))")
+        #expect(!message.hasPrivateValues)
+    }
+
+    @Test func publicValuesCanStillBeMarked() {
+        let userID = 42
+        let step = CheckoutStep.payment
+        let message: LogMessage = "User \(userID, privacy: .private) at \(step, privacy: .sensitive)"
+        #expect(message.rendered() == "User <private> at <sensitive>")
+        #expect(message.rendered(revealingPrivateValues: true) == "User 42 at <sensitive>")
+    }
+
+    @Test func publicValuesKeepPlainLiteralsOnTheStringOverload() {
+        let (log, _, memory) = makeLogger()
+        let step = CheckoutStep.payment
+        let attempt = 2
+        log.info("Step \(step), attempt \(attempt)")
+        log.notice("Step \(step, privacy: .public)")
+        #expect(memory.snapshot().map(\.message) == ["Step payment, attempt 2", "Step payment"])
+    }
 }

@@ -214,7 +214,7 @@ private struct DemoTab: View {
             Section("Error grouping") {
                 Button("Emit 5 same-shape errors") {
                     for i in 0..<5 {
-                        logger.error("decode failed for id=\(i): missing key 'price'", tag: .Data.parsing)
+                        logger.error("decode failed for id=\(i, privacy: .public): missing key 'price'", tag: .Data.parsing)
                     }
                 }
                 Text("ErrorGroupingEngine collapses these into one fingerprinted group.")

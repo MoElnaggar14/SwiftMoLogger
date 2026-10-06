@@ -220,7 +220,7 @@ struct SugarShowcase {
         let value = #measure(signposter, "sugar.hash") {
             (0..<5000).reduce(0, +)
         }
-        logger.info("computed \(value) via #measure", tag: .Business.calculation)
+        logger.info("computed \(value, privacy: .public) via #measure", tag: .Business.calculation)
     }
 
     func runLogMacro() {
@@ -244,6 +244,6 @@ final class CheckoutService {
 
     func purchase(id: String) throws {
         __autoLog()
-        logger.info("processing \(id)", tag: .Business.workflow)
+        logger.info("processing \(id, privacy: .public)", tag: .Business.workflow)
     }
 }

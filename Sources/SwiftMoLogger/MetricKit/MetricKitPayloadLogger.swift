@@ -26,7 +26,7 @@ public struct MetricKitPayloadLogger: Sendable {
         let diagnosticCount = payloads.filter { $0.kind == .diagnostics }.count
         if diagnosticCount > 0 {
             logger.info(
-                "Received \(diagnosticCount) diagnostic payload(s)",
+                "Received \(diagnosticCount, privacy: .public) diagnostic payload(s)",
                 tag: .crash,
                 metadata: ["payload_count": .int(Int64(diagnosticCount))]
             )
@@ -51,7 +51,7 @@ public struct MetricKitPayloadLogger: Sendable {
             }
         }
         logger.error(
-            "Unable to decode MetricKit \(payload.kind.rawValue) payload",
+            "Unable to decode MetricKit \(payload.kind.rawValue, privacy: .public) payload",
             tag: payload.kind == .metrics ? .performance : .crash,
             metadata: ["payload_bytes": .int(Int64(payload.json.count))]
         )

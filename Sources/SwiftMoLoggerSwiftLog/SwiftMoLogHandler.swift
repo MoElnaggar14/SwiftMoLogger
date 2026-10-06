@@ -90,9 +90,11 @@ public struct SwiftMoLogHandler: LogHandler {
             converted["error"] = .string(String(describing: error))
         }
 
+        // swift-log flattens the message before it gets here and has its own
+        // privacy rules, so it's passed through verbatim (public).
         logger.log(
             LogLevel(swiftLog: event.level),
-            event.message.description,
+            LogMessage(verbatim: event.message.description),
             metadata: converted,
             file: event.file,
             function: event.function,
