@@ -115,6 +115,11 @@ let package = Package(
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(
+            name: "SwiftMoLoggerSugarTests",
+            dependencies: ["SwiftMoLoggerSugar"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
             name: "SwiftMoLoggerMacrosTests",
             dependencies: [
                 "SwiftMoLoggerMacros",

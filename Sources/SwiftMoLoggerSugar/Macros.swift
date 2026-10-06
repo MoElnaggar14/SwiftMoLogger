@@ -15,11 +15,37 @@ import Foundation
 ///
 /// ```swift
 /// #log(logger, "user signed in", level: .info, tag: .api)
+/// #log(logger, "Signed in \(email, privacy: .private)")   // "Signed in <private>"
 /// ```
 @freestanding(expression)
 public macro log(
     _ logger: MoLogger,
     _ message: String,
+    level: LogLevel = .info,
+    tag: LogTag? = nil
+) = #externalMacro(module: "SwiftMoLoggerMacros", type: "LogMacro")
+
+/// The ``LogMessage`` form of `#log(_:_:level:tag:)`, for per-value privacy:
+///
+/// ```swift
+/// #log(logger, "Signed in \(email, privacy: .private)")   // "Signed in <private>"
+/// ```
+///
+/// Both forms expand to the same `logger.log(level, message, …)` call, so the
+/// `MoLogger` overloads decide how the message is built, exactly as for a
+/// direct call. This declaration only lets the macro accept a message that
+/// isn't a `String`.
+///
+/// Pass a non-optional ``MoLogger``. The parameter is optional only to break
+/// the tie with the `String` form: macros can't be `@_disfavoredOverload`, so
+/// the extra optional conversion makes the compiler prefer the `String` form
+/// whenever both type-check (a plain literal, or an expression typed from
+/// context such as `{ …; return "x" }()`). An optional logger passed here
+/// fails to compile in the expansion.
+@freestanding(expression)
+public macro log(
+    _ logger: MoLogger?,
+    _ message: LogMessage,
     level: LogLevel = .info,
     tag: LogTag? = nil
 ) = #externalMacro(module: "SwiftMoLoggerMacros", type: "LogMacro")

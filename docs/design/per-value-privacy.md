@@ -115,5 +115,25 @@ None. Existing code compiles and behaves as before, and adopting the feature is 
 What a 5.0 could still change, if wanted:
 
 - Make plain interpolations in a `LogMessage` private by default, like `os.Logger`. That's only meaningful if every message is a `LogMessage`, which means replacing the `String` overloads and asking `String` variables to use `LogMessage(verbatim:)`.
-- Let `#log` accept a `LogMessage` (today its message parameter is a `String`).
 - Carry privacy into engines that can use it (for example structured fields for a remote engine), if a way is found to do it without handing raw values to engines that persist entries.
+
+## Follow-up: `#log` ([#45](https://github.com/MoElnaggar14/SwiftMoLogger/issues/45))
+
+`#log(logger, "Signed in \(email, privacy: .private)")` compiles and logs `Signed in <private>`.
+
+The macro's expansion was already right: it passes the message expression through unchanged to `logger.log(level, message, …)`, where the `String` and disfavored `LogMessage` overloads above decide. What stopped it was the declaration, whose message parameter is a `String`, so the privacy literal failed to type-check before expansion. The fix is a second declaration with a `LogMessage` message and the same `LogMacro` implementation:
+
+```swift
+public macro log(_ logger: MoLogger,  _ message: String,     level: LogLevel = .info, tag: LogTag? = nil)
+public macro log(_ logger: MoLogger?, _ message: LogMessage, level: LogLevel = .info, tag: LogTag? = nil)
+```
+
+**Why the logger is optional in the second one.** Macros are resolved like functions, so a plain literal or an expression typed from context type-checks against both declarations. A literal still picks the `String` one (a literal of its default type scores better), but `#log(logger, { …; return "x" }())` would be ambiguous, which is what broke #39's first CI run for the functions. The functions fix that with `@_disfavoredOverload`, but the compiler only allows that attribute on functions, properties and subscripts (`DeclAttr.def`: `OnAbstractFunction | OnVar | OnSubscript`), not on macros. Instead, the `LogMessage` declaration takes `MoLogger?`: every call to it needs a value-to-optional conversion, which the type checker scores as worse, so whenever both declarations type-check the `String` one wins. Only a message that can't be a `String` (a `privacy:` literal or a `LogMessage` value) resolves to the second one. Either way the expansion is the same text, so which declaration wins never changes what runs.
+
+Rejected alternatives:
+
+- **One declaration with a `LogMessage` message.** `#log(logger, text)` with a `String` variable would stop compiling.
+- **One generic declaration** (`_ message: some …`). A literal in a generic position takes its default type, `String`, and a `privacy:` segment then fails; the type checker doesn't try `LogMessage`.
+- **Two declarations with no tie-breaker.** Ambiguous for messages typed from context, as above.
+
+Known edge: an optional logger passed with a `privacy:` message type-checks against the second declaration and then fails in the expansion (`value of optional type must be unwrapped`), rather than at the macro. The `String` form rejects it at the macro, as before. `Tests/SwiftMoLoggerSugarTests` compiles real `#log` calls of every form on each CI toolchain.

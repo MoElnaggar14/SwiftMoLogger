@@ -25,7 +25,7 @@ Analogy: the environment is a building's electrical panel. Engines are the circu
 | `SwiftMoLoggerTesting` | Test targets only |
 
 ```swift
-.package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.3.0")
+.package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.4.0")
 ```
 
 ### 2. Build the environment once and inject loggers
@@ -120,7 +120,7 @@ Treat everything logged as potentially leaving the device: sysdiagnose, files, r
   logging.registry.replaceEngine(id: engine.engineID) { RedactingLogEngine(wrapping: $0, redactor: redactor) }
   ```
 - The default rules cover JWTs, Bearer/Basic tokens, AWS/GCP keys, emails, card numbers, phone numbers, IPv4 addresses and UUIDs, and they walk metadata recursively. Add rules for app-specific identifiers: `try redactor.add(Redactor.Rule(name: "ssn", pattern: #"\d{3}-\d{2}-\d{4}"#))`.
-- When a message needs a personal value, mark that value instead of hiding the whole message: `log.info("Signed in \(email, privacy: .private)")` logs `Signed in <private>`. Use `.sensitive` for tokens, secrets and health data (never revealed), and `.private(mask: .hash)` when you need to correlate entries for the same user. The value is replaced before any engine sees it. `logging.registry.revealsPrivateValues = true` shows `.private` values; set it only under `#if DEBUG`. Plain literals and `String` values keep working unchanged. `#log` takes a `String`, so use the logger methods for this.
+- When a message needs a personal value, mark that value instead of hiding the whole message: `log.info("Signed in \(email, privacy: .private)")` logs `Signed in <private>`. Use `.sensitive` for tokens, secrets and health data (never revealed), and `.private(mask: .hash)` when you need to correlate entries for the same user. The value is replaced before any engine sees it. `logging.registry.revealsPrivateValues = true` shows `.private` values; set it only under `#if DEBUG`. Plain literals and `String` values keep working unchanged. `#log` accepts the same messages: `#log(logger, "Signed in \(email, privacy: .private)")`.
 - Redaction is a safety net, not a licence. Prefer logging IDs over names, emails or free text the user typed.
 
 ### 5. Network logging (optional)

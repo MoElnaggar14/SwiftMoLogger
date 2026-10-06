@@ -154,6 +154,7 @@ SwiftMoLogHandler.bootstrap(logger: logging.logger)   // once per process
 
 ```swift
 #log(logger, "user signed in", level: .info, tag: .api)
+#log(logger, "Signed in \(email, privacy: .private)")   // "Signed in <private>"
 let users = try #measure(signposter, "loadUsers") { try repo.all() }
 
 @AutoLog
