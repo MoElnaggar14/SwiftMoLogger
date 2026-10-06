@@ -4,6 +4,11 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`OTLPLogEngine`** in `SwiftMoLoggerRemote` exports to any OpenTelemetry logs endpoint over OTLP/HTTP JSON (Collector, Grafana, Honeycomb, Datadog, New Relic). Levels map to OpenTelemetry severity numbers; metadata, the tag, the source location and the thread name become attributes; entries logged inside a `TraceContext` carry its `traceId` and `spanId`. No protobuf dependency. ([#16](https://github.com/MoElnaggar14/SwiftMoLogger/issues/16))
+
 ## [4.0.0] — 2026-10-05
 
 Dependency injection everywhere: SwiftMoLogger no longer has any singletons or
