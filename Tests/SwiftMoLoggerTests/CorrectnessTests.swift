@@ -87,6 +87,15 @@ final class CorrectnessTests: LoggingTestCase {
         XCTAssertEqual(recorder.recorded().last?.source.file, #fileID)
     }
 
+    func testSignpostMessageShowsNameAndDuration() throws {
+        let recorder = installRecorder()
+        environment.signposter.measure("work") { _ = 1 + 1 }
+        let message = try XCTUnwrap(recorder.recorded().last?.message)
+        XCTAssertTrue(message.hasPrefix("⏱ work took "), message)
+        XCTAssertTrue(message.hasSuffix("ms"), message)
+        XCTAssertFalse(message.contains("<private>"), message)
+    }
+
     func testIntervalEndsOnce() {
         let recorder = installRecorder()
         let interval = environment.signposter.makeInterval("span")

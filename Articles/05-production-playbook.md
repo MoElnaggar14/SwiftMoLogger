@@ -97,6 +97,8 @@ logger.notice("Refreshed \(token, privacy: .sensitive)")            // never sho
 
 The value is replaced before the entry exists, so files, remote shippers and the live tail never see it. `logging.registry.revealsPrivateValues = true` in DEBUG builds shows `.private` values while you debug; `.sensitive` stays hidden. Plain messages are unchanged.
 
+In 5.0 the default flips, as in `os.Logger`: an interpolation without `privacy:` is private unless it's a number, a `Bool` or a type you declared safe with `LogPublicValue` (`extension CheckoutStep: LogPublicValue {}`). Here `\(device)` would need `privacy: .public` to stay readable. `audit_logging.py --privacy` from the agent skill lists every such interpolation today, so you can settle them before upgrading.
+
 ### Layer 2: redaction, where the data leaves
 
 Redaction is opt-in, and it's a decorator: `RedactingLogEngine` wraps any engine and runs the message and every metadata string (recursively) through a `Redactor`. Default rules cover JWTs, Bearer and Basic tokens, AWS and GCP keys, emails, card-shaped numbers, phone numbers, IPv4 addresses and UUIDs. To wrap the default system logger:

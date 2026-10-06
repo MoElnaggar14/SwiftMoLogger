@@ -123,7 +123,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.5.0")
+    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.6.0")
 ],
 targets: [
     .target(name: "App", dependencies: [
@@ -469,7 +469,7 @@ log.notice("Refreshed \(token, privacy: .sensitive)")            // "Refreshed <
 
 | Privacy | Rendered as | Revealed by `revealsPrivateValues` |
 |---|---|---|
-| none, or `.public` | the value | — |
+| none, or `.public` | the value (private in 5.0 unless a number, `Bool` or `LogPublicValue`) | — |
 | `.private` | `<private>` | yes |
 | `.sensitive` | `<sensitive>` | never |
 | `.private(mask: .hash)`, `.sensitive(mask: .hash)` | `<hash:…>`, a stable 64-bit hash for correlation | as above |
@@ -483,6 +483,31 @@ logging.registry.revealsPrivateValues = true
 ```
 
 Plain messages and `String` values don't change: a literal becomes a `LogMessage` only when it uses `privacy:`. Engine privacy and redaction still apply to the rendered message. `#log(logger, "Signed in \(email, privacy: .private)")` works the same way. Design notes: [docs/design/per-value-privacy.md](docs/design/per-value-privacy.md).
+
+#### Preparing for private by default (5.0)
+
+In 5.0 a value interpolated without `privacy:` is private, as in `os.Logger`: `"Signed in \(email)"` logs `Signed in <private>`. Numbers, `Bool` and `LogPublicValue` types stay public. 4.x doesn't change any output yet, but you can get every call site ready now:
+
+1. Run the audit with `--privacy`. It lists each interpolation in a log call that has no `privacy:` and isn't obviously a number:
+
+   ```bash
+   python3 plugin/skills/swiftmologger/scripts/audit_logging.py --privacy path/to/YourApp
+   # Checkout.swift:42: [privacy] \(user.name) renders <private> in 5.0: add privacy: .public if it's safe, …
+   ```
+
+   `--fix-privacy` marks the safe ones `privacy: .public` for you: `.rawValue`, and names ending in `count`, `Count`, `index`, `Index`, `ID` or `Id`. It lists the rest for you to decide. `[privacy]` findings don't change the exit status.
+2. Settle each line: `privacy: .public` if the value is safe to show, `privacy: .private` (or `.sensitive`) to keep it hidden.
+3. Conform your own safe types once instead of marking every call site:
+
+   ```swift
+   enum CheckoutStep: String, LogPublicValue { case cart, payment, review }
+
+   log.info("Step \(step)")   // "Step payment", in 4.x and in 5.0
+   ```
+
+   Out of the box: the integer types, `Float`, `Double`, `Bool`, `StaticString`, `LogLevel`, `LogTag`, and optionals of them. `String`, `UUID`, `Date`, `URL`, errors and collections stay private in 5.0.
+
+Privacy covers the message, not metadata: metadata values are logged as they are, through `RedactingLogEngine` if you add it. In 5.0, `String` values passed as the message (`log.info(text)`) stop compiling, with a fix-it message: write `"\(text)"` to hide the text or `LogMessage(verbatim: text)` to show it. Tracking issue: [#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48).
 
 ### PII redaction
 
@@ -1011,10 +1036,11 @@ Spotted something out of date for another library? Please open an issue. For Swi
 
 ## Use with AI coding agents
 
-The repository ships an [agent skill](plugin/skills/swiftmologger/SKILL.md) that teaches AI coding agents to set up SwiftMoLogger the 4.0 way. It covers one injected `LogEnvironment`, which engines belong in debug and which in release builds, redaction, network logging, keeping `LiveSink` debug-only, testing, and the 3.x → 4.0 migration. It also includes an audit script that lists every 3.x call with its replacement and flags release-safety problems:
+The repository ships an [agent skill](plugin/skills/swiftmologger/SKILL.md) that teaches AI coding agents to set up SwiftMoLogger the 4.0 way. It covers one injected `LogEnvironment`, which engines belong in debug and which in release builds, redaction, network logging, keeping `LiveSink` debug-only, testing, and the 3.x → 4.0 migration. It also includes an audit script that lists every 3.x call with its replacement and flags release-safety problems. With `--privacy`, it also lists the interpolations that render `<private>` in 5.0 ([Preparing for private by default](#preparing-for-private-by-default-50)):
 
 ```bash
 python3 plugin/skills/swiftmologger/scripts/audit_logging.py path/to/YourApp
+python3 plugin/skills/swiftmologger/scripts/audit_logging.py --privacy path/to/YourApp
 ```
 
 **Claude Code**: install it as a plugin:
