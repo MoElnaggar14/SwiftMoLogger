@@ -4,6 +4,11 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Response bodies for `async` requests.** `try await network.data(for: request, on: session)` and `network.upload(for:from:on:)` send the request through URLSession's `async` API and capture the body it returns (and an upload's `from:` data as the request body) into the `NetworkEvent`, with the same redaction, `maxBytes` truncation, text-only filter and off-by-default policy. Before, `async` requests only got their request body, because URLSession doesn't hand their data to a delegate. With capture off the helpers are plain pass-throughs. `bytes(for:)` and `download(for:)` bodies are still not captured. ([#46](https://github.com/MoElnaggar14/SwiftMoLogger/issues/46))
+
 ## [4.4.0] — 2026-10-06
 
 `#log` accepts per-value privacy, and the async `LogContext.with` and `TraceContext.run` no longer warn on Swift 6.4. Additive; no API changes for existing callers.

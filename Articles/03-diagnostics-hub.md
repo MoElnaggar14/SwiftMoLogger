@@ -95,7 +95,7 @@ Offset encodes start time within the window; width encodes duration. Colour foll
 
 The data comes from `NetworkLogger`, which records each task when `urlSession(_:task:didFinishCollecting:)` fires. Use it on a session you own, or per request: `URLSession.shared.data(for: request, delegate: network)`. It only observes, and redacts URLs before they reach the store (see `NetworkLogger(environment:urlRedaction:)`).
 
-Bodies are off by default. `NetworkLogger(environment: logging, bodies: .debugOnly(maxBytes: 64 * 1_024))` captures redacted, truncated text bodies in debug builds and nothing in release builds, and the detail view shows them. Response bodies need the logger as the session delegate on a task created without a completion handler; the `async` APIs don't hand the delegate their data.
+Bodies are off by default. `NetworkLogger(environment: logging, bodies: .debugOnly(maxBytes: 64 * 1_024))` captures redacted, truncated text bodies in debug builds and nothing in release builds, and the detail view shows them. The `async` APIs don't hand a delegate their data, so send `async` requests through the logger to get response bodies: `try await network.data(for: request, on: session)`.
 
 ### Signpost flame graph
 
