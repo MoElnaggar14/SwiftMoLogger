@@ -104,6 +104,17 @@ struct SystemLogTests {
         #expect(try systemLogFile(BugReporter(environment: LogEnvironment())) == nil)
     }
 
+    @Test func reportsGeneratedTogetherGetTheirOwnDirectories() throws {
+        let reporter = BugReporter(environment: LogEnvironment())
+        let first = try reporter.generate()
+        let second = try reporter.generate()
+        defer {
+            try? FileManager.default.removeItem(at: first.directory)
+            try? FileManager.default.removeItem(at: second.directory)
+        }
+        #expect(first.directory != second.directory)
+    }
+
     @Test func osLogLevelsMapOntoLogLevels() {
         #expect(OSLogStoreSource.map(.debug) == .debug)
         #expect(OSLogStoreSource.map(.info) == .info)

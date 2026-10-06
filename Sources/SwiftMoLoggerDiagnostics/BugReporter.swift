@@ -56,7 +56,8 @@ public struct BugReporter: Sendable {
             .replacingOccurrences(of: ":", with: "-")
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("BugReports", isDirectory: true)
-            .appendingPathComponent("\(appName)-\(timestamp)", isDirectory: true)
+            // The suffix keeps two reports generated in the same second apart.
+            .appendingPathComponent("\(appName)-\(timestamp)-\(UUID().uuidString.prefix(8))", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
         let info = deviceInfo()
