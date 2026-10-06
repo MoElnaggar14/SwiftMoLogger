@@ -138,7 +138,7 @@ let raw = NetworkLogger(environment: logging, urlRedaction: .full)              
 
 ## Shipping logs without shipping secrets
 
-The remote engines (`SentryLogEngine`, `DatadogLogEngine`, `LokiLogEngine`, built on `HTTPLogShipper`) batch, retry with backoff and cap their buffer offline. Three notes:
+The remote engines (`SentryLogEngine`, `DatadogLogEngine`, `LokiLogEngine`, `OTLPLogEngine`, built on `HTTPLogShipper`) batch, retry with backoff and cap their buffer offline. Three notes:
 
 - **`SentryLogEngine(dsn:)` is failable.** A malformed DSN from remote config returns `nil` instead of crashing.
 - **Watch your keys.** `DatadogLogEngine(apiKey:service:)` sends that key from every device, and anything compiled into an app can be extracted. Never embed an org-wide secret. To keep keys off the device, point a plain `HTTPLogShipper(configuration: .init(endpoint: yourURL))` at your own backend and forward from there.

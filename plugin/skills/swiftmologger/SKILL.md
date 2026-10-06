@@ -72,7 +72,7 @@ The core question is: where should each log go, and who can read it there?
 | --- | :-: | :-: | --- |
 | `SystemLogger` (default, `.privateInRelease`) | ✓ | ✓ | Messages show as `<private>` in release sysdiagnose. Keep this default unless the logs contain no user data. |
 | `MemoryLogEngine(capacity:)` | ✓ | ✓ | A cheap ring buffer that `BugReporter` and the console read. |
-| `FileLogEngine(fileURL:maxFileSizeBytes:maxRotatedFiles:)` | ✓ | wrap with redaction | It persists to disk. Its init `throws`. |
+| `FileLogEngine(fileURL:maxFileSizeBytes:maxRotatedFiles:protection:)` | ✓ | wrap with redaction | It persists to disk. Its init `throws`. Pass `protection: .completeUnlessOpen` when logs may hold personal data; never `.complete` if the app logs in the background. |
 | `FlightRecorder(environment:redactor:)` | ✓ | ✓ with `redactor:` | Keeps a crash black box in Caches. |
 | Sentry / Datadog / Loki / `HTTPLogShipper` | usually off | ✓ wrapped in `RedactingLogEngine` | Sends data off the device. Declare it in the app's privacy manifest and App Store privacy details. |
 | `LiveSink` | ✓ only | ✗ | Streams unencrypted, unauthenticated logs to anyone on the Wi-Fi. |
@@ -152,6 +152,14 @@ logging.registry.addEngine(sink)
 - In-app tools: `DiagnosticsHubView(environment: logging)` or `LogConsoleView(stream: logging.stream)`. For vitals charts, run `AppVitalsMonitor(logger: logging.logger, history: logging.vitals).start(interval: 5)`.
 
 For the flight recorder, MetricKit, tracing, breadcrumbs, signposts, task-local context, swift-log and macros, read [references/features.md](references/features.md).
+
+**Reading a running app's logs yourself.** If the `swiftmologger` MCP server is connected (its tools are `list_devices`, `search_logs`, `get_entry`, `wait_for` and `network_requests`), use it to debug instead of asking the user to paste console output:
+1. Call `list_devices`.
+2. Call `search_logs` with `min_level: "warning"` and `since: "5m"`.
+3. Call `get_entry` with `context` on the interesting entry.
+4. Use `wait_for` while the user reproduces the bug.
+
+It only sees debug builds that run `LiveSink`. Setup is in `Tools/swiftmologger-mcp/README.md` in the SwiftMoLogger repository.
 
 ### 7. Testing
 
