@@ -107,9 +107,20 @@ public extension TraceContext {
         }
     }
 
+    #if compiler(>=6.4)
+    /// Async variant; runs on the caller's executor, like ``LogContext/with(_:operation:)``.
+    nonisolated(nonsending) func run<T>(
+        _ operation: nonisolated(nonsending) () async throws -> T
+    ) async rethrows -> T {
+        try await CurrentTrace.$current.withValue(self) {
+            try await LogContext.with(metadata, operation: operation)
+        }
+    }
+    #else
     func run<T>(_ operation: () async throws -> T) async rethrows -> T {
         try await CurrentTrace.$current.withValue(self) {
             try await LogContext.with(metadata, operation: operation)
         }
     }
+    #endif
 }

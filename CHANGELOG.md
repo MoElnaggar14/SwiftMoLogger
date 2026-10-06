@@ -4,6 +4,11 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Swift 6.4 no longer warns that `LogContext.with` uses a deprecated `TaskLocal.withValue` overload. With Swift 6.4, the async `LogContext.with(_:operation:)` and `TraceContext.run(_:)` are `nonisolated(nonsending)`: the operation runs on the caller's executor, so a main-actor caller stays on the main actor inside the scope. Older toolchains are unchanged. ([#44](https://github.com/MoElnaggar14/SwiftMoLogger/issues/44))
+
 ## [4.3.0] — 2026-10-06
 
 Per-value privacy in log messages, opt-in network bodies with Copy as cURL, and MetricKit metric payloads with every diagnostic kind. Additive; no API changes.

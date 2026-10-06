@@ -19,10 +19,22 @@ public enum LogContext {
         try $current.withValue(current.merging(metadata), operation: operation)
     }
 
+    #if compiler(>=6.4)
+    /// Async variant. The operation runs on the caller's executor
+    /// (`nonisolated(nonsending)`), the overload Swift 6.4 recommends for
+    /// task-local scopes; older toolchains use the variant below.
+    public nonisolated(nonsending) static func with<T>(
+        _ metadata: LogMetadata,
+        operation: nonisolated(nonsending) () async throws -> T
+    ) async rethrows -> T {
+        try await $current.withValue(current.merging(metadata), operation: operation)
+    }
+    #else
     public static func with<T>(
         _ metadata: LogMetadata,
         operation: () async throws -> T
     ) async rethrows -> T {
         try await $current.withValue(current.merging(metadata), operation: operation)
     }
+    #endif
 }
