@@ -17,7 +17,7 @@ import SwiftMoLogger
 /// - Severity follows OpenTelemetry's table: trace 1, debug 5, info 9, notice 10,
 ///   warning 13, error 17, critical 21, fault 22.
 /// - The message becomes the record body; metadata, the tag, the source location
-///   and the thread name become attributes.
+///   and the thread name become attributes, plus `swift.task.name` inside a named task.
 /// - Entries stamped by a ``TraceContext`` (`trace.id` and `span.id` metadata) fill
 ///   the record's `traceId` and `spanId`, so logs line up with backend traces.
 ///
@@ -98,6 +98,9 @@ public final class OTLPLogEngine: HTTPLogShipper, @unchecked Sendable {
         attributes.append(attribute("code.line.number", .int(Int64(entry.source.line))))
         if !entry.threadName.isEmpty {
             attributes.append(attribute("thread.name", .string(entry.threadName)))
+        }
+        if let taskName = entry.taskName {
+            attributes.append(attribute("swift.task.name", .string(taskName)))
         }
 
         var record: [String: Any] = [
