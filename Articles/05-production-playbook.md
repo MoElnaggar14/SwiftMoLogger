@@ -199,7 +199,7 @@ Three changes since 3.0 make it fit for production:
 
 The output is a `Codable` `FlightRecorder.Session`: upload it, attach it to a bug report, or someday scrub through it in the [Diagnostics Hub](03-diagnostics-hub.md). That last one isn't implemented yet, but the data shape is ready.
 
-It pairs well with MetricKit (iOS and macOS). The recorder tells you what the app was doing; `MetricKitCrashReporter(logger:)` logs the crash and hang diagnostics the OS delivers on the next launch, which tell you how it died:
+It pairs well with MetricKit (iOS and macOS). The recorder tells you what the app was doing; `MetricKitCrashReporter(logger:)` logs the crash, hang and resource diagnostics the OS delivers on the next launch, which tell you how it died. On iOS it also logs the daily metric payload (launch time, hang time, peak memory, disk writes), so slow launches show up next to everything else:
 
 ```swift
 let metricKit = MetricKitCrashReporter(logger: logger)

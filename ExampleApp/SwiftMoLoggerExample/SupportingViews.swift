@@ -140,7 +140,7 @@ struct DiagnosticsTab: View {
             }
 
             Section("MetricKit crash + hang capture") {
-                Text("Create `MetricKitCrashReporter(logger: logging.logger)` at your composition root, keep it alive, and call `startMonitoring()` to mirror MetricKit crash and hang payloads through that logger automatically.")
+                Text("Create `MetricKitCrashReporter(logger: logging.logger)` at your composition root, keep it alive, and call `startMonitoring()` to mirror MetricKit crash, hang and daily metric payloads through that logger automatically.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -199,7 +199,7 @@ struct AboutTab: View {
             ("App vitals", "Periodic memory / CPU / FPS / thermal / battery sampler."),
             ("Bug-report bundler", "One call → folder of logs + breadcrumbs + vitals + device info, ready for ShareLink."),
             ("LiveSink + Inspector CLI", "Bonjour log-tail server for DEBUG builds plus a `swiftmologger-inspector` macOS CLI."),
-            ("MetricKit reporter", "Mirror MetricKit crash + hang payloads into the logging pipeline."),
+            ("MetricKit reporter", "Mirror MetricKit crash, hang and metric payloads into the logging pipeline."),
             ("Combine + AsyncStream", "Observe entries via environment.stream.subscribe() or a CombineLogPublisher added to the registry."),
             ("Remote shippers", "Sentry envelopes, Datadog logs API, Grafana Loki push — all batched + retried."),
             ("Testing helpers", "XCTAssertLogged + RecordingLogEngine in SwiftMoLoggerTesting."),
