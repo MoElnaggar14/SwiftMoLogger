@@ -6,6 +6,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **`#log` accepts per-value privacy.** `#log(logger, "Signed in \(email, privacy: .private)")` logs `Signed in <private>`, and `#log(logger, message)` takes a `LogMessage` value. A second `#log` declaration takes a `LogMessage`; both expand to the same `logger.log(…)` call, so the `MoLogger` overloads build the message exactly as a direct call does. Plain literals, `String` values and messages typed from context still resolve to the `String` form. ([#45](https://github.com/MoElnaggar14/SwiftMoLogger/issues/45))
+
 ### Fixed
 - Swift 6.4 no longer warns that `LogContext.with` uses a deprecated `TaskLocal.withValue` overload. With Swift 6.4, the async `LogContext.with(_:operation:)` and `TraceContext.run(_:)` are `nonisolated(nonsending)`: the operation runs on the caller's executor, so a main-actor caller stays on the main actor inside the scope. Older toolchains are unchanged. ([#44](https://github.com/MoElnaggar14/SwiftMoLogger/issues/44))
 

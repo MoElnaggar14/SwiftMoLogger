@@ -9,6 +9,10 @@ import SwiftSyntaxMacros
 /// <logger>.log(<level>, <message>, tag: <tag>,
 ///              file: #fileID, function: #function, line: #line)
 /// ```
+///
+/// The message is passed through unchanged, so a `String` and a `LogMessage`
+/// (`"Signed in \(email, privacy: .private)"`) expand the same way and the
+/// `MoLogger.log` overloads pick the right one.
 public struct LogMacro: ExpressionMacro {
     public static func expansion(
         of node: some FreestandingMacroExpansionSyntax,
