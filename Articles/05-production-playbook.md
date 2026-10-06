@@ -85,6 +85,18 @@ logging.registry.addEngine(SystemLogger(privacy: .hashed))   // or .public / .pr
 
 `.hashed` keeps a stable hash, so identical messages can still be correlated.
 
+### Layer 1½: mark the value, not the message
+
+Engine-level privacy hides whole messages. Often only one value is sensitive, so mark that value where you log it, as you would with `os.Logger`:
+
+```swift
+logger.info("Signed in \(email, privacy: .private) on \(device)")   // "Signed in <private> on iPhone"
+logger.info("Account \(userID, privacy: .private(mask: .hash))")    // "Account <hash:07ee7e07b4b19223>"
+logger.notice("Refreshed \(token, privacy: .sensitive)")            // never shown, even in DEBUG
+```
+
+The value is replaced before the entry exists, so files, remote shippers and the live tail never see it. `logging.registry.revealsPrivateValues = true` in DEBUG builds shows `.private` values while you debug; `.sensitive` stays hidden. Plain messages are unchanged.
+
 ### Layer 2: redaction, where the data leaves
 
 Redaction is opt-in, and it's a decorator: `RedactingLogEngine` wraps any engine and runs the message and every metadata string (recursively) through a `Redactor`. Default rules cover JWTs, Bearer and Basic tokens, AWS and GCP keys, emails, card-shaped numbers, phone numbers, IPv4 addresses and UUIDs. To wrap the default system logger:

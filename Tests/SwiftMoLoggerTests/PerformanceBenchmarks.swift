@@ -67,6 +67,34 @@ final class PerformanceBenchmarks: LoggingTestCase {
         registry.minimumLevel = .info
     }
 
+    /// A `LogMessage` with a private value: the second rendering plus the
+    /// `revealsPrivateValues` read. Compare with `testHotPathWithMemoryEngine`.
+    func testHotPathWithPrivateValue() {
+        registry.removeAllEngines()
+        registry.addEngine(MemoryLogEngine(capacity: 50_000))
+        let email = "mo@example.com"
+        measure(metrics: [XCTClockMetric()]) {
+            for index in 0..<10_000 {
+                log.info("private-\(index) \(email, privacy: .private)")
+            }
+        }
+    }
+
+    /// A filtered `LogMessage` call: same short-circuit as the `String` overload,
+    /// the interpolation never runs.
+    func testFilteredPrivateValue() {
+        registry.removeAllEngines()
+        registry.addEngine(MemoryLogEngine(capacity: 1_000))
+        registry.minimumLevel = .error
+        let email = "mo@example.com"
+        measure(metrics: [XCTClockMetric()]) {
+            for index in 0..<10_000 {
+                log.info("filtered-\(index) \(email, privacy: .private)")
+            }
+        }
+        registry.minimumLevel = .info
+    }
+
     /// Highly-contended dispatch across many threads. Validates the lock
     /// strategy isn't the bottleneck.
     func testConcurrentDispatchThroughput() {
