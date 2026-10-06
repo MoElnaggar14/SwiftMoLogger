@@ -38,9 +38,9 @@ final class LogMacroTests: XCTestCase {
 
     func testLogMacroPassesMessageExpressionsThrough() {
         assertMacroExpansion(
-            #"#log(logger, { evaluated = true; return "payload" }(), tag: .api)"#,
+            #"#log(logger, makeMessage(for: user), tag: .api)"#,
             expandedSource: """
-            logger.log(.info, { evaluated = true; return "payload" }(), tag: .api, \
+            logger.log(.info, makeMessage(for: user), tag: .api, \
             file: #fileID, function: #function, line: #line)
             """,
             macros: macros
