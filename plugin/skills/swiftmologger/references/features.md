@@ -10,6 +10,7 @@ Read only the section you need. Every API takes its dependencies explicitly.
 - Task-local context
 - Signposts
 - Streams and Combine
+- Per-tag levels and remote config
 - Sampling, rate limiting and error grouping
 - Custom engines
 - swift-log interop
@@ -97,6 +98,21 @@ let combine = CombineLogPublisher()
 logging.registry.addEngine(combine)
 combine.publisher.filter { $0.level >= .error }.sink { _ in }.store(in: &cancellables)
 ```
+
+## Per-tag levels and remote config
+
+```swift
+logging.registry.minimumLevel = .info
+logging.registry.setMinimumLevel(.trace, for: .Data.database)  // data.database and below
+logging.registry.setMinimumLevel(.error, for: .ThirdParty.thirdparty)
+logging.registry.removeMinimumLevel(for: .Data.database)
+
+// Remote config: the app fetches, the package applies. Unknown names are skipped.
+let levels = fetched.compactMapValues(LogLevel.init(name:))  // ["data.database": "trace"]
+logging.registry.levelOverrides = LevelOverrides(levels)
+```
+
+The most specific domain wins, and `"data"` doesn't match `"database"`. Filtered calls still skip building the message. Engines' own `minimumLevel` still applies afterwards. Use `.trace`, not `.debug`, in release builds, where `debug(_:)` is compiled out.
 
 ## Sampling, rate limiting and error grouping
 

@@ -93,17 +93,18 @@ The `@autoclosure` was decorative: calling `message()` there did the interpolati
 In 4.0, `MoLogger.info` forwards into `log`'s own `@autoclosure`, so nothing runs yet, and `log` checks the level first (abridged):
 
 ```swift
-guard level >= registry.minimumLevel else { return }
+let resolvedTag = tag ?? self.tag
+guard registry.accepts(level, tag: resolvedTag) else { return }
 registry.dispatch(LogEntry(
     level: level,
     message: message(),
-    tag: tag ?? self.tag,
+    tag: resolvedTag,
     metadata: self.metadata.isEmpty ? metadata : self.metadata.merging(metadata),
     source: SourceLocation(file: file, function: function, line: line, column: column)
 ))
 ```
 
-The message and the `LogEntry` are only built once the entry passes. Reading `minimumLevel` takes the registry's lock, so a filtered call is one short lock round trip; a kept call takes it twice.
+The message and the `LogEntry` are only built once the entry passes. `accepts` compares against `minimumLevel`, or against a per-tag override when one matches the tag's domain (`registry.setMinimumLevel(.trace, for: .Data.database)`). It takes the registry's lock, so a filtered call is one short lock round trip; a kept call takes it twice. With no overrides it's a single comparison, and each override adds one `hasPrefix` on the domain, with no allocation.
 
 Two honest caveats:
 
