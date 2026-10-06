@@ -71,7 +71,7 @@ public struct MetricKitHistogram: Sendable, Equatable, Codable {
         guard total > 0 else { return nil }
         let target = Double(total) * min(max(fraction, 0), 1)
         var cumulative = 0
-        for bucket in buckets where bucket.count > 0 {
+        for bucket in buckets where bucket.count >= 1 {
             cumulative += bucket.count
             if Double(cumulative) >= target { return bucket.end }
         }
