@@ -4,7 +4,9 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.4.0] — 2026-10-06
+
+`#log` accepts per-value privacy, and the async `LogContext.with` and `TraceContext.run` no longer warn on Swift 6.4. Additive; no API changes for existing callers.
 
 ### Added
 - **`#log` accepts per-value privacy.** `#log(logger, "Signed in \(email, privacy: .private)")` logs `Signed in <private>`, and `#log(logger, message)` takes a `LogMessage` value. A second `#log` declaration takes a `LogMessage`; both expand to the same `logger.log(…)` call, so the `MoLogger` overloads build the message exactly as a direct call does. Plain literals, `String` values and messages typed from context still resolve to the `String` form. ([#45](https://github.com/MoElnaggar14/SwiftMoLogger/issues/45))
