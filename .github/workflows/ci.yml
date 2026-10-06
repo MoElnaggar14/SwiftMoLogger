@@ -144,6 +144,15 @@ jobs:
               echo "::error::3.x API found in $dir"; exit 1
             fi
           done
+      - name: Private-by-default audit (report only)
+        # Lists log interpolations without `privacy:`, which render <private> in 5.0 (#48).
+        # Report only: LiveSink's `\(error)` status message stays unmarked on purpose,
+        # so it becomes private in 5.0. Every other call site in Sources and ExampleApp is marked.
+        run: |
+          AUDIT=plugin/skills/swiftmologger/scripts/audit_logging.py
+          for dir in Sources ExampleApp; do
+            python3 "$AUDIT" --privacy "$dir" | grep '\[privacy\]' | sed "s|^|::warning::$dir/|" || true
+          done
 
   docs:
     name: Documentation

@@ -11,8 +11,10 @@ import Foundation
 /// ```
 ///
 /// Values interpolated without `privacy:` are public, as they are in a plain
-/// `String` message. Engine-level privacy (``SystemLogger/Privacy``) and
-/// redaction (``Redactor``) still apply to the whole rendered message.
+/// `String` message. In 5.0 they become private unless their type is a
+/// ``LogPublicValue``: numbers, `Bool` and your own conforming types.
+/// Engine-level privacy (``SystemLogger/Privacy``) and redaction
+/// (``Redactor``) still apply to the whole rendered message.
 public struct LogPrivacy: Sendable, Hashable {
     /// How a hidden value is replaced.
     public enum Mask: Sendable, Hashable {
@@ -120,8 +122,16 @@ public struct LogMessage: Sendable, Hashable, ExpressibleByStringInterpolation, 
             revealed? += literal
         }
 
-        /// A public value, rendered like a `String` interpolation would.
+        /// A value without `privacy:`, rendered like a `String` interpolation
+        /// would. Public in 4.x; private in 5.0 unless the type is a
+        /// ``LogPublicValue``.
         public mutating func appendInterpolation<T>(_ value: T) {
+            appendLiteral(String(describing: value))
+        }
+
+        /// A value whose type is declared safe to show. Public now and in 5.0.
+        /// Picked over the unconstrained overload because it is more specific.
+        public mutating func appendInterpolation<T: LogPublicValue>(_ value: T) {
             appendLiteral(String(describing: value))
         }
 

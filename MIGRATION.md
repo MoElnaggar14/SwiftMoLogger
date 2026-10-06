@@ -149,3 +149,23 @@ final class CheckoutTests: XCTestCase {
 ```
 
 Each test owns its environment, so suites can run in parallel.
+
+## Preparing for 5.0
+
+5.0 makes log messages private by default ([#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48)).
+4.x doesn't change any output, but you can prepare every call site now so the
+upgrade changes nothing you didn't decide:
+
+- **Unmarked interpolations render `<private>`.** `log.info("Opened \(screen)")`
+  logs `Opened <private>` in 5.0 unless `screen` is a number, a `Bool` or a
+  `LogPublicValue`. Run `audit_logging.py --privacy` (in the agent skill) to list
+  them, and `--fix-privacy` to mark the safe ones (`.rawValue`, names ending in
+  `count`, `index`, `ID`) `privacy: .public`. Settle the rest by hand with
+  `privacy: .public` or `privacy: .private`.
+- **Declare safe types once.** `extension CheckoutStep: LogPublicValue {}` keeps
+  `"Step \(step)"` public in 5.0. It changes nothing in 4.x.
+- **`String` messages stop compiling.** `log.info(text)`, where `text` is a
+  `String`, becomes an error whose message gives the fix: `"\(text)"` to hide the
+  text, or `LogMessage(verbatim: text)` to show it. `LogMessage(verbatim:)` works
+  in 4.x already, and app wrappers can take a `LogMessage` today.
+- **Metadata is unchanged.** Privacy covers the message only.

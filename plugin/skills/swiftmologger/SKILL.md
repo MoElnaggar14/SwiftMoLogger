@@ -1,6 +1,6 @@
 ---
 name: swiftmologger
-description: Set up and use the SwiftMoLogger 4.x Swift logging package in iOS, macOS, tvOS or watchOS apps — LogEnvironment composition root, injected MoLogger, engines (system, memory, file, Sentry, Datadog, Loki, HTTP), PII redaction, URLSession network logging, Diagnostics Hub, Bonjour live tail (LiveSink), flight recorder, tracing, macros and tests. Use this skill whenever the project imports SwiftMoLogger or depends on it, whenever the user wants to add logging, crash breadcrumbs, remote log shipping, network logging or log redaction to a Swift app, asks how to test what was logged, or is migrating from SwiftMoLogger 3.x (SwiftMoLogger.info, EngineRegistry.shared, MoLogger.shared) — even if they don't name the package.
+description: Set up and use the SwiftMoLogger 4.x Swift logging package in iOS, macOS, tvOS or watchOS apps — LogEnvironment composition root, injected MoLogger, engines (system, memory, file, Sentry, Datadog, Loki, HTTP), PII redaction, per-value log privacy and preparing for private-by-default messages in 5.0, URLSession network logging, Diagnostics Hub, Bonjour live tail (LiveSink), flight recorder, tracing, macros and tests. Use this skill whenever the project imports SwiftMoLogger or depends on it, whenever the user wants to add logging, crash breadcrumbs, remote log shipping, network logging or log redaction to a Swift app, asks how to test what was logged, or is migrating from SwiftMoLogger 3.x (SwiftMoLogger.info, EngineRegistry.shared, MoLogger.shared) — even if they don't name the package.
 ---
 
 # SwiftMoLogger 4.x
@@ -121,6 +121,7 @@ Treat everything logged as potentially leaving the device: sysdiagnose, files, r
   ```
 - The default rules cover JWTs, Bearer/Basic tokens, AWS/GCP keys, emails, card numbers, phone numbers, IPv4 addresses and UUIDs, and they walk metadata recursively. Add rules for app-specific identifiers: `try redactor.add(Redactor.Rule(name: "ssn", pattern: #"\d{3}-\d{2}-\d{4}"#))`.
 - When a message needs a personal value, mark that value instead of hiding the whole message: `log.info("Signed in \(email, privacy: .private)")` logs `Signed in <private>`. Use `.sensitive` for tokens, secrets and health data (never revealed), and `.private(mask: .hash)` when you need to correlate entries for the same user. The value is replaced before any engine sees it. `logging.registry.revealsPrivateValues = true` shows `.private` values; set it only under `#if DEBUG`. Plain literals and `String` values keep working unchanged. `#log` accepts the same messages: `#log(logger, "Signed in \(email, privacy: .private)")`.
+- Write new log calls for 5.0, which makes unmarked interpolations private: give every interpolated value that isn't a number or `Bool` an explicit `privacy:` (`.public` for screen names, states, raw values and IDs you'd show anyway; `.private` or `.sensitive` for personal data). For an app type whose every value is safe (an enum of screens or steps), add `extension CheckoutStep: LogPublicValue {}` once instead. Don't conform `String`, `UUID` or collections. When you need to log a `String` you already have, pass `LogMessage(verbatim: text)` to show it or `"\(text)"` to interpolate it, since `log.info(text)` stops compiling in 5.0. Privacy covers the message only; metadata goes through `RedactingLogEngine`.
 - Redaction is a safety net, not a licence. Prefer logging IDs over names, emails or free text the user typed.
 
 ### 5. Network logging (optional)
@@ -198,6 +199,17 @@ python3 <skill-dir>/scripts/audit_logging.py .
 
 Then follow [references/migration-3x.md](references/migration-3x.md). The approach: create the `LogEnvironment` first, then replace each `SwiftMoLogger.x(…)` call by injecting a `MoLogger` into its owning type. Work one type at a time, so the app compiles after each step.
 
+## Preparing for 5.0 (private by default)
+
+Run the privacy audit whenever you add or change log calls, and before you finish:
+
+```bash
+python3 <skill-dir>/scripts/audit_logging.py --privacy .
+python3 <skill-dir>/scripts/audit_logging.py --fix-privacy .   # marks the safe ones, lists the rest
+```
+
+Each `[privacy]` finding is an interpolation without `privacy:` that renders `<private>` in 5.0. `--fix-privacy` adds `privacy: .public` only to `.rawValue` and to names ending in `count`, `Count`, `index`, `Index`, `ID` or `Id`; build afterwards and check its diff, because it can't see types or tell a SwiftMoLogger call from another `.log(…)`. Decide each remaining finding from what the value holds: `privacy: .public` if it's safe to show, `privacy: .private` or `.sensitive` if it's personal or secret, or a `LogPublicValue` conformance for the app's own safe types. Ask the user when you can't tell. `[privacy]` findings don't fail the script, and 4.x output doesn't change, so this is safe to do at any time.
+
 ## Before you finish
 
 - There is exactly one `LogEnvironment` in the app target, created at the composition root, with no globals or `.shared`.
@@ -206,4 +218,4 @@ Then follow [references/migration-3x.md](references/migration-3x.md). The approa
 - `registry.revealsPrivateValues = true`, if used, is inside `#if DEBUG`.
 - Remote shippers are declared in the privacy manifest, and no secrets are hard-coded.
 - Tests use `MoLogger.recording()` or `LogEnvironment.recording()`.
-- `audit_logging.py` reports nothing to fix.
+- `audit_logging.py` reports nothing to fix, and `audit_logging.py --privacy` lists only values you decided to leave private in 5.0.
