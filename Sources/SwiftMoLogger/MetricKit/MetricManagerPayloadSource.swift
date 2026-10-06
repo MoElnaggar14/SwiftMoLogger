@@ -206,7 +206,8 @@ extension DiagnosticReportValues {
 
     /// Binary names on the attributed thread, or on every thread if none is attributed.
     private static func binaries(in tree: CallStackTree) -> [String] {
-        let attributed = tree.callStackThreads.filter { $0.threadAttributed == true }
+        let threads = Array(tree.callStackThreads)
+        let attributed = threads.filter { $0.threadAttributed == true }
         var names: Set<String> = []
         func collect(_ frames: ContiguousArray<CallStackFrame>) {
             for frame in frames {
@@ -216,7 +217,7 @@ extension DiagnosticReportValues {
                 collect(frame.subFrames)
             }
         }
-        for thread in attributed.isEmpty ? tree.callStackThreads : attributed {
+        for thread in attributed.isEmpty ? threads : attributed {
             collect(thread.rootFrames)
         }
         return names.sorted()
