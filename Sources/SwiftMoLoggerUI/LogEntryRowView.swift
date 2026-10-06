@@ -37,7 +37,7 @@ public struct LogEntryRowView: View {
                             .foregroundColor(.accentColor)
                     }
                     Spacer(minLength: 0)
-                    Text(entry.threadName)
+                    Text(entry.taskName.map { "\($0) · \(entry.threadName)" } ?? entry.threadName)
                         .font(.system(.caption2, design: .monospaced))
                         .foregroundColor(.secondary)
                         .lineLimit(1)

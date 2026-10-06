@@ -740,6 +740,18 @@ logger.info("outside scope")          // ← clean
 
 Backed by `@TaskLocal` — concurrent `Task`s see their own scope without interfering. The registry merges the ambient context at dispatch, so every logger sees it without anything being injected.
 
+### Task names
+
+Under Swift concurrency a thread name says little, because tasks hop between threads. Name the task and every entry logged inside it records the name (Swift 6.2, iOS 26 / macOS 26 and later):
+
+```swift
+Task(name: "checkout.pay") {
+    logger.info("charging card")   // entry.taskName == "checkout.pay"
+}
+```
+
+The console, the Mac inspector and the Hub show it next to the thread, and the OTLP and Datadog engines send it as `swift.task.name` / `task`. Unnamed tasks and older systems leave `taskName` `nil`.
+
 ### AsyncStream of entries
 
 ```swift

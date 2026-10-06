@@ -256,7 +256,8 @@ public final class EngineRegistry: @unchecked Sendable {
                 tag: entry.tag,
                 metadata: ambient.merging(entry.metadata),
                 source: entry.source,
-                threadName: entry.threadName
+                threadName: entry.threadName,
+                taskName: entry.taskName
             )
         }
 

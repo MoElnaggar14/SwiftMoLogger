@@ -64,6 +64,9 @@ public final class DatadogLogEngine: HTTPLogShipper, @unchecked Sendable {
                     "source.function": entry.source.function,
                     "source.line": entry.source.line
                 ]
+                if let taskName = entry.taskName {
+                    record["task"] = taskName
+                }
                 if let tag = entry.tag {
                     var tags = baseTags
                     if !tags.isEmpty { tags += "," }

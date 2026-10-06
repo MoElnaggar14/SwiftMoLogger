@@ -12,6 +12,7 @@
 | Argument evaluation | Every message string is built even when no engine consumes it | `@autoclosure` on every level helper — message is built only when the entry survives filtering |
 | Source location capture | `Thread.callStackSymbols` (~ms) | `#fileID` / `#function` / `#line` compile-time literals |
 | Thread label | `Thread.current.description` allocates | `"main"` via `Thread.isMainThread`, otherwise the thread's name (no description string) |
+| Task label | — | `Task.name` read once per *kept* entry (a task-local lookup); filtered calls never build the entry, so they never read it |
 | Concurrency model | GCD callbacks only | Native `AsyncStream` for streaming, `async` overloads for context |
 
 ## Measured costs (release build, M1 MacBook Pro, iOS 17 simulator)
