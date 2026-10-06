@@ -669,7 +669,18 @@ let network = NetworkLogger(environment: logging, bodies: .debugOnly(maxBytes: N
 - are kept only for text: JSON, XML, `text/*`, form-encoded, JavaScript, GraphQL, YAML. Images, video, protobuf and multipart bodies are skipped. A body with no content type is kept only if it reads as UTF-8 text,
 - are stored in the `NetworkEvent` (`requestBody`, `responseBody`) for the Hub. They're never written to log entries, so they don't reach your engines.
 
-Request bodies come from `URLRequest.httpBody`. Response bodies come from `urlSession(_:dataTask:didReceive:)`, which URLSession only calls for data tasks created without a completion handler on a session whose delegate is the logger. The `async` and completion-handler APIs keep the data to themselves, so for those you get the request body only. If your app already has a data delegate, forward that callback to the logger.
+Request bodies come from `URLRequest.httpBody`. Response bodies come from `urlSession(_:dataTask:didReceive:)`, which URLSession only calls for data tasks created without a completion handler on a session whose delegate is the logger. The `async` APIs keep the data to themselves, so passing the logger as `delegate:` gets you the request body only. For `async` requests, send them through the logger instead:
+
+```swift
+let (data, response) = try await network.data(for: request, on: session)
+let (data, response) = try await network.upload(for: request, from: body, on: session)
+```
+
+These call `session.data(for:delegate:)` and `session.upload(for:from:delegate:)` with a task delegate that records the returned body (and, for an upload, `from:` as the request body) through the same redaction, `maxBytes` limit and text-only filter. The result, errors and request are the same as calling URLSession yourself, and with capture off they're plain pass-throughs. What isn't captured:
+
+- `bytes(for:)` and `download(for:)` responses: the logger can't read a stream or file without consuming it. The request and outcome are still logged.
+- Completion-handler requests (`dataTask(with:completionHandler:)`): request body only.
+- Requests you send without the logger: nothing. If your app already has a data delegate, forward `urlSession(_:dataTask:didReceive:)` to the logger.
 
 Every `NetworkEvent` also has a `curlCommand`: the request as a shell-quoted `curl` command, built from the redacted URL and headers and the captured body. The Hub's request detail has a **Copy as cURL** button (iOS, Mac Catalyst, macOS and visionOS; tvOS and watchOS show the command without one). Redacted values stay redacted, so put a real token back in before you replay it.
 
