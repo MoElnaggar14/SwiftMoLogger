@@ -676,6 +676,19 @@ let report = try reporter.generate()
 // report.directory → ShareLink / UIActivityViewController / custom uploader
 ```
 
+Apple frameworks and SDKs log through `os_log`, not SwiftMoLogger, so a networking or Core Data error raised inside a framework never reaches your engines. Pass `systemLog:` to add the last few minutes of the app's own unified log as `system-log.txt`, redacted and capped at 1 MB (newest entries kept):
+
+```swift
+let reporter = BugReporter(
+    environment: logging,
+    memoryEngine: memory,
+    systemLog: SystemLogOptions(window: 600)   // last 10 minutes
+)
+let report = try await Task.detached { try reporter.generate() }.value   // reading the log takes a moment
+```
+
+iOS only lets an app read its own process's log, which is what a report needs. If the log can't be read, the file says why and the rest of the report is still written.
+
 ---
 
 ## Error grouping

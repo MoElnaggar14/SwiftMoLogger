@@ -42,6 +42,8 @@ let reporter = BugReporter(environment: logging, memoryEngine: memory, vitalsMon
 let report = try reporter.generate()      // report.directory → ShareLink / uploader
 ```
 
+Add `systemLog: SystemLogOptions(window: 600)` to include the app's own unified log (Apple frameworks and SDKs log there, not through SwiftMoLogger) as `system-log.txt`, redacted and capped at 1 MB. Reading it takes a moment, so call `generate()` off the main thread. Tests can pass `SystemLogOptions(source:)` with a fake `SystemLogSource`.
+
 ## Breadcrumbs
 
 ```swift
