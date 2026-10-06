@@ -56,27 +56,29 @@ The names follow `OSLogPrivacy`, but it's SwiftMoLogger's own type: `os.Logger`'
 
 ## Overload resolution: why existing call sites don't change
 
-Each level method now has a `String` overload and a `LogMessage` overload, both `@autoclosure`. The cases:
+Each level method now has a `String` overload and a `LogMessage` overload, both `@autoclosure`. The `LogMessage` overloads are marked `@_disfavoredOverload`: when both overloads type-check, the compiler picks the `String` one. The cases:
 
 | Call | Viable overloads | Chosen |
 |---|---|---|
 | `log.info(text)` with `text: String` | `String` | `String` |
-| `log.info("literal")` | both | `String`: it's the default literal type, and the `LogMessage` solution takes the non-default-literal penalty |
-| `log.info("x \(y)")` | both | `String`, same reason |
+| `log.info("literal")` | both | `String` |
+| `log.info("x \(y)")` | both | `String` |
+| `log.info({ …; return "x" }())`, or any expression typed from context | both | `String` |
 | `log.info("x \(y, privacy: .private)")` | `LogMessage` only: `DefaultStringInterpolation` has no `appendInterpolation(_:privacy:)` | `LogMessage` |
 | `log.info(message)` with `message: LogMessage` | `LogMessage` | `LogMessage` |
 | `log.error(someError)` | the existing `any Error` overload | unchanged |
 
-Even if the compiler preferred `LogMessage` for a plain literal, the result would be identical text, because plain interpolations are public. The only real risk is a compile-time ambiguity, which CI would catch; the test suite exercises every row above.
+Every call that compiled before 4.3 therefore resolves exactly as it did. The fifth row relies on the type checker solving interpolation segments together with the call, so a segment that doesn't fit rules out the `String` overload instead of failing the whole expression; the tests call every level method this way on Swift 6.1, 6.3 and 6.4.
 
-The fourth row relies on the type checker solving interpolation segments together with the call, so a segment that doesn't fit rules out the `String` overload instead of failing the whole expression. Recent toolchains type-check interpolations as part of the enclosing expression; the tests call every level method this way, so CI on Swift 6.1, 6.3 and 6.4 confirms it.
+Why the attribute is needed: without it, an expression whose type is inferred from context (a closure called inline, for example) type-checks equally well as `String` and as `LogMessage`, and the call is ambiguous. The first CI run of this branch hit exactly that in two existing tests.
 
 Rejected alternatives:
 
 - **Replacing the `String` parameters with `LogMessage`** (the issue's original plan). A literal still works, but `log.info(text)` with a `String` variable would need `LogMessage(verbatim:)`. That breaks callers for no benefit, since the overload achieves the same thing.
-- **`@_disfavoredOverload` on the `String` overloads.** This would send every plain literal through `LogMessage`, and break apps that extend `DefaultStringInterpolation` with their own `appendInterpolation` (such a literal would no longer type-check as `LogMessage`). It would also cost every call the `LogMessage` path for nothing.
+- **`@_disfavoredOverload` on the `String` overloads** instead. That would send every plain literal through `LogMessage`, break apps that extend `DefaultStringInterpolation` with their own `appendInterpolation`, and cost every call the `LogMessage` path for nothing.
+- **No attribute.** Breaks calls whose argument type comes from context, as above.
 
-Known edge: an unapplied reference such as `let f = log.info` is now ambiguous. It's unusual (the `#fileID`/`#line` defaults don't survive it anyway), and is fixed with a type annotation.
+`@_disfavoredOverload` is underscored but stable in practice (SwiftUI's own API relies on it). Known edge: an app that adds its own `appendInterpolation(_:privacy:)` to `DefaultStringInterpolation` would keep getting the `String` overload, so its `privacy:` segments would not be hidden by SwiftMoLogger.
 
 ## Rendering per engine
 
