@@ -1,6 +1,11 @@
 #if canImport(SwiftUI)
 import SwiftUI
 import SwiftMoLogger
+#if canImport(UIKit) && (os(iOS) || os(visionOS))
+import UIKit
+#elseif canImport(AppKit) && os(macOS)
+import AppKit
+#endif
 
 /// HTTP exchanges drawn as a waterfall — start time on the X axis, one row
 /// per request. Bar colour encodes status family.
@@ -116,6 +121,7 @@ public struct NetworkWaterfallView: View {
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
 struct NetworkEventDetailView: View {
     let event: NetworkEvent
+    @State private var copied = false
 
     var body: some View {
         Form {
@@ -123,6 +129,16 @@ struct NetworkEventDetailView: View {
                 LabeledContent("Method", value: event.method)
                 LabeledContent("URL", value: event.url.absoluteString)
                 LabeledContent("Body", value: "\(event.requestBytes)B")
+            }
+            if let headers = event.requestHeaders, !headers.isEmpty {
+                Section("Request Headers") {
+                    ForEach(headers.keys.sorted(), id: \.self) { name in
+                        LabeledContent(name, value: headers[name] ?? "")
+                    }
+                }
+            }
+            if let requestBody = event.requestBody {
+                bodySection("Request Body", captured: requestBody)
             }
             Section("Response") {
                 LabeledContent("Status", value: "\(event.statusCode)")
@@ -132,12 +148,76 @@ struct NetworkEventDetailView: View {
                     LabeledContent("Error", value: err)
                 }
             }
+            if let responseBody = event.responseBody {
+                bodySection("Response Body", captured: responseBody)
+            }
             Section("Timing") {
                 LabeledContent("Started", value: event.startedAt.formatted())
                 LabeledContent("Ended", value: event.endedAt.formatted())
             }
+            Section("cURL") {
+                Text(event.curlCommand)
+                    .font(.caption.monospaced())
+                    .hubSelectableText()
+                if HubClipboard.isAvailable {
+                    Button(copied ? "Copied" : "Copy as cURL") {
+                        HubClipboard.copy(event.curlCommand)
+                        copied = true
+                    }
+                    .accessibilityHint("Copies a curl command for this request. Secrets stay redacted.")
+                }
+            }
         }
         .navigationTitle("HTTP Exchange")
+    }
+
+    private func bodySection(_ title: String, captured: NetworkBody) -> some View {
+        Section {
+            Text(captured.text)
+                .font(.caption.monospaced())
+                .hubSelectableText()
+        } header: {
+            Text(title)
+        } footer: {
+            if captured.isTruncated {
+                Text("Truncated at the capture limit.")
+            }
+        }
+    }
+}
+
+/// Copies text where the platform has a pasteboard (iOS, Mac Catalyst,
+/// visionOS and macOS). tvOS and watchOS have none.
+enum HubClipboard {
+    static var isAvailable: Bool {
+        #if os(iOS) || os(visionOS) || os(macOS)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    @MainActor
+    static func copy(_ string: String) {
+        #if canImport(UIKit) && (os(iOS) || os(visionOS))
+        UIPasteboard.general.string = string
+        #elseif canImport(AppKit) && os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
+        #endif
+    }
+}
+
+@available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+private extension View {
+    /// Lets the user select and copy text where SwiftUI supports it.
+    @ViewBuilder
+    func hubSelectableText() -> some View {
+        #if os(tvOS) || os(watchOS)
+        self
+        #else
+        textSelection(.enabled)
+        #endif
     }
 }
 

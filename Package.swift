@@ -86,6 +86,7 @@ let package = Package(
         .testTarget(
             name: "SwiftMoLoggerTests",
             dependencies: ["SwiftMoLogger", "SwiftMoLoggerTesting"],
+            resources: [.copy("Fixtures")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(

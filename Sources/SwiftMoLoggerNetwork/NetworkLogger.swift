@@ -18,11 +18,18 @@ import SwiftMoLogger
 /// For each task it logs the request (with sensitive headers and URL query
 /// values redacted, see ``URLRedaction``) and the outcome (status, bytes, duration), leaves breadcrumbs, and records a
 /// ``NetworkEvent`` for the Diagnostics Hub's waterfall. It only observes: it
-/// never changes requests, buffers bodies or affects redirects.
+/// never changes requests or affects redirects.
+///
+/// Bodies aren't captured unless you pass `bodies:` (see ``NetworkBodyCapture``).
+/// Request bodies come from `URLRequest.httpBody`. Response bodies come from
+/// `urlSession(_:dataTask:didReceive:)`, which URLSession calls only for data
+/// tasks created without a completion handler on a session whose delegate is
+/// this logger; the `async` and completion-handler APIs keep the data to
+/// themselves. If your app has its own data delegate, forward that callback here.
 ///
 /// To connect requests to a backend trace, call `request.addTraceparentHeader()`
 /// inside `TraceContext.run { … }`.
-public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+public final class NetworkLogger: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     /// Header names (lower-case) whose values are never logged.
     public static let defaultSensitiveHeaders: Set<String> = [
         "authorization", "cookie", "set-cookie", "x-api-key", "x-auth-token", "proxy-authorization"
@@ -33,12 +40,19 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
     private let breadcrumbs: BreadcrumbStore?
     private let sensitiveHeaders: Set<String>
     private let urlRedaction: URLRedaction
+    /// `nil` when body capture is off for this build.
+    private let bodyEncoder: NetworkBodyEncoder?
 
     /// Tasks whose request was already logged by `didCreateTask`. That callback
     /// only reaches session-level delegates, so tasks using a per-task delegate
     /// (`session.data(for:delegate:)`) get their request logged with the outcome.
+    ///
+    /// `@unchecked Sendable` is safe because every other stored property is an
+    /// immutable `Sendable` value, and these two are only touched under `lock`.
     private let lock = UnfairLock()
     private var announcedTasks: Set<ObjectIdentifier> = []
+    /// Response bytes received so far, per data task, while body capture is on.
+    private var responseBuffers: [ObjectIdentifier: ResponseBodyBuffer] = [:]
 
     /// - Parameters:
     ///   - logger: Receives request and response entries. Untagged entries get `.api`.
@@ -46,27 +60,39 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
     ///   - breadcrumbs: Gets a breadcrumb per request and response. `nil` to skip.
     ///   - sensitiveHeaders: Header names (any case) whose values are redacted.
     ///   - urlRedaction: How much of each URL is written to logs, breadcrumbs and events.
-    public init(
+    ///   - bodies: Whether request and response bodies are captured into events. Off by default.
+    ///   - redactor: Scrubs captured bodies before they're stored.
+    public init( // swiftlint:disable:this function_parameter_count
         logger: MoLogger,
         events: NetworkEventStore? = nil,
         breadcrumbs: BreadcrumbStore? = nil,
         sensitiveHeaders: Set<String> = NetworkLogger.defaultSensitiveHeaders,
-        urlRedaction: URLRedaction = .default
+        urlRedaction: URLRedaction = .default,
+        bodies: NetworkBodyCapture = .off,
+        redactor: Redactor = Redactor()
     ) {
         self.logger = logger.tag == nil ? logger.with(tag: .api) : logger
         self.events = events
         self.breadcrumbs = breadcrumbs
         self.sensitiveHeaders = Set(sensitiveHeaders.map { $0.lowercased() })
         self.urlRedaction = urlRedaction
+        self.bodyEncoder = bodies.effectiveLimit.map { NetworkBodyEncoder(maxBytes: $0, redactor: redactor) }
     }
 
     /// Logs through the environment's logger and records into its stores.
-    public convenience init(environment: LogEnvironment, urlRedaction: URLRedaction = .default) {
+    public convenience init(
+        environment: LogEnvironment,
+        urlRedaction: URLRedaction = .default,
+        bodies: NetworkBodyCapture = .off,
+        redactor: Redactor = Redactor()
+    ) {
         self.init(
             logger: environment.logger,
             events: environment.networkEvents,
             breadcrumbs: environment.breadcrumbs,
-            urlRedaction: urlRedaction
+            urlRedaction: urlRedaction,
+            bodies: bodies,
+            redactor: redactor
         )
     }
 
@@ -140,8 +166,35 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
             statusCode: status,
             responseBytes: responseBytes,
             requestBytes: requestBytes,
-            errorDescription: error.map(Self.describe)
+            errorDescription: error.map(Self.describe),
+            requestHeaders: request.map { redactedHeaderFields($0.allHTTPHeaderFields ?? [:]) },
+            requestBody: request.flatMap { capturedRequestBody($0) },
+            responseBody: capturedResponseBody(of: task)
         ))
+    }
+
+    // MARK: - URLSessionDataDelegate
+
+    /// Buffers the start of a text response while body capture is on. Does
+    /// nothing (and allocates nothing) when it's off.
+    public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        guard let encoder = bodyEncoder else { return }
+        let key = ObjectIdentifier(dataTask)
+        lock.withLock {
+            var buffer: ResponseBodyBuffer
+            if let existing = responseBuffers[key] {
+                buffer = existing
+            } else {
+                buffer = ResponseBodyBuffer()
+                buffer.skipped = !NetworkBodyEncoder.isTextual(Self.contentType(of: dataTask.response), sample: data)
+            }
+            buffer.totalBytes += data.count
+            let room = encoder.bufferLimit - buffer.data.count
+            if !buffer.skipped, room > 0 {
+                buffer.data.append(data.prefix(room))
+            }
+            responseBuffers[key] = buffer
+        }
     }
 
     // MARK: - Private
@@ -151,6 +204,42 @@ public final class NetworkLogger: NSObject, URLSessionTaskDelegate, @unchecked S
     static func describe(_ error: Error) -> String {
         let error = error as NSError
         return "\(error.domain) \(error.code): \(error.localizedDescription)"
+    }
+
+    private func capturedRequestBody(_ request: URLRequest) -> NetworkBody? {
+        guard let encoder = bodyEncoder, let body = request.httpBody else { return nil }
+        return encoder.body(
+            from: body,
+            totalBytes: body.count,
+            contentType: request.value(forHTTPHeaderField: "Content-Type")
+        )
+    }
+
+    func capturedResponseBody(of task: URLSessionTask) -> NetworkBody? {
+        guard let encoder = bodyEncoder else { return nil }
+        let buffer = lock.withLock { responseBuffers.removeValue(forKey: ObjectIdentifier(task)) }
+        guard let buffer, !buffer.skipped else { return nil }
+        return encoder.body(
+            from: buffer.data,
+            totalBytes: buffer.totalBytes,
+            contentType: Self.contentType(of: task.response)
+        )
+    }
+
+    /// The response's `Content-Type` header, or its MIME type for non-HTTP responses.
+    private static func contentType(of response: URLResponse?) -> String? {
+        if let http = response as? HTTPURLResponse {
+            return http.value(forHTTPHeaderField: "Content-Type")
+        }
+        return response?.mimeType
+    }
+
+    func redactedHeaderFields(_ headers: [String: String]) -> [String: String] {
+        var redacted = headers
+        for key in headers.keys where sensitiveHeaders.contains(key.lowercased()) {
+            redacted[key] = "[REDACTED]"
+        }
+        return redacted
     }
 
     func redactedHeaders(_ headers: [String: String]) -> String {

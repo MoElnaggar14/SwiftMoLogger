@@ -4,6 +4,25 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.0] — 2026-10-06
+
+Per-value privacy in log messages, opt-in network bodies with Copy as cURL, and MetricKit metric payloads with every diagnostic kind. Additive; no API changes.
+
+### Added
+- **Per-value privacy.** Mark one value in a message instead of hiding the whole message, as with `os.Logger`: `log.info("Signed in \(email, privacy: .private)")` logs `Signed in <private>`. `LogPrivacy` has `.public`, `.private`, `.sensitive` (never revealed) and a `.hash` mask for a stable `<hash:…>`. Values are replaced before the `LogEntry` is created, so no engine sees them; `registry.revealsPrivateValues = true` shows `.private` values in DEBUG builds. The `LogMessage` overloads sit alongside the `String` ones, so existing call sites are unchanged, and filtered calls still don't build the message. ([#21](https://github.com/MoElnaggar14/SwiftMoLogger/issues/21))
+- **Network bodies and cURL export.** `NetworkLogger(…, bodies: .debugOnly(maxBytes:))` captures request bodies (from `httpBody`) and response bodies (from `urlSession(_:dataTask:didReceive:)`) into `NetworkEvent.requestBody` / `responseBody`. Capture is off by default, `.debugOnly` captures nothing in release builds, and `.always(maxBytes:)` is the explicit opt-in for every build. Bodies go through a `Redactor`, are cut at `maxBytes` and marked as truncated, are kept only for text content types, and never go into log entries. `NetworkEvent.requestHeaders` records the redacted headers, and `NetworkEvent.curlCommand` builds a shell-quoted `curl` command from the redacted URL, headers and body. The Hub's request detail shows headers and bodies and has a Copy as cURL button where the platform has a pasteboard. `NetworkLogger` is now a `URLSessionDataDelegate`; with capture off, the new callback returns at once. ([#13](https://github.com/MoElnaggar14/SwiftMoLogger/issues/13))
+- **MetricKit metric payloads.** On iOS, `MetricKitCrashReporter` now logs each daily `MXMetricPayload` as one `.info` entry tagged `.performance`: time to first draw (plus prewarmed launches), resume time and hang time as count, average, p50 and p95 from MetricKit's histograms, peak and average suspended memory, disk writes, CPU time, memory-limit and jetsam exits, the app version and the period the payload covers. ([#17](https://github.com/MoElnaggar14/SwiftMoLogger/issues/17))
+- **More diagnostics.** CPU exceptions, disk-write exceptions and app-launch diagnostics (iOS 16 / macOS 13) are logged as `.warning` entries tagged `.performance`, next to crashes and hangs. Crash entries add the exception and signal names, the termination reason, an uncaught Objective-C exception's name and message (iOS 17), a hint and the binaries on the crashing thread. ([#17](https://github.com/MoElnaggar14/SwiftMoLogger/issues/17))
+- **`MetricPayloadSummary` and `DiagnosticPayloadSummary`** parse a payload's `jsonRepresentation()`, and `MetricKitPayloadLogger` logs them, so payloads recorded on a device can be replayed in tests without building `MX` objects. Durations are in milliseconds and sizes in bytes. ([#17](https://github.com/MoElnaggar14/SwiftMoLogger/issues/17))
+- **`MetricPayloadSource`**, the port the reporter reads payloads from. `MXMetricManagerPayloadSource` is the default; `MetricKitCrashReporter(logger:source:)` takes any other, such as a replay of recorded JSON. ([#17](https://github.com/MoElnaggar14/SwiftMoLogger/issues/17))
+
+### Changed
+- Crash pattern hints and the binaries on the crashing thread are now metadata (`hint`, `binaries`) on the crash entry, instead of separate log entries. Binaries come from the attributed thread's whole call stack, not just its root frames. ([#17](https://github.com/MoElnaggar14/SwiftMoLogger/issues/17))
+- With a custom source, `crashReportDelegate` and `hangReportDelegate` aren't called, because they take MetricKit objects that a JSON source doesn't have. The default source calls them as before.
+
+### Notes
+- **The iOS 27 `MetricManager` API isn't adopted yet.** The reporter doesn't use the async API yet: its exact Swift shape couldn't be checked against the iOS 27 SDK, and a guessed signature would break the Xcode 27 build. It will be added as another `MetricPayloadSource`, behind `#if compiler(>=6.4)` and `@available(iOS 27, *)`, so the reporter, the summaries and the logged entries stay the same. `MXMetricManager` remains the source until then.
+
 ## [4.2.0] — 2026-10-06
 
 Runtime control and better evidence: per-tag log levels you can drive from remote config, Swift task names on every entry, the system log in bug reports, and recorded logs attached to failing Swift Testing tests. Additive; no API changes.
