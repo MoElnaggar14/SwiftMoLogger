@@ -735,6 +735,20 @@ let metricKit = MetricKitCrashReporter(logger: logging.logger)
 metricKit.startMonitoring()
 ```
 
+Every payload becomes a structured entry. Each crash is a `.critical` entry tagged `.crash` with the exception and signal names, the termination reason, an uncaught Objective-C exception (iOS 17+) and the binaries on the crashing thread. Hangs, CPU exceptions, disk-write exceptions and slow launches (iOS 16+) are `.warning` entries tagged `.performance`. On iOS the daily metric payload is one `.info` entry tagged `.performance`, with time to first draw, resume time and hang time (count, average, p50 and p95 from MetricKit's histograms), peak and suspended memory, disk writes, CPU time, memory-limit and jetsam exits, the app version and the period it covers. Durations are in milliseconds (`_ms` keys) and sizes in bytes (`_bytes`).
+
+The reporter parses each payload's `jsonRepresentation()` into `MetricPayloadSummary` and `DiagnosticPayloadSummary`, so you can test against recorded payloads without building MetricKit objects. Payloads come from a `MetricPayloadSource`: the default subscribes to `MXMetricManager`, and you can pass your own, for example one that replays recorded JSON:
+
+```swift
+// ReplaySource is your own type conforming to MetricPayloadSource.
+let reporter = MetricKitCrashReporter(logger: logger, source: ReplaySource(files: recordedPayloads))
+
+// Or log a payload you already have:
+MetricKitPayloadLogger(logger: logger).log(MetricKitPayload(kind: .metrics, json: payload.jsonRepresentation()))
+```
+
+The source is also where a newer system API plugs in. The iOS 27 `MetricManager` API isn't adopted yet; the CHANGELOG explains why.
+
 And for a "Send Bug Report" button, `BugReporter` bundles device info, breadcrumbs, recent logs and the last vitals sample into a directory you can hand to `ShareLink` or an uploader:
 
 ```swift

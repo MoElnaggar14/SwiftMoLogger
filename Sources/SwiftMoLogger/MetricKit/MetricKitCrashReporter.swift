@@ -13,28 +13,57 @@ public protocol HangReportDelegate: AnyObject, Sendable {
     func didReceiveHangReport(_ diagnostic: MXHangDiagnostic, rawData: [String: Any])
 }
 
-/// MetricKit-based crash reporter for system-level crash debugging.
+/// MetricKit-based reporter for crashes, hangs and daily performance metrics.
 ///
 /// MetricKit collects crashes, hangs, CPU exceptions, and disk-write events
 /// outside the app's own process — catching cases that in-process reporters
 /// miss (jetsam, watchdog timeouts, app-launch crashes). Diagnostic payloads
-/// arrive on the next launch.
+/// arrive on the next launch. On iOS it also delivers a daily metric payload:
+/// launch and resume times, hang time, peak memory, disk writes and CPU time.
+/// ``MetricKitPayloadLogger`` logs both kinds as structured entries.
 ///
 /// Usage:
 /// ```swift
 /// let reporter = MetricKitCrashReporter(logger: environment.logger)
 /// reporter.startMonitoring()
 /// ```
+///
+/// Payloads come from a ``MetricPayloadSource``. The default subscribes to
+/// `MXMetricManager`; pass another source to ``init(logger:source:)`` to replay
+/// recorded payloads or adopt a newer system API.
 public final class MetricKitCrashReporter: NSObject {
     private let logger: MoLogger
+    private let payloadLogger: MetricKitPayloadLogger
+    private let source: any MetricPayloadSource
     private var isMonitoring = false
 
+    /// Called for each crash. Only the default `MXMetricManager` source (or calling
+    /// `didReceive(_:)` directly) provides the MetricKit objects these delegates need.
     public weak var crashReportDelegate: CrashReportDelegate?
+    /// Called for each hang. Only the default `MXMetricManager` source (or calling
+    /// `didReceive(_:)` directly) provides the MetricKit objects these delegates need.
     public weak var hangReportDelegate: HangReportDelegate?
 
-    /// - Parameter logger: Receives crash, hang and diagnostic summaries.
-    public init(logger: MoLogger) {
+    /// Reads payloads from `MXMetricManager`.
+    ///
+    /// - Parameter logger: Receives crash, hang, diagnostic and metric summaries.
+    public convenience init(logger: MoLogger) {
+        let source = MXMetricManagerPayloadSource()
+        self.init(logger: logger, source: source)
+        source.diagnosticObjectsHandler = { [weak self] payloads in
+            self?.notifyDelegates(of: payloads)
+        }
+    }
+
+    /// Reads payloads from `source`.
+    ///
+    /// - Parameters:
+    ///   - logger: Receives crash, hang, diagnostic and metric summaries.
+    ///   - source: Delivers payloads once ``startMonitoring()`` is called.
+    public init(logger: MoLogger, source: any MetricPayloadSource) {
         self.logger = logger
+        self.payloadLogger = MetricKitPayloadLogger(logger: logger)
+        self.source = source
         super.init()
     }
 
@@ -43,7 +72,10 @@ public final class MetricKitCrashReporter: NSObject {
             logger.warning("MetricKit monitoring already active", tag: .crash)
             return
         }
-        MXMetricManager.shared.add(self)
+        let payloadLogger = self.payloadLogger
+        source.start { payloads in
+            payloadLogger.log(payloads)
+        }
         isMonitoring = true
         logger.info("MetricKit monitoring started", tag: .crash)
     }
@@ -53,7 +85,7 @@ public final class MetricKitCrashReporter: NSObject {
             logger.warning("MetricKit monitoring not active", tag: .crash)
             return
         }
-        MXMetricManager.shared.remove(self)
+        source.stop()
         isMonitoring = false
         logger.info("MetricKit monitoring stopped", tag: .crash)
     }
@@ -70,88 +102,40 @@ public final class MetricKitCrashReporter: NSObject {
     }
 }
 
+/// The reporter subscribes through its source, so these only run if you add
+/// the reporter to `MXMetricManager` yourself or forward payloads to it.
 extension MetricKitCrashReporter: MXMetricManagerSubscriber {
     public func didReceive(_ payloads: [MXDiagnosticPayload]) {
-        logger.info(
-            "Received \(payloads.count) diagnostic payload(s)",
-            tag: .crash,
-            metadata: ["payload_count": .int(Int64(payloads.count))]
-        )
-
-        for payload in payloads {
-            if let crashDiagnostics = payload.crashDiagnostics {
-                handleCrashDiagnostics(crashDiagnostics)
-            }
-            if let hangDiagnostics = payload.hangDiagnostics {
-                handleHangDiagnostics(hangDiagnostics)
-            }
-        }
+        notifyDelegates(of: payloads)
+        payloadLogger.log(payloads.map { MetricKitPayload(kind: .diagnostics, json: $0.jsonRepresentation()) })
     }
+
+    #if os(iOS)
+    public func didReceive(_ payloads: [MXMetricPayload]) {
+        payloadLogger.log(payloads.map { MetricKitPayload(kind: .metrics, json: $0.jsonRepresentation()) })
+    }
+    #endif
 }
 
 private extension MetricKitCrashReporter {
-    func handleCrashDiagnostics(_ diagnostics: [MXCrashDiagnostic]) {
-        for diagnostic in diagnostics {
-            logCrashSummary(diagnostic)
-            analyzeCrashCallStack(diagnostic.callStackTree)
-            archiveCrashReport(diagnostic)
-        }
-    }
-
-    func logCrashSummary(_ diagnostic: MXCrashDiagnostic) {
-        var metadata: LogMetadata = [
-            "app_version": .string(diagnostic.applicationVersion),
-            "os_version": .string(diagnostic.metaData.osVersion),
-            "device_type": .string(diagnostic.metaData.deviceType)
-        ]
-        if let exceptionType = diagnostic.exceptionType {
-            metadata["exception_type"] = .int(Int64(truncating: exceptionType))
-        }
-        if let signal = diagnostic.signal {
-            metadata["signal"] = .int(Int64(truncating: signal))
-        }
-        logger.critical("🚨 CRASH DETECTED", tag: .crash, metadata: metadata)
-    }
-
-    func analyzeCrashCallStack(_ callStackTree: MXCallStackTree) {
-        let callStackData = callStackTree.jsonRepresentation()
-        guard let jsonString = String(data: callStackData, encoding: .utf8) else {
-            logger.error("Unable to decode call stack", tag: .crash)
-            return
-        }
-        printCrashPatternHints(in: jsonString)
-        printUserBinaries(in: jsonString)
-    }
-
-    func archiveCrashReport(_ diagnostic: MXCrashDiagnostic) {
-        let crashReport = createDetailedCrashReport(from: diagnostic)
-        let crashData = diagnostic.dictionaryRepresentation()
-        let stringKeyCrashData: [String: Any] = Dictionary(uniqueKeysWithValues:
-            crashData.compactMap { key, value in
-                guard let stringKey = key as? String else { return nil }
-                return (stringKey, value)
+    func notifyDelegates(of payloads: [MXDiagnosticPayload]) {
+        guard crashReportDelegate != nil || hangReportDelegate != nil else { return }
+        for payload in payloads {
+            for diagnostic in payload.crashDiagnostics ?? [] {
+                crashReportDelegate?.didReceiveCrashReport(createDetailedCrashReport(from: diagnostic))
             }
-        )
-        crashReportDelegate?.didReceiveCrashReport(crashReport)
-        _ = stringKeyCrashData
+            for diagnostic in payload.hangDiagnostics ?? [] {
+                let rawData = stringKeyed(diagnostic.dictionaryRepresentation())
+                hangReportDelegate?.didReceiveHangReport(diagnostic, rawData: rawData)
+            }
+        }
     }
 
-    func handleHangDiagnostics(_ diagnostics: [MXHangDiagnostic]) {
-        for diagnostic in diagnostics {
-            logger.warning(
-                "🐌 HANG detected",
-                tag: .performance,
-                metadata: ["hang_duration_ms": .double(diagnostic.hangDuration.converted(to: .milliseconds).value)]
-            )
-            let hangData = diagnostic.dictionaryRepresentation()
-            let stringKeyHangData: [String: Any] = Dictionary(uniqueKeysWithValues:
-                hangData.compactMap { key, value in
-                    guard let stringKey = key as? String else { return nil }
-                    return (stringKey, value)
-                }
-            )
-            hangReportDelegate?.didReceiveHangReport(diagnostic, rawData: stringKeyHangData)
-        }
+    func stringKeyed(_ dictionary: [AnyHashable: Any]) -> [String: Any] {
+        Dictionary(uniqueKeysWithValues: dictionary.compactMap { key, value in
+            guard let stringKey = key as? String else { return nil }
+            return (stringKey, value)
+        })
     }
 
     func createDetailedCrashReport(from diagnostic: MXCrashDiagnostic) -> [String: Any] {
@@ -174,43 +158,6 @@ private extension MetricKitCrashReporter {
             report["callStack"] = callStackString
         }
         return report
-    }
-
-    func printCrashPatternHints(in callStackJSON: String) {
-        if callStackJSON.contains("EXC_BAD_ACCESS") {
-            logger.warning("Memory access issue — likely deallocated memory", tag: .crash)
-        } else if callStackJSON.contains("EXC_BREAKPOINT") {
-            logger.warning("Assertion failure or unhandled Swift error", tag: .crash)
-        } else if callStackJSON.contains("EXC_CRASH") {
-            logger.warning("Process terminated — memory pressure or timeout", tag: .crash)
-        }
-    }
-
-    func printUserBinaries(in callStackJSON: String) {
-        guard let data = callStackJSON.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let callStacks = json["callStacks"] as? [[String: Any]] else {
-            return
-        }
-        var userBinaries: Set<String> = []
-        for callStack in callStacks {
-            if let frames = callStack["callStackRootFrames"] as? [[String: Any]] {
-                for frame in frames {
-                    if let binaryName = frame["binaryName"] as? String,
-                       !binaryName.hasPrefix("/System/"),
-                       !binaryName.hasPrefix("/usr/lib/") {
-                        userBinaries.insert(binaryName)
-                    }
-                }
-            }
-        }
-        if !userBinaries.isEmpty {
-            logger.info(
-                "User binaries in crash",
-                tag: .crash,
-                metadata: ["binaries": .string(userBinaries.sorted().joined(separator: ", "))]
-            )
-        }
     }
 }
 

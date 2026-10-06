@@ -1,0 +1,151 @@
+{
+  "appVersion" : "3.4.0",
+  "timeStampBegin" : "2026-10-04 00:00:00 +0000",
+  "timeStampEnd" : "2026-10-04 23:59:00 +0000",
+  "metaData" : {
+    "appBuildVersion" : "412",
+    "bundleIdentifier" : "com.example.shop",
+    "deviceType" : "iPhone16,1",
+    "isTestFlightApp" : false,
+    "lowPowerModeEnabled" : false,
+    "osVersion" : "iPhone OS 18.6 (22G86)",
+    "pid" : 0,
+    "platformArchitecture" : "arm64e",
+    "regionFormat" : "US"
+  },
+  "applicationLaunchMetrics" : {
+    "histogrammedTimeToFirstDrawKey" : {
+      "histogramNumBuckets" : 3,
+      "histogramValue" : {
+        "0" : { "bucketCount" : 40, "bucketStart" : "300 ms", "bucketEnd" : "310 ms" },
+        "1" : { "bucketCount" : 50, "bucketStart" : "500 ms", "bucketEnd" : "510 ms" },
+        "2" : { "bucketCount" : 10, "bucketStart" : "1,000 ms", "bucketEnd" : "1,010 ms" }
+      }
+    },
+    "histogrammedOptimizedTimeToFirstDrawKey" : {
+      "histogramNumBuckets" : 1,
+      "histogramValue" : {
+        "0" : { "bucketCount" : 12, "bucketStart" : "200 ms", "bucketEnd" : "210 ms" }
+      }
+    },
+    "histogrammedResumeTime" : {
+      "histogramNumBuckets" : 2,
+      "histogramValue" : {
+        "0" : { "bucketCount" : 180, "bucketStart" : "50 ms", "bucketEnd" : "60 ms" },
+        "1" : { "bucketCount" : 20, "bucketStart" : "100 ms", "bucketEnd" : "110 ms" }
+      }
+    },
+    "histogrammedExtendedLaunch" : {
+      "histogramNumBuckets" : 1,
+      "histogramValue" : {
+        "0" : { "bucketCount" : 5, "bucketStart" : "1,200 ms", "bucketEnd" : "1,210 ms" }
+      }
+    }
+  },
+  "applicationResponsivenessMetrics" : {
+    "histogrammedAppHangTime" : {
+      "histogramNumBuckets" : 2,
+      "histogramValue" : {
+        "0" : { "bucketCount" : 8, "bucketStart" : "0 ms", "bucketEnd" : "100 ms" },
+        "1" : { "bucketCount" : 2, "bucketStart" : "100 ms", "bucketEnd" : "400 ms" }
+      }
+    }
+  },
+  "applicationTimeMetrics" : {
+    "cumulativeBackgroundAudioTime" : "0 sec",
+    "cumulativeBackgroundLocationTime" : "0 sec",
+    "cumulativeBackgroundTime" : "2,400 sec",
+    "cumulativeForegroundTime" : "1,650 sec"
+  },
+  "applicationExitMetrics" : {
+    "foregroundExitData" : {
+      "cumulativeAbnormalExitCount" : 0,
+      "cumulativeAppWatchdogExitCount" : 0,
+      "cumulativeBadAccessExitCount" : 1,
+      "cumulativeIllegalInstructionExitCount" : 0,
+      "cumulativeMemoryResourceLimitExitCount" : 1,
+      "cumulativeNormalAppExitCount" : 12
+    },
+    "backgroundExitData" : {
+      "cumulativeAbnormalExitCount" : 0,
+      "cumulativeAppWatchdogExitCount" : 0,
+      "cumulativeBackgroundTaskAssertionTimeoutExitCount" : 0,
+      "cumulativeBadAccessExitCount" : 0,
+      "cumulativeCPUResourceLimitExitCount" : 0,
+      "cumulativeIllegalInstructionExitCount" : 0,
+      "cumulativeMemoryPressureExitCount" : 9,
+      "cumulativeMemoryResourceLimitExitCount" : 2,
+      "cumulativeNormalAppExitCount" : 30,
+      "cumulativeSuspendedWithLockedFileExitCount" : 0
+    }
+  },
+  "cpuMetrics" : {
+    "cumulativeCPUInstructions" : "2,450,000 kiloinstructions",
+    "cumulativeCPUTime" : "1,842 sec"
+  },
+  "gpuMetrics" : {
+    "cumulativeGPUTime" : "96 sec"
+  },
+  "memoryMetrics" : {
+    "averageSuspendedMemory" : {
+      "averageValue" : "48,128 kB",
+      "sampleCount" : 25,
+      "standardDeviation" : 0
+    },
+    "peakMemoryUsage" : "212,992 kB"
+  },
+  "diskIOMetrics" : {
+    "cumulativeLogicalWrites" : "1,300 kB"
+  },
+  "networkTransferMetrics" : {
+    "cumulativeCellularDownload" : "18,000 kB",
+    "cumulativeCellularUpload" : "1,200 kB",
+    "cumulativeWifiDownload" : "96,000 kB",
+    "cumulativeWifiUpload" : "4,800 kB"
+  },
+  "displayMetrics" : {
+    "averagePixelLuminance" : {
+      "averageValue" : "52 apl",
+      "sampleCount" : 40,
+      "standardDeviation" : 0
+    }
+  },
+  "animationMetrics" : {
+    "scrollHitchTimeRatio" : "1.2 ms per s"
+  },
+  "cellularConditionMetrics" : {
+    "cellConditionTime" : {
+      "histogramNumBuckets" : 2,
+      "histogramValue" : {
+        "0" : { "bucketCount" : 20, "bucketStart" : "1 bars", "bucketEnd" : "1 bars" },
+        "1" : { "bucketCount" : 30, "bucketStart" : "3 bars", "bucketEnd" : "3 bars" }
+      }
+    }
+  },
+  "locationActivityMetrics" : {
+    "cumulativeBestAccuracyForNavigationTime" : "0 sec",
+    "cumulativeBestAccuracyTime" : "0 sec",
+    "cumulativeHundredMetersAccuracyTime" : "0 sec",
+    "cumulativeKilometerAccuracyTime" : "0 sec",
+    "cumulativeNearestTenMetersAccuracyTime" : "0 sec",
+    "cumulativeThreeKilometersAccuracyTime" : "0 sec"
+  },
+  "signpostMetrics" : [
+    {
+      "signpostCategory" : "Checkout",
+      "signpostName" : "SubmitOrder",
+      "totalSignpostCount" : 14,
+      "signpostIntervalData" : {
+        "histogrammedSignpostDurations" : {
+          "histogramNumBuckets" : 1,
+          "histogramValue" : {
+            "0" : { "bucketCount" : 14, "bucketStart" : "200 ms", "bucketEnd" : "210 ms" }
+          }
+        },
+        "signpostAverageMemory" : "180,000 kB",
+        "signpostCumulativeCPUTime" : "3 sec",
+        "signpostCumulativeLogicalWrites" : "40 kB"
+      }
+    }
+  ]
+}
