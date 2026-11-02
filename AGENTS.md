@@ -12,6 +12,7 @@ swift build --build-tests
 swift test
 swiftlint lint
 swift run swiftmologger-inspector        # Mac live-tail CLI
+swift test --package-path Tools/swiftmologger-mcp   # the MCP server, its own package
 ```
 
 CI tests with Swift 6.4, 6.3 and 6.1, builds for iOS, macOS, tvOS and watchOS, and builds the macros against swift-syntax 509 through 604. Code must compile on all of them. Guard newer APIs with `#available` and platform-specific code with `#if os(...)` / `#if canImport(...)`.
@@ -27,6 +28,7 @@ GitFlow is enforced by `.github/workflows/gitflow.yml`. Branch from `develop` as
 - `ExampleApp/`: a SwiftUI demo of every feature.
 - `Articles/`: the five-part article series. Keep its code samples on the current API.
 - `plugin/`: the Claude Code plugin and agent skill for app developers.
+- `Tools/swiftmologger-mcp`: an MCP server that gives AI agents a debug build's live logs over LiveSink. It's its own package, so apps never resolve the MCP SDK. Keep its tools read-only, and keep entries redacted by default before an agent sees them.
 
 ## Rules
 

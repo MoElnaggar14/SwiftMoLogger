@@ -194,7 +194,7 @@ With XCTest, use `XCTAssertLogged(.error, contains: "declined", tag: .api, in: l
 
 ## Migrating from 3.x
 
-Run the scanner from the app's root. It lists every 3.x call with its 4.0 replacement, and flags release-safety problems (LiveSink outside `#if DEBUG`, missing Bonjour keys, hard-coded Datadog keys, private values revealed in release):
+Run the scanner from the app's root. It lists every 3.x call with its replacement, and flags release-safety problems (LiveSink outside `#if DEBUG`, missing Bonjour keys, hard-coded Datadog keys, private values revealed in release):
 
 ```bash
 python3 <skill-dir>/scripts/audit_logging.py .

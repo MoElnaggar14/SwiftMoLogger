@@ -6,7 +6,7 @@
     {
       "name": "swiftmologger",
       "source": "./plugin",
-      "description": "Set up SwiftMoLogger 4.x correctly: LogEnvironment, engines, redaction, debug tooling, tests and 3.x migration."
+      "description": "Set up SwiftMoLogger 5.x correctly: LogEnvironment, engines, private-by-default messages, redaction, debug tooling, tests and the 3.x and 4.x migrations."
     }
   ]
 }
