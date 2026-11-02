@@ -10,9 +10,8 @@ import SwiftSyntaxMacros
 ///              file: #fileID, function: #function, line: #line)
 /// ```
 ///
-/// The message is passed through unchanged, so a `String` and a `LogMessage`
-/// (`"Signed in \(email, privacy: .private)"`) expand the same way and the
-/// `MoLogger.log` overloads pick the right one.
+/// The message is passed through unchanged, so `MoLogger.log` builds it exactly
+/// as it would for a direct call, with the same privacy rules.
 public struct LogMacro: ExpressionMacro {
     public static func expansion(
         of node: some FreestandingMacroExpansionSyntax,

@@ -2,9 +2,8 @@ import Foundation
 import SwiftMoLoggerSugar
 import Testing
 
-/// Compiles real `#log` call sites, so overload resolution between the `String`
-/// and `LogMessage` forms of the macro is checked by the compiler on every
-/// toolchain CI runs, not just the expansion text.
+/// Compiles real `#log` call sites, so the macro's message parameter is checked
+/// by the compiler on every toolchain CI runs, not just the expansion text.
 @Suite("#log call sites")
 struct LogMacroCallSiteTests {
     private func makeLogger(minimumLevel: LogLevel = .trace) -> (MoLogger, EngineRegistry, MemoryLogEngine) {
@@ -15,22 +14,23 @@ struct LogMacroCallSiteTests {
         return (MoLogger(registry: registry), registry, memory)
     }
 
-    @Test func stringFormsAreUnchanged() {
+    @Test func messagesFollowTheDefaultPrivacyRules() {
         let (log, _, memory) = makeLogger()
         let text = "from a variable"
         let count = 2
         let flag = true
         #log(log, "literal")
-        #log(log, text)
+        #log(log, "\(text)")
+        #log(log, LogMessage(verbatim: text))
         #log(log, "interpolated \(count)")
         #log(log, flag ? "on" : "off")
-        // Typed from context: both macro forms type-check, and the `String` one must win.
+        // Typed from context: the closure's literal becomes a LogMessage.
         #log(log, { _ = count; return "inline closure" }())
-        #log(log, String(describing: count), level: .warning, tag: .api)
+        #log(log, "\(count)", level: .warning, tag: .api)
 
         let entries = memory.snapshot()
         #expect(entries.map(\.message) == [
-            "literal", "from a variable", "interpolated 2", "on", "inline closure", "2"
+            "literal", "<private>", "from a variable", "interpolated 2", "on", "inline closure", "2"
         ])
         #expect(entries.last?.level == .warning)
         #expect(entries.last?.tag == .api)
@@ -41,7 +41,7 @@ struct LogMacroCallSiteTests {
         let email = "mo@example.com"
         let device = "iPhone"
         let token = "abc123"
-        #log(log, "Signed in \(email, privacy: .private) on \(device)")
+        #log(log, "Signed in \(email) on \(device, privacy: .public)")
         #log(log, "Token \(token, privacy: .sensitive)", level: .error, tag: .authentication)
         #log(log, "Opened \(device, privacy: .public)")
 

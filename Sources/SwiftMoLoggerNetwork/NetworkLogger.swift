@@ -115,7 +115,11 @@ public final class NetworkLogger: NSObject, URLSessionDataDelegate, @unchecked S
             "http.headers": .string(redactedHeaders(request.allHTTPHeaderFields ?? [:])),
             "http.body_bytes": .int(Int64(request.httpBody?.count ?? 0))
         ])
-        breadcrumbs?.record("→ \(request.httpMethod ?? "GET") \(url)", category: .network)
+        // The URL is already redacted, and the same text is in the entry's metadata.
+        breadcrumbs?.record(
+            "→ \(request.httpMethod ?? "GET", privacy: .public) \(url, privacy: .public)",
+            category: .network
+        )
     }
 
     /// Logs the outcome. URLSession delivers metrics for every task, including
@@ -160,7 +164,10 @@ public final class NetworkLogger: NSObject, URLSessionDataDelegate, @unchecked S
                 "http.duration_ms": .double(durationMS),
                 "error": .string(Self.describe(error))
             ])
-            breadcrumbs?.record("✗ \(url.host ?? "?"): \(error.localizedDescription)", category: .network)
+            breadcrumbs?.record(
+                "✗ \(url.host ?? "?", privacy: .public): \(error.localizedDescription)",
+                category: .network
+            )
         } else {
             let level: LogLevel = status >= 500 ? .error : (status >= 400 ? .warning : .info)
             logger.log(level, "HTTP response", metadata: [
@@ -170,7 +177,10 @@ public final class NetworkLogger: NSObject, URLSessionDataDelegate, @unchecked S
                 "http.response_bytes": .int(responseBytes),
                 "http.duration_ms": .double(durationMS)
             ])
-            breadcrumbs?.record("← \(status) \(url.lastPathComponent) (\(Int(durationMS))ms)", category: .network)
+            breadcrumbs?.record(
+                "← \(status) \(url.lastPathComponent, privacy: .public) (\(Int(durationMS))ms)",
+                category: .network
+            )
         }
 
         guard events != nil else {

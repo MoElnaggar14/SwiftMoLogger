@@ -44,6 +44,10 @@ jobs:
         run: swift build --build-tests
       - name: Test
         run: swift test --enable-code-coverage
+      - name: Build in release
+        # Private values are only revealed in DEBUG builds, so the release-only
+        # code paths (`#if !DEBUG`) need their own build.
+        run: swift build -c release
 
   test-newest-swift-syntax:
     name: Test (newest swift-syntax)
@@ -145,7 +149,7 @@ jobs:
             fi
           done
       - name: Private-by-default audit (report only)
-        # Lists log interpolations without `privacy:`, which render <private> in 5.0 (#48).
+        # Lists log interpolations without `privacy:`, which render <private> (#48).
         # Report only: LiveSink's `\(error)` status message stays unmarked on purpose,
         # so it becomes private in 5.0. Every other call site in Sources and ExampleApp is marked.
         run: |

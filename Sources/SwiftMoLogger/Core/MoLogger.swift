@@ -52,160 +52,17 @@ public struct MoLogger: Sendable {
         return copy
     }
 
-    // MARK: Logging
+    // MARK: Errors
 
-    public func log(
-        _ level: LogLevel,
-        _ message: @autoclosure () -> String,
-        tag: LogTag? = nil,
-        metadata: LogMetadata = [:],
-        file: String = #fileID,
-        function: String = #function,
-        line: Int = #line,
-        column: Int = #column
-    ) {
-        let resolvedTag = tag ?? self.tag
-        guard registry.accepts(level, tag: resolvedTag) else { return }
-        registry.dispatch(LogEntry(
-            level: level,
-            message: message(),
-            tag: resolvedTag,
-            metadata: self.metadata.isEmpty ? metadata : self.metadata.merging(metadata),
-            source: SourceLocation(file: file, function: function, line: line, column: column)
-        ))
-    }
-
-    public func trace(
-        _ message: @autoclosure () -> String,
-        tag: LogTag? = nil,
-        metadata: LogMetadata = [:],
-        file: String = #fileID,
-        function: String = #function,
-        line: Int = #line,
-        column: Int = #column
-    ) {
-        log(
-            .trace,
-            message(),
-            tag: tag,
-            metadata: metadata,
-            file: file,
-            function: function,
-            line: line,
-            column: column
-        )
-    }
-
-    /// Debug-only: the call is compiled out of release builds, so the message
-    /// is never evaluated there.
-    public func debug(
-        _ message: @autoclosure () -> String,
-        tag: LogTag? = nil,
-        metadata: LogMetadata = [:],
-        file: String = #fileID,
-        function: String = #function,
-        line: Int = #line,
-        column: Int = #column
-    ) {
-        #if DEBUG
-        log(
-            .debug,
-            message(),
-            tag: tag,
-            metadata: metadata,
-            file: file,
-            function: function,
-            line: line,
-            column: column
-        )
-        #endif
-    }
-
-    public func info(
-        _ message: @autoclosure () -> String,
-        tag: LogTag? = nil,
-        metadata: LogMetadata = [:],
-        file: String = #fileID,
-        function: String = #function,
-        line: Int = #line,
-        column: Int = #column
-    ) {
-        log(
-            .info,
-            message(),
-            tag: tag,
-            metadata: metadata,
-            file: file,
-            function: function,
-            line: line,
-            column: column
-        )
-    }
-
-    public func notice(
-        _ message: @autoclosure () -> String,
-        tag: LogTag? = nil,
-        metadata: LogMetadata = [:],
-        file: String = #fileID,
-        function: String = #function,
-        line: Int = #line,
-        column: Int = #column
-    ) {
-        log(
-            .notice,
-            message(),
-            tag: tag,
-            metadata: metadata,
-            file: file,
-            function: function,
-            line: line,
-            column: column
-        )
-    }
-
-    public func warning(
-        _ message: @autoclosure () -> String,
-        tag: LogTag? = nil,
-        metadata: LogMetadata = [:],
-        file: String = #fileID,
-        function: String = #function,
-        line: Int = #line,
-        column: Int = #column
-    ) {
-        log(
-            .warning,
-            message(),
-            tag: tag,
-            metadata: metadata,
-            file: file,
-            function: function,
-            line: line,
-            column: column
-        )
-    }
-
-    public func error(
-        _ message: @autoclosure () -> String,
-        tag: LogTag? = nil,
-        metadata: LogMetadata = [:],
-        file: String = #fileID,
-        function: String = #function,
-        line: Int = #line,
-        column: Int = #column
-    ) {
-        log(
-            .error,
-            message(),
-            tag: tag,
-            metadata: metadata,
-            file: file,
-            function: function,
-            line: line,
-            column: column
-        )
-    }
-
-    /// Logs `error`'s localized description, with `error_type` and `error` metadata.
+    /// Logs `error` at ``LogLevel/error``. The message is the error's
+    /// `localizedDescription`, private like any interpolated value, so it shows as
+    /// `<private>` unless private values are revealed. The `error_type` metadata
+    /// (the type's name) stays public, so entries can still be grouped. The `error`
+    /// metadata holds `String(describing: error)`: privacy covers the message, not
+    /// metadata, which ``RedactingLogEngine`` handles.
+    ///
+    /// To show the description, log it yourself:
+    /// `log.error("\(error.localizedDescription, privacy: .public)")`.
     public func error(
         _ error: any Error,
         tag: LogTag? = nil,
@@ -220,51 +77,9 @@ public struct MoLogger: Sendable {
         enriched["error"] = .string(String(describing: error))
         log(
             .error,
-            error.localizedDescription,
+            "\(error.localizedDescription)",
             tag: tag,
             metadata: enriched,
-            file: file,
-            function: function,
-            line: line,
-            column: column
-        )
-    }
-
-    public func critical(
-        _ message: @autoclosure () -> String,
-        tag: LogTag? = nil,
-        metadata: LogMetadata = [:],
-        file: String = #fileID,
-        function: String = #function,
-        line: Int = #line,
-        column: Int = #column
-    ) {
-        log(
-            .critical,
-            message(),
-            tag: tag,
-            metadata: metadata,
-            file: file,
-            function: function,
-            line: line,
-            column: column
-        )
-    }
-
-    public func fault(
-        _ message: @autoclosure () -> String,
-        tag: LogTag? = nil,
-        metadata: LogMetadata = [:],
-        file: String = #fileID,
-        function: String = #function,
-        line: Int = #line,
-        column: Int = #column
-    ) {
-        log(
-            .fault,
-            message(),
-            tag: tag,
-            metadata: metadata,
             file: file,
             function: function,
             line: line,

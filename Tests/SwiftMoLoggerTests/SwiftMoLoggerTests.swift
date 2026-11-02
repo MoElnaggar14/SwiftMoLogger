@@ -49,8 +49,13 @@ final class SwiftMoLoggerTests: LoggingTestCase {
 
         log.error(BoomError(), tag: .api)
         let entry = memory.snapshot().last
-        XCTAssertEqual(entry?.message, "kaboom")
+        // The description is private like any interpolated value; the type name stays public.
+        XCTAssertEqual(entry?.message, "<private>")
         XCTAssertEqual(entry?.metadata["error_type"], .string("BoomError"))
+
+        registry.revealsPrivateValues = true
+        log.error(BoomError(), tag: .api)
+        XCTAssertEqual(memory.snapshot().last?.message, "kaboom")
     }
 
     func testGlobalMinimumLevelFilters() {
