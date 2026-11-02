@@ -1,0 +1,14 @@
+# Swift Package Index: https://swiftpackageindex.com/MoElnaggar14/SwiftMoLogger
+# Builds hosted DocC documentation for the products apps import directly.
+version: 1
+builder:
+  configs:
+    - documentation_targets:
+        - SwiftMoLogger
+        - SwiftMoLoggerUI
+        - SwiftMoLoggerNetwork
+        - SwiftMoLoggerRemote
+        - SwiftMoLoggerDiagnostics
+        - SwiftMoLoggerTesting
+        - SwiftMoLoggerSugar
+        - SwiftMoLoggerSwiftLog
