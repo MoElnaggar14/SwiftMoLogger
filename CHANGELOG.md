@@ -4,6 +4,22 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Log messages are private by default, as in `os.Logger`: a value interpolated without `privacy:` renders `<private>` unless it's a number, a `Bool` or a `LogPublicValue`. Breaking; see [MIGRATION.md](MIGRATION.md#migrating-from-4x-to-50).
+
+### Changed
+- **BREAKING: private by default.** An interpolation without `privacy:` is private: `"Signed in \(email)"` logs `Signed in <private>`, revealed only by `revealsPrivateValues`. Literal text, numbers, `Bool`, `StaticString`, `LogLevel`, `LogTag`, optionals of them and app types that conform to `LogPublicValue` stay public. `privacy: .public`, `.private` and `.sensitive` are unchanged. ([#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48))
+- **BREAKING: the call site decides for `String` values.** The `String` overloads of the level methods and `log(_:_:)` are unavailable, and the error message gives the fix: `"\(text)"` hides the text, `LogMessage(verbatim: text)` shows it. String literals resolve to the `LogMessage` overloads, which are no longer `@_disfavoredOverload`. ([#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48))
+- **BREAKING:** `error(_:)` logs `localizedDescription` as a private value. The `error_type` metadata stays public, so entries still group. ([#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48))
+- **BREAKING:** `#log` is one declaration that takes a `MoLogger` and a `LogMessage`. ([#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48))
+- **BREAKING:** `BreadcrumbStore.record(_:category:metadata:)` and `Signposter.event(_:message:)` take a `LogMessage` under the same rule. Private values are never revealed in breadcrumbs or signposts. The network logger's breadcrumbs mark the redacted URL and the host public, and keep the error's description private. ([#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48))
+- `revealsPrivateValues` only works in DEBUG builds: in release it reads `false` whatever was set, and messages don't build the revealed rendering, so a kept message costs one string, as a `String` interpolation did. ([#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48))
+- `audit_logging.py --privacy` reports interpolations that render `<private>`, and its `migrate` findings cover APIs removed in 5.0.
+
+### Removed
+- **BREAKING:** `EngineRegistry.getAllEngines()`, deprecated since 4.0. Use `allEngines()`. ([#49](https://github.com/MoElnaggar14/SwiftMoLogger/issues/49))
+
 ## [4.6.0] — 2026-10-06
 
 Groundwork for private-by-default messages in 5.0: `LogPublicValue` and a privacy audit that lists unmarked interpolations. Additive; no API changes.

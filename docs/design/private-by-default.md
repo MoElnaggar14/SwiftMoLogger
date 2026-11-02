@@ -1,6 +1,6 @@
 # Private by default
 
-Issue: [#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48), part of the 5.0 roadmap ([#43](https://github.com/MoElnaggar14/SwiftMoLogger/issues/43)). Status: proposal. The breaking part ships in 5.0. The preparation ships in the last 4.x minor.
+Issue: [#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48), part of the 5.0 roadmap ([#43](https://github.com/MoElnaggar14/SwiftMoLogger/issues/43)). Status: implemented for 5.0. The preparation shipped in 4.6.
 
 ## Problem
 

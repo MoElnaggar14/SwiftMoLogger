@@ -1,3 +1,35 @@
+# Migrating from 4.x to 5.0
+
+5.0 makes log messages private by default, as in `os.Logger` ([#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48)), and removes deprecated API ([#49](https://github.com/MoElnaggar14/SwiftMoLogger/issues/49)). A forgotten privacy marker now hides a value instead of leaking it to every engine.
+
+```swift
+log.info("Signed in \(email) on \(device)")              // "Signed in <private> on <private>"
+log.info("Opened \(screen, privacy: .public)")           // "Opened Settings"
+log.info("Retry \(attempt) of \(limit), ok: \(isOK)")    // "Retry 2 of 5, ok: false"
+log.info("Step \(step)")                                 // "Step checkout"  (CheckoutStep: LogPublicValue)
+log.info(LogMessage(verbatim: text))                    // a String you know is safe, shown as is
+```
+
+| Change | Who notices | How to migrate |
+|---|---|---|
+| An interpolation without `privacy:` renders `<private>`, unless it's a number, `Bool` or `LogPublicValue` | output only, no build error | Run `audit_logging.py --privacy` to list them. Add `privacy: .public` where the value is safe, or conform the type to `LogPublicValue` |
+| `String` values as the message (`log.info(text)`) don't compile | build error, with the fix in the message | `"\(text)"` hides the text, `LogMessage(verbatim: text)` shows it. App wrappers take a `LogMessage` |
+| `"a" + b` as a message doesn't compile (`+` makes a `String`) | build error | `"a\(b)"` |
+| `#log` takes a `LogMessage` and a non-optional `MoLogger` | build error for `String` values only | as above |
+| `error(_:)` hides `localizedDescription` (the `error_type` metadata stays) | output only | `log.error("\(error.localizedDescription, privacy: .public)")` to show it |
+| `breadcrumbs.record(_:)` and `signposter.event(_:message:)` take a `LogMessage` under the same rule | output, or a build error for `String` values | as above |
+| `revealsPrivateValues` reads `false` in release builds | output only, release only | none; use a Debug-like configuration for QA builds that need private values |
+| `EngineRegistry.getAllEngines()` is removed | build error | `allEngines()` (the audit's `migrate` finding says so) |
+
+**Step by step**
+
+1. Before upgrading, on 4.6: run `python3 plugin/skills/swiftmologger/scripts/audit_logging.py --privacy path/to/YourApp`. Each `[privacy]` line is an interpolation that renders `<private>` in 5.0. `--fix-privacy` marks the safe ones (`.rawValue`, names ending in `count`, `index`, `ID` or `Id`) `privacy: .public` and lists the rest.
+2. Settle each remaining line: `privacy: .public` if the value is safe to show, `privacy: .private` to say it's hidden on purpose. Conform enums of screens or states to `LogPublicValue` once instead of marking every call site.
+3. Upgrade and build. Fix each `String` message the compiler lists, choosing `"\(text)"` or `LogMessage(verbatim: text)`.
+4. Run `audit_logging.py` without flags: it reports `getAllEngines()` and any other removed API.
+
+**Unchanged:** engines, `LogEntry` (its `message` is still the rendered `String`), metadata (privacy covers the message only; metadata goes through `RedactingLogEngine`), and `SystemLogger`'s `.privateInRelease` default.
+
 # Migrating to SwiftMoLogger 4.0
 
 4.0 removes every singleton and the static `SwiftMoLogger.*` facade. You create
@@ -150,22 +182,3 @@ final class CheckoutTests: XCTestCase {
 
 Each test owns its environment, so suites can run in parallel.
 
-## Preparing for 5.0
-
-5.0 makes log messages private by default ([#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48)).
-4.x doesn't change any output, but you can prepare every call site now so the
-upgrade changes nothing you didn't decide:
-
-- **Unmarked interpolations render `<private>`.** `log.info("Opened \(screen)")`
-  logs `Opened <private>` in 5.0 unless `screen` is a number, a `Bool` or a
-  `LogPublicValue`. Run `audit_logging.py --privacy` (in the agent skill) to list
-  them, and `--fix-privacy` to mark the safe ones (`.rawValue`, names ending in
-  `count`, `index`, `ID`) `privacy: .public`. Settle the rest by hand with
-  `privacy: .public` or `privacy: .private`.
-- **Declare safe types once.** `extension CheckoutStep: LogPublicValue {}` keeps
-  `"Step \(step)"` public in 5.0. It changes nothing in 4.x.
-- **`String` messages stop compiling.** `log.info(text)`, where `text` is a
-  `String`, becomes an error whose message gives the fix: `"\(text)"` to hide the
-  text, or `LogMessage(verbatim: text)` to show it. `LogMessage(verbatim:)` works
-  in 4.x already, and app wrappers can take a `LogMessage` today.
-- **Metadata is unchanged.** Privacy covers the message only.
