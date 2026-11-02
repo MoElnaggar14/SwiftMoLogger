@@ -80,8 +80,21 @@ final class PerformanceBenchmarks: LoggingTestCase {
         }
     }
 
-    /// A filtered `LogMessage` call: same short-circuit as the `String` overload,
-    /// the interpolation never runs.
+    /// An unmarked `String` interpolation that is kept: private by default since
+    /// 5.0. In release builds it costs one string, as a `String` interpolation did.
+    func testHotPathPlainInterpolation() {
+        registry.removeAllEngines()
+        registry.addEngine(MemoryLogEngine(capacity: 50_000))
+        let screen = "Checkout"
+        measure(metrics: [XCTClockMetric()]) {
+            for index in 0..<10_000 {
+                log.info("plain-\(index) \(screen)")
+            }
+        }
+    }
+
+    /// A filtered `LogMessage` call: the level check short-circuits and the
+    /// interpolation never runs.
     func testFilteredPrivateValue() {
         registry.removeAllEngines()
         registry.addEngine(MemoryLogEngine(capacity: 1_000))

@@ -81,11 +81,16 @@ public struct Signposter: @unchecked Sendable {
     }
 
     /// Emits a one-shot point of interest on the Instruments timeline.
-    public func event(_ name: StaticString, message: String = "") {
-        if message.isEmpty {
+    ///
+    /// The message follows the same rules as a log message: interpolated values
+    /// are private unless marked or declared safe, and private values are never
+    /// revealed in the trace.
+    public func event(_ name: StaticString, message: LogMessage = "") {
+        let text = message.rendered()
+        if text.isEmpty {
             os_signpost(.event, log: osLog, name: name)
         } else {
-            os_signpost(.event, log: osLog, name: name, "%{public}@", message)
+            os_signpost(.event, log: osLog, name: name, "%{public}@", text)
         }
     }
 

@@ -2,7 +2,7 @@ import Foundation
 @testable import SwiftMoLogger
 import Testing
 
-@Suite("Per-value privacy")
+@Suite("Private by default")
 struct LogMessageTests {
     private func makeLogger(minimumLevel: LogLevel = .trace) -> (MoLogger, EngineRegistry, MemoryLogEngine) {
         let registry = EngineRegistry(installDefaultSystemLogger: false)
@@ -14,14 +14,41 @@ struct LogMessageTests {
 
     // MARK: Rendering
 
-    @Test func plainInterpolationsRenderLikeString() {
+    @Test func unmarkedValuesArePrivate() {
         let count = 3
         let name: String = "Settings"
         let message: LogMessage = "Opened \(name) \(count) times"
-        #expect(message.rendered() == "Opened Settings 3 times")
+        #expect(message.rendered() == "Opened <private> 3 times")
         #expect(message.rendered(revealingPrivateValues: true) == "Opened Settings 3 times")
-        #expect(!message.hasPrivateValues)
+        #expect(message.hasPrivateValues)
+    }
+
+    @Test func literalTextIsPublic() {
+        let plain: LogMessage = "Signed in"
+        let multiline: LogMessage = """
+        Signed in
+        again
+        """
+        #expect(plain.rendered() == "Signed in")
+        #expect(multiline.rendered() == "Signed in\nagain")
+        #expect(!plain.hasPrivateValues && !multiline.hasPrivateValues)
         #expect(LogMessage(verbatim: "as is").description == "as is")
+    }
+
+    @Test func interpolatedStringLiteralsArePrivate() {
+        // `\("…")` interpolates a String: write the text into the literal instead.
+        let message: LogMessage = "Opened \("Settings")"
+        #expect(message.rendered() == "Opened <private>")
+    }
+
+    @Test func everyOtherTypeIsPrivate() {
+        let email = "mo@example.com"
+        let url = URL(string: "https://example.com/u/42")
+        let uuid = UUID()
+        let numbers = [1, 2]
+        let date = Date(timeIntervalSince1970: 0)
+        let values: LogMessage = "\(email) \(url) \(uuid) \(numbers) \(date)"
+        #expect(values.rendered() == "<private> <private> <private> <private> <private>")
     }
 
     @Test func publicValuesAreShown() {
@@ -140,17 +167,59 @@ struct LogMessageTests {
         #expect(evaluated)
     }
 
-    @Test func stringCallSitesAreUnchanged() {
+    @Test func callSitesDecideHowAStringIsShown() {
         let (log, _, memory) = makeLogger()
         let text = "from a variable"
         let count = 2
-        log.info(text)
+        let flag = true
+        log.info("\(text)")
+        log.info(LogMessage(verbatim: text))
         log.info("literal")
         log.info("interpolated \(count)")
+        log.info(flag ? "on" : "off")
+        // Typed from context: the closure's literal becomes a LogMessage.
+        log.info({ _ = count; return "closure \(text)" }())
+        #expect(memory.snapshot().map(\.message) == [
+            "<private>", "from a variable", "literal", "interpolated 2", "on", "closure <private>"
+        ])
+    }
+
+    @Test func errorsHideTheirDescriptionButNotTheirType() {
+        let (log, registry, memory) = makeLogger()
         log.error(CocoaError(.fileNoSuchFile))
-        let messages = memory.snapshot().map(\.message)
-        #expect(Array(messages.prefix(3)) == ["from a variable", "literal", "interpolated 2"])
-        #expect(messages.count == 4)
+
+        let entry = memory.snapshot().last
+        #expect(entry?.message == "<private>")
+        #expect(entry?.level == .error)
+        #expect(entry?.metadata["error_type"] == .string("CocoaError"))
+
+        registry.revealsPrivateValues = true
+        log.error(CocoaError(.fileNoSuchFile))
+        #expect(memory.snapshot().last?.message == CocoaError(.fileNoSuchFile).localizedDescription)
+    }
+
+    @Test func breadcrumbsFollowTheSameRule() {
+        let crumbs = BreadcrumbStore(capacity: 4)
+        let query = "mo@example.com"
+        let screen = "Search"
+        crumbs.record("Searched \(query) on \(screen, privacy: .public)")
+        crumbs.record("Results: \(3)")
+        #expect(crumbs.snapshot().map(\.message) == ["Searched <private> on Search", "Results: 3"])
+    }
+
+    @Test func revealingOnlyWorksInDebugBuilds() {
+        let registry = EngineRegistry(installDefaultSystemLogger: false)
+        registry.revealsPrivateValues = true
+        let email = "mo@example.com"
+        let message: LogMessage = "Signed in \(email)"
+        #if DEBUG
+        #expect(registry.revealsPrivateValues)
+        #expect(message.rendered(revealingPrivateValues: true) == "Signed in mo@example.com")
+        #else
+        #expect(!registry.revealsPrivateValues)
+        #expect(!message.hasPrivateValues)
+        #expect(message.rendered(revealingPrivateValues: true) == "Signed in <private>")
+        #endif
     }
 
     // MARK: LogPublicValue
@@ -188,12 +257,12 @@ struct LogMessageTests {
         #expect(!numbers.hasPrivateValues && !names.hasPrivateValues)
     }
 
-    @Test func unmarkedValuesStayPublicIn4x() {
+    @Test func unmarkedValuesCanBeRevealedButSensitiveOnesCannot() {
         let email = "mo@example.com"
-        let id = UUID(uuidString: "00000000-0000-0000-0000-000000000001")
-        let message: LogMessage = "Signed in \(email) as \(id)"
-        #expect(message.rendered() == "Signed in mo@example.com as \(String(describing: id))")
-        #expect(!message.hasPrivateValues)
+        let token = "abc123"
+        let message: LogMessage = "Signed in \(email) with \(token, privacy: .sensitive)"
+        #expect(message.rendered() == "Signed in <private> with <sensitive>")
+        #expect(message.rendered(revealingPrivateValues: true) == "Signed in mo@example.com with <sensitive>")
     }
 
     @Test func publicValuesCanStillBeMarked() {
@@ -204,7 +273,7 @@ struct LogMessageTests {
         #expect(message.rendered(revealingPrivateValues: true) == "User 42 at <sensitive>")
     }
 
-    @Test func publicValuesKeepPlainLiteralsOnTheStringOverload() {
+    @Test func publicValuesAreShownInPlainLiterals() {
         let (log, _, memory) = makeLogger()
         let step = CheckoutStep.payment
         let attempt = 2

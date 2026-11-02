@@ -89,7 +89,8 @@ public final class LiveSink: LogEngine, @unchecked Sendable {
         listener.stateUpdateHandler = { [statusLogger] state in
             switch state {
             case .ready: statusLogger?.notice("LiveSink ready", tag: .Development.debug)
-            case .failed(let error): statusLogger?.error("LiveSink failed: \(error)", tag: .Development.debug)
+            case .failed(let error):
+                statusLogger?.error("LiveSink failed: \(error, privacy: .private)", tag: .Development.debug)
             default: break
             }
         }

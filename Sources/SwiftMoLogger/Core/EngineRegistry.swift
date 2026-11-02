@@ -102,12 +102,6 @@ public final class EngineRegistry: @unchecked Sendable {
         return Array(engines)
     }
 
-    /// v2 compatibility alias.
-    @available(*, deprecated, renamed: "allEngines()")
-    public func getAllEngines() -> [any LogEngine] {
-        allEngines()
-    }
-
     public var engineCount: Int {
         lock.lock()
         defer { lock.unlock() }
@@ -192,9 +186,10 @@ public final class EngineRegistry: @unchecked Sendable {
 
     // MARK: - Per-value privacy
 
-    /// Whether values interpolated with `privacy: .private` are shown in the
-    /// messages engines receive. `false` (the default) replaces them with
-    /// `<private>`. Values marked `.sensitive` are never shown.
+    /// Whether private values (interpolated without `privacy:`, or with
+    /// `privacy: .private`) are shown in the messages engines receive. `false`
+    /// (the default) replaces them with `<private>`. Values marked `.sensitive`
+    /// are never shown.
     ///
     /// Turn it on in DEBUG builds to read private values while you debug, as
     /// `os_log` does with a debugger attached. Every engine then receives them,
@@ -205,11 +200,19 @@ public final class EngineRegistry: @unchecked Sendable {
     /// logging.registry.revealsPrivateValues = true
     /// #endif
     /// ```
+    ///
+    /// It only works in DEBUG builds. In a release build it reads `false`
+    /// whatever was set, and messages never keep the revealed text. A QA build
+    /// that needs private values uses a Debug-like configuration.
     public var revealsPrivateValues: Bool {
         get {
+            #if DEBUG
             lock.lock()
             defer { lock.unlock() }
             return revealsPrivate
+            #else
+            return false
+            #endif
         }
         set {
             lock.lock()

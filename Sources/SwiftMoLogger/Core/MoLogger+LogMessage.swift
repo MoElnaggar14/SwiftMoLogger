@@ -1,21 +1,19 @@
 import Foundation
 
-/// `LogMessage` overloads of the level methods, for per-value privacy:
+/// The level methods. Each takes a ``LogMessage``, so a string literal's text is
+/// public and its interpolated values are private unless marked or declared safe:
 ///
 /// ```swift
-/// log.info("Signed in \(email, privacy: .private)")   // "Signed in <private>"
+/// log.info("Signed in \(email)")                       // "Signed in <private>"
+/// log.info("Opened \(screen, privacy: .public)")       // "Opened Settings"
+/// log.info("Retry \(attempt) of \(limit)")              // "Retry 2 of 5"
+/// log.info(LogMessage(verbatim: text))                 // a String you know is safe
 /// ```
-///
-/// They sit alongside the `String` overloads and are marked
-/// `@_disfavoredOverload`, so any call that type-checks against `String` keeps
-/// using it (including expressions whose type comes from context, such as
-/// `log.info({ … }())`). Only a literal that uses `privacy:`, or a `LogMessage`
-/// value, resolves here.
 public extension MoLogger {
-    /// Logs a ``LogMessage``. Like the `String` overload, the message is built
-    /// only when the entry passes the registry's filter; its hidden values are
-    /// replaced before the ``LogEntry`` is created.
-    @_disfavoredOverload
+    /// Logs a ``LogMessage`` at `level`. The message is an autoclosure: it is
+    /// built only when the entry passes the registry's filter, and its hidden
+    /// values are replaced before the ``LogEntry`` is created, so no engine sees
+    /// them.
     func log(
         _ level: LogLevel,
         _ message: @autoclosure () -> LogMessage,
@@ -39,7 +37,6 @@ public extension MoLogger {
         ))
     }
 
-    @_disfavoredOverload
     func trace(
         _ message: @autoclosure () -> LogMessage,
         tag: LogTag? = nil,
@@ -62,7 +59,6 @@ public extension MoLogger {
     }
 
     /// Debug-only: compiled out of release builds, so the message is never evaluated there.
-    @_disfavoredOverload
     func debug(
         _ message: @autoclosure () -> LogMessage,
         tag: LogTag? = nil,
@@ -86,7 +82,6 @@ public extension MoLogger {
         #endif
     }
 
-    @_disfavoredOverload
     func info(
         _ message: @autoclosure () -> LogMessage,
         tag: LogTag? = nil,
@@ -108,7 +103,6 @@ public extension MoLogger {
         )
     }
 
-    @_disfavoredOverload
     func notice(
         _ message: @autoclosure () -> LogMessage,
         tag: LogTag? = nil,
@@ -130,7 +124,6 @@ public extension MoLogger {
         )
     }
 
-    @_disfavoredOverload
     func warning(
         _ message: @autoclosure () -> LogMessage,
         tag: LogTag? = nil,
@@ -152,7 +145,6 @@ public extension MoLogger {
         )
     }
 
-    @_disfavoredOverload
     func error(
         _ message: @autoclosure () -> LogMessage,
         tag: LogTag? = nil,
@@ -174,7 +166,6 @@ public extension MoLogger {
         )
     }
 
-    @_disfavoredOverload
     func critical(
         _ message: @autoclosure () -> LogMessage,
         tag: LogTag? = nil,
@@ -196,7 +187,6 @@ public extension MoLogger {
         )
     }
 
-    @_disfavoredOverload
     func fault(
         _ message: @autoclosure () -> LogMessage,
         tag: LogTag? = nil,
