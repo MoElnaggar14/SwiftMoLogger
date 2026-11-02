@@ -96,6 +96,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 - [Development model (GitFlow)](#development-model-gitflow)
 - [📚 Article series](#-article-series)
 - [Xcode code snippets](#xcode-code-snippets)
+- [Who's using it](#whos-using-it)
 - [License](#license)
 
 ---
@@ -1113,6 +1114,12 @@ cp Extras/Snippets/*.codesnippet ~/Library/Developer/Xcode/UserData/CodeSnippets
 Restart Xcode. The snippets show up in the Snippets Library (`⌘⇧L`) and autocomplete by prefix.
 
 ---
+
+## Who's using it
+
+Using SwiftMoLogger in an app or a package? Open a pull request that adds it to this list, or say hello in [Discussions](https://github.com/MoElnaggar14/SwiftMoLogger/discussions). Knowing who depends on it shapes what comes next.
+
+- *Your app here*
 
 ## License
 

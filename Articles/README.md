@@ -1,6 +1,6 @@
 # SwiftMoLogger — Article Series
 
-A focused five-part series on how SwiftMoLogger 4.0 is designed, and why each piece exists. Every code sample uses the 4.0 API: one `LogEnvironment` built at your composition root and injected, with no singletons.
+A focused five-part series on how SwiftMoLogger is designed, and why each piece exists. Every code sample uses the 5.x API: one `LogEnvironment` built at your composition root and injected, with no singletons.
 
 | # | Title | What you'll learn |
 |---|---|---|
@@ -12,4 +12,4 @@ A focused five-part series on how SwiftMoLogger 4.0 is designed, and why each pi
 
 Read in order, or jump to whichever is on fire for you today.
 
-New to the package? Start with the [README](../README.md). Upgrading from 3.x? See [MIGRATION.md](../MIGRATION.md).
+New to the package? Start with the [README](../README.md). Upgrading from 3.x or 4.x? See [MIGRATION.md](../MIGRATION.md).
