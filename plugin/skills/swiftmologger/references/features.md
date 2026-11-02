@@ -1,4 +1,4 @@
-# SwiftMoLogger feature reference (4.x)
+# SwiftMoLogger feature reference (5.x)
 
 Read only the section you need. Every API takes its dependencies explicitly.
 
@@ -154,7 +154,7 @@ SwiftMoLogHandler.bootstrap(logger: logging.logger)   // once per process
 
 ```swift
 #log(logger, "user signed in", level: .info, tag: .api)
-#log(logger, "Signed in \(email, privacy: .private)")   // "Signed in <private>"
+#log(logger, "Signed in \(email)")   // "Signed in <private>"
 let users = try #measure(signposter, "loadUsers") { try repo.all() }
 
 @AutoLog

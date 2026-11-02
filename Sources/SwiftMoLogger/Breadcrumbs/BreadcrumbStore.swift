@@ -57,11 +57,21 @@ public final class BreadcrumbStore: @unchecked Sendable {
 
 public extension BreadcrumbStore {
     /// Record a breadcrumb. Cheap: O(1) append into a fixed-capacity buffer.
+    ///
+    /// The message follows the same rules as a log message: literal text is
+    /// public, and interpolated values are private unless marked or declared
+    /// safe. Breadcrumbs are kept for crash reports, so private values are never
+    /// revealed here, not even in DEBUG builds:
+    ///
+    /// ```swift
+    /// breadcrumbs.record("Opened \(screen, privacy: .public)", category: .navigation)
+    /// breadcrumbs.record("Searched \(query)")   // "Searched <private>"
+    /// ```
     func record(
-        _ message: String,
+        _ message: LogMessage,
         category: Breadcrumb.Category = .custom,
         metadata: LogMetadata = [:]
     ) {
-        record(Breadcrumb(category: category, message: message, metadata: metadata))
+        record(Breadcrumb(category: category, message: message.rendered(), metadata: metadata))
     }
 }

@@ -75,7 +75,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
   - [3. Swift Macros](#3-swift-macros--zero-boilerplate-call-sites)
 - [Core logging](#core-logging)
 - [Production hardening](#production-hardening)
-  - [Per-value privacy](#per-value-privacy)
+  - [Private by default](#private-by-default)
   - [PII redaction](#pii-redaction)
   - [Breadcrumbs](#breadcrumbs)
   - [Per-tag levels and remote config](#per-tag-levels-and-remote-config)
@@ -123,7 +123,7 @@ That's it. No `configure(…)` step, no protocol gymnastics, and no singletons: 
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "4.6.0")
+    .package(url: "https://github.com/MoElnaggar14/SwiftMoLogger.git", from: "5.0.0")
 ],
 targets: [
     .target(name: "App", dependencies: [
@@ -284,8 +284,8 @@ import SwiftMoLoggerSugar
 #log(logger, "user signed in", level: .info, tag: .api)
 // Captures #fileID / #function / #line at the call site.
 
-#log(logger, "Signed in \(email, privacy: .private)")
-// Per-value privacy, as with logger.info(…): logs "Signed in <private>".
+#log(logger, "Signed in \(email)")
+// Private by default, as with logger.info(…): logs "Signed in <private>".
 
 let users = try #measure(signposter, "loadUsers") {
     try repo.all()
@@ -457,19 +457,21 @@ logging.registry.addEngine(SystemLogger(privacy: .public))   // readable everywh
 
 `.hashed` redacts while keeping a stable hash, so identical messages can still be correlated.
 
-### Per-value privacy
+### Private by default
 
-Mark the sensitive value instead of hiding the whole message, as with `os.Logger`:
+Log messages are private by default, as in `os.Logger`. Literal text is public. A value interpolated without `privacy:` is hidden unless it's a number, a `Bool` or a type you declared safe:
 
 ```swift
-log.info("Signed in \(email, privacy: .private) on \(device)")   // "Signed in <private> on iPhone"
+log.info("Signed in \(email) on \(device, privacy: .public)")   // "Signed in <private> on iPhone"
+log.info("Retry \(attempt) of \(limit), ok: \(isOK)")            // "Retry 2 of 5, ok: false"
 log.info("Account \(userID, privacy: .private(mask: .hash))")    // "Account <hash:07ee7e07b4b19223>"
 log.notice("Refreshed \(token, privacy: .sensitive)")            // "Refreshed <sensitive>"
 ```
 
-| Privacy | Rendered as | Revealed by `revealsPrivateValues` |
+| Interpolation | Rendered as | Revealed by `revealsPrivateValues` |
 |---|---|---|
-| none, or `.public` | the value (private in 5.0 unless a number, `Bool` or `LogPublicValue`) | — |
+| `.public`, or no `privacy:` on a number, `Bool` or `LogPublicValue` | the value | — |
+| no `privacy:` on anything else (`String`, `URL`, `UUID`, `Date`, errors, collections) | `<private>` | yes |
 | `.private` | `<private>` | yes |
 | `.sensitive` | `<sensitive>` | never |
 | `.private(mask: .hash)`, `.sensitive(mask: .hash)` | `<hash:…>`, a stable 64-bit hash for correlation | as above |
@@ -482,32 +484,26 @@ logging.registry.revealsPrivateValues = true
 #endif
 ```
 
-Plain messages and `String` values don't change: a literal becomes a `LogMessage` only when it uses `privacy:`. Engine privacy and redaction still apply to the rendered message. `#log(logger, "Signed in \(email, privacy: .private)")` works the same way. Design notes: [docs/design/per-value-privacy.md](docs/design/per-value-privacy.md).
+`revealsPrivateValues` only works in DEBUG builds: in release it reads `false` whatever was set, and messages never keep the revealed text.
 
-#### Preparing for private by default (5.0)
+Declare your own safe types once instead of marking every call site:
 
-In 5.0 a value interpolated without `privacy:` is private, as in `os.Logger`: `"Signed in \(email)"` logs `Signed in <private>`. Numbers, `Bool` and `LogPublicValue` types stay public. 4.x doesn't change any output yet, but you can get every call site ready now:
+```swift
+enum CheckoutStep: String, LogPublicValue { case cart, payment, review }
 
-1. Run the audit with `--privacy`. It lists each interpolation in a log call that has no `privacy:` and isn't obviously a number:
+log.info("Step \(step)")   // "Step payment"
+```
 
-   ```bash
-   python3 plugin/skills/swiftmologger/scripts/audit_logging.py --privacy path/to/YourApp
-   # Checkout.swift:42: [privacy] \(user.name) renders <private> in 5.0: add privacy: .public if it's safe, …
-   ```
+Out of the box: the integer types, `Float`, `Double`, `Bool`, `StaticString`, `LogLevel`, `LogTag`, and optionals of them. Conform only types whose every value is safe to show.
 
-   `--fix-privacy` marks the safe ones `privacy: .public` for you: `.rawValue`, and names ending in `count`, `Count`, `index`, `Index`, `ID` or `Id`. It lists the rest for you to decide. `[privacy]` findings don't change the exit status.
-2. Settle each line: `privacy: .public` if the value is safe to show, `privacy: .private` (or `.sensitive`) to keep it hidden.
-3. Conform your own safe types once instead of marking every call site:
+**`String` values.** A `String` you already have is computed text, so the call site decides once: `log.info(text)` doesn't compile, and the error says to write `"\(text)"` to hide it or `LogMessage(verbatim: text)` to show it. App wrappers should take a `LogMessage`, not a `String`.
 
-   ```swift
-   enum CheckoutStep: String, LogPublicValue { case cart, payment, review }
+- `log.error(error)` logs the error's `localizedDescription` as `<private>`; the `error_type` metadata (the type's name) stays public, so entries still group. Log `"\(error.localizedDescription, privacy: .public)"` to show it.
+- `#log(logger, "Signed in \(email)")`, `breadcrumbs.record(_:)` and `signposter.event(_:message:)` follow the same rule. Breadcrumbs and signposts never reveal private values.
+- Privacy covers the message, not metadata: metadata values are logged as they are, through `RedactingLogEngine` if you add it.
+- Engine privacy (`SystemLogger`'s `.privateInRelease`) and redaction still apply to the rendered message.
 
-   log.info("Step \(step)")   // "Step payment", in 4.x and in 5.0
-   ```
-
-   Out of the box: the integer types, `Float`, `Double`, `Bool`, `StaticString`, `LogLevel`, `LogTag`, and optionals of them. `String`, `UUID`, `Date`, `URL`, errors and collections stay private in 5.0.
-
-Privacy covers the message, not metadata: metadata values are logged as they are, through `RedactingLogEngine` if you add it. In 5.0, `String` values passed as the message (`log.info(text)`) stop compiling, with a fix-it message: write `"\(text)"` to hide the text or `LogMessage(verbatim: text)` to show it. Tracking issue: [#48](https://github.com/MoElnaggar14/SwiftMoLogger/issues/48).
+`audit_logging.py --privacy` lists every interpolation in a log call without `privacy:`, so you can check which ones render `<private>`; `--fix-privacy` marks the safe ones (`.rawValue`, names ending in `count`, `index`, `ID` or `Id`) `privacy: .public`. Design notes: [docs/design/private-by-default.md](docs/design/private-by-default.md).
 
 ### PII redaction
 
@@ -1015,6 +1011,8 @@ Spotted something out of date for another library? Please open an issue. For Swi
 
 ## Upgrading
 
+**From 4.x:** 5.0 makes log messages private by default and removes deprecated API. **[MIGRATION.md](MIGRATION.md#migrating-from-4x-to-50)** lists every change and its one-line fix.
+
 **From 3.x:** 4.0 removes every singleton and the static `SwiftMoLogger.*` facade in favour of one injected `LogEnvironment`. The upgrade is mechanical: **[MIGRATION.md](MIGRATION.md)** maps every 3.x call to its 4.0 equivalent.
 
 **From v2:** the table below shows each v2 concept and where it lives now (4.0 API):
@@ -1023,7 +1021,7 @@ Spotted something out of date for another library? Please open an issue. For Swi
 |---|---|---|
 | `LogEngine.info(message:)` | `LogEngine.log(_:)` | v2 methods kept as default-impls |
 | `LogTag` is `enum` | `LogTag` is `struct` + namespaces | All `.api` shorthands preserved |
-| `getAllEngines()` | `allEngines()` | Old name kept as deprecated alias |
+| `getAllEngines()` | `allEngines()` | Old name removed in 5.0 |
 | info/warn silently dropped in release | always shipped | **Real bug fix** |
 | no metadata | `metadata: [:]` on every call | |
 | no source location | captured via `#fileID` / `#line` | automatic |

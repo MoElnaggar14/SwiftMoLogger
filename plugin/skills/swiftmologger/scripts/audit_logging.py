@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Audit an app's SwiftMoLogger usage: 3.x calls to migrate and release-safety issues.
+"""Audit an app's SwiftMoLogger usage: removed APIs to migrate and release-safety issues.
 
 Usage: audit_logging.py [--privacy | --fix-privacy] [PROJECT_ROOT]
 
 Prints one line per finding as path:line: [kind] message, where kind is
-  migrate  a 3.x API that doesn't exist in 4.0, with its replacement
+  migrate  a 3.x or 4.x API that doesn't exist in 5.0, with its replacement
   release  something that can leak logs or secrets in a release build
   note     worth a look, not necessarily wrong
   privacy  (with --privacy) an interpolation in a log message without privacy:,
-           which renders <private> in 5.0 unless its type is numeric, Bool or
+           which renders <private> unless its type is numeric, Bool or
            LogPublicValue
 --fix-privacy also adds `privacy: .public` to the interpolations that are safe to
 show (`.rawValue`, names ending in count, Count, index, Index, ID or Id) and lists the rest.
@@ -57,6 +57,8 @@ MIGRATIONS = [
     (r"\bBugReporter\s*\(\s*memoryEngine:", "BugReporter(environment:memoryEngine:vitalsMonitor:appName:)"),
     (r"\bSwiftMoLogHandler\.bootstrap\s*\(\s*\)", "SwiftMoLogHandler.bootstrap(logger:)"),
     (r"\bSwiftMoLogHandler\s*\(\s*label:[^,()]*\)", "SwiftMoLogHandler(label:logger:)"),
+    # Removed in 5.0.
+    (r"\.getAllEngines\s*\(", "registry.allEngines()"),
 ]
 MIGRATIONS = [(re.compile(p), r) for p, r in MIGRATIONS]
 
@@ -85,12 +87,12 @@ def debug_only_lines(lines):
     return result
 
 
-# MARK: - Privacy (5.0 makes unmarked interpolations private)
+# MARK: - Privacy (since 5.0, unmarked interpolations are private)
 
 LOG_CALL = re.compile(r"(?:\.\s*(?:trace|debug|info|notice|warning|error|critical|fault|log)|#log)\s*\(")
 NUMERIC = re.compile(r"^-?\d[\d_]*(?:\.\d+)?$|\.count$")
 SAFE_TO_SHOW = re.compile(r"^[A-Za-z_][\w.]*(?:\.rawValue|count|Count|index|Index|ID|Id)$")
-PRIVACY_HINT = "renders <private> in 5.0: add privacy: .public if it's safe, or privacy: .private to keep it hidden"
+PRIVACY_HINT = "renders <private>: add privacy: .public if it's safe to show, or privacy: .private to say it's hidden on purpose"
 
 
 def scan_swift(text):
@@ -227,7 +229,7 @@ def main():
     parser = argparse.ArgumentParser(description="Audit an app's SwiftMoLogger usage.")
     parser.add_argument("root", nargs="?", default=".", help="project root (default: current directory)")
     parser.add_argument("--privacy", action="store_true",
-                        help="list interpolations in log messages without privacy: (they render <private> in 5.0)")
+                        help="list interpolations in log messages without privacy: (they render <private>)")
     parser.add_argument("--fix-privacy", action="store_true",
                         help="mark the safe ones privacy: .public in place, then list the rest")
     options = parser.parse_args()
