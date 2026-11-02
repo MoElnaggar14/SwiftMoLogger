@@ -4,7 +4,7 @@ All notable changes to SwiftMoLogger are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [5.0.0] — 2026-11-02
 
 Log messages are private by default, as in `os.Logger`: a value interpolated without `privacy:` renders `<private>` unless it's a number, a `Bool` or a `LogPublicValue`. Breaking; see [MIGRATION.md](MIGRATION.md#migrating-from-4x-to-50).
 
