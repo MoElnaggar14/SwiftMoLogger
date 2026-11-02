@@ -1035,7 +1035,7 @@ Spotted something out of date for another library? Please open an issue. For Swi
 
 ## Use with AI coding agents
 
-The repository ships an [agent skill](plugin/skills/swiftmologger/SKILL.md) that teaches AI coding agents to set up SwiftMoLogger the 4.0 way. It covers one injected `LogEnvironment`, which engines belong in debug and which in release builds, redaction, network logging, keeping `LiveSink` debug-only, testing, and the 3.x → 4.0 migration. It also includes an audit script that lists every 3.x call with its replacement and flags release-safety problems. With `--privacy`, it also lists the interpolations that render `<private>` in 5.0 ([Preparing for private by default](#preparing-for-private-by-default-50)):
+The repository ships an [agent skill](plugin/skills/swiftmologger/SKILL.md) that teaches AI coding agents to set up SwiftMoLogger correctly. It covers one injected `LogEnvironment`, which engines belong in debug and which in release builds, private-by-default messages, redaction, network logging, keeping `LiveSink` debug-only, testing, and the 3.x and 4.x migrations. It also includes an audit script that lists every removed API with its replacement and flags release-safety problems. With `--privacy`, it also lists the interpolations that render `<private>` ([Private by default](#private-by-default)):
 
 ```bash
 python3 plugin/skills/swiftmologger/scripts/audit_logging.py path/to/YourApp
@@ -1057,6 +1057,8 @@ mkdir -p .agents/skills && cp -R /tmp/SwiftMoLogger/plugin/skills/swiftmologger 
 ```
 
 (Use `.claude/skills/` instead of `.agents/skills/` to give it to Claude Code without the plugin.) Agents working on this repository itself read [AGENTS.md](AGENTS.md).
+
+**Let the agent read your app's logs**: [`swiftmologger-mcp`](Tools/swiftmologger-mcp) is an MCP server that gives Claude Code, Codex or Cursor a debug build's live logs over `LiveSink`, with read-only tools to search entries, read one in full, wait for the next match and list network requests. Entries are redacted before the agent sees them, and private values arrive as `<private>`. Setup, including `claude mcp add`, is in its [README](Tools/swiftmologger-mcp/README.md). The skill tells the agent when to use it.
 
 ---
 
