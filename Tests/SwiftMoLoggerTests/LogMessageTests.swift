@@ -61,7 +61,7 @@ struct LogMessageTests {
     @Test func privateValuesAreHiddenUnlessRevealed() {
         let email = "mo@example.com"
         let device = "iPhone"
-        let message: LogMessage = "Signed in \(email, privacy: .private) on \(device)"
+        let message: LogMessage = "Signed in \(email, privacy: .private) on \(device, privacy: .public)"
         #expect(message.rendered() == "Signed in <private> on iPhone")
         #expect(message.description == "Signed in <private> on iPhone")
         #expect(message.hasPrivateValues)
@@ -184,18 +184,22 @@ struct LogMessageTests {
         ])
     }
 
+    private struct PaymentDeclined: LocalizedError {
+        var errorDescription: String? { "Card ending 4242 was declined" }
+    }
+
     @Test func errorsHideTheirDescriptionButNotTheirType() {
         let (log, registry, memory) = makeLogger()
-        log.error(CocoaError(.fileNoSuchFile))
+        log.error(PaymentDeclined())
 
         let entry = memory.snapshot().last
         #expect(entry?.message == "<private>")
         #expect(entry?.level == .error)
-        #expect(entry?.metadata["error_type"] == .string("CocoaError"))
+        #expect(entry?.metadata["error_type"] == .string("PaymentDeclined"))
 
         registry.revealsPrivateValues = true
-        log.error(CocoaError(.fileNoSuchFile))
-        #expect(memory.snapshot().last?.message == CocoaError(.fileNoSuchFile).localizedDescription)
+        log.error(PaymentDeclined())
+        #expect(memory.snapshot().last?.message == "Card ending 4242 was declined")
     }
 
     @Test func breadcrumbsFollowTheSameRule() {
