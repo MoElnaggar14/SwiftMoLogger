@@ -41,6 +41,23 @@ struct NetworkTab: View {
                 }
             }
 
+            Section {
+                Button("data(for:on:) — capture the response body") {
+                    Task {
+                        lastSummary = await viewModel.fetchCapturingResponseBody(URL(string: "https://httpbin.org/json")!)
+                    }
+                }
+                Button("data(for:delegate:) — per-request delegate") {
+                    Task {
+                        lastSummary = await viewModel.fetchWithPerRequestDelegate(URL(string: "https://httpbin.org/uuid")!)
+                    }
+                }
+            } header: {
+                Text("Async bodies")
+            } footer: {
+                Text("`network.data(for:on:)` runs on the session whose own delegate is the same `NetworkLogger`. In the Hub, the request should appear once, with its response body. The per-request delegate logs the request and response without the response body.")
+            }
+
             Section("Sensitive header redaction") {
                 Text("`NetworkLogger` scrubs `Authorization`, `Cookie`, `X-API-Key`, and other known-sensitive headers before they are logged. Pass `sensitiveHeaders:` to `NetworkLogger(logger:events:breadcrumbs:sensitiveHeaders:)` to extend `NetworkLogger.defaultSensitiveHeaders`.")
                     .font(.caption)

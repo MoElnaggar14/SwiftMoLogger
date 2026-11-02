@@ -55,6 +55,11 @@ struct ContentView: View {
     }
 }
 
+/// A type whose every value is safe to log, so it's public without a marker.
+private enum CheckoutStep: String, LogPublicValue {
+    case cart, payment, review
+}
+
 // MARK: - Demo tab — core API surface
 
 private struct DemoTab: View {
@@ -70,7 +75,7 @@ private struct DemoTab: View {
     var body: some View {
         Form {
             Section {
-                Text("Every button here exercises a different piece of the v4 API through an injected `MoLogger`. Watch the Console or Hub tabs to see logs flow through.")
+                Text("Every button here exercises a different piece of the v5 API through an injected `MoLogger`. Watch the Console or Hub tabs to see logs flow through.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -123,20 +128,39 @@ private struct DemoTab: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Per-value privacy") {
-                Button("privacy: .private / .sensitive") {
+            Section {
+                Button("Unmarked values are private") {
                     let email = "mo@example.com"
+                    let attempt = 2
+                    // "signed in <private> (attempt 2)": numbers stay readable.
+                    logger.info("signed in \(email) (attempt \(attempt))", tag: .Security.authentication)
+                }
+                Button("privacy: .public / LogPublicValue") {
+                    let device = "iPhone"
+                    let step = CheckoutStep.payment
+                    // "on iPhone at payment"
+                    logger.info("on \(device, privacy: .public) at \(step)", tag: .Business.workflow)
+                }
+                Button("privacy: .sensitive / .private(mask: .hash)") {
                     let token = "tok_\(Int.random(in: 10_000...99_999))"
-                    let userID = 42
-                    logger.info(
-                        "signed in \(email, privacy: .private) as \(userID, privacy: .private(mask: .hash))",
+                    let userID = "user-42"
+                    logger.notice(
+                        "refreshed \(token, privacy: .sensitive) for \(userID, privacy: .private(mask: .hash))",
                         tag: .Security.authentication
                     )
-                    logger.notice("refreshed \(token, privacy: .sensitive)", tag: .Security.authentication)
                 }
-                Text("Only the marked values are hidden: <private>, <sensitive> or a stable <hash:…>.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Button("A String you already have") {
+                    let computed = "cache warmed in 12 ms"
+                    logger.info("\(computed)", tag: .Data.cache)                // hidden
+                    logger.info(LogMessage(verbatim: computed), tag: .Data.cache) // shown, on purpose
+                }
+                #if DEBUG
+                Toggle("Reveal private values (DEBUG only)", isOn: $viewModel.revealsPrivateValues)
+                #endif
+            } header: {
+                Text("Private by default")
+            } footer: {
+                Text("Literal text is public. An interpolated value is <private> unless it's a number, a Bool, a LogPublicValue type or marked `privacy: .public`. <sensitive> is never revealed. The reveal toggle only works in DEBUG builds.")
             }
 
             Section("Breadcrumbs") {
