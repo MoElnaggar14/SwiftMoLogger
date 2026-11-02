@@ -1,7 +1,7 @@
 {
   "name": "swiftmologger",
   "description": "Teaches Claude to set up SwiftMoLogger 5.x: one injected LogEnvironment, the right engines for debug vs release, redaction, network logging, debug tooling, private-by-default messages, tests and the 3.x and 4.x migrations.",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "author": { "name": "Mohammed Elnaggar", "url": "https://github.com/MoElnaggar14" },
   "homepage": "https://github.com/MoElnaggar14/SwiftMoLogger",
   "repository": "https://github.com/MoElnaggar14/SwiftMoLogger",
