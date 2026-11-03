@@ -19,6 +19,7 @@ final class LoggingDemoViewModel: ObservableObject {
     private let memory: MemoryLogEngine
     private let vitals: AppVitalsMonitor
     private let session: URLSession
+    private let network: NetworkLogger
 
     #if DEBUG
     private var liveSink: LiveSink?
@@ -31,6 +32,7 @@ final class LoggingDemoViewModel: ObservableObject {
         self.memory = dependencies.memory
         self.vitals = dependencies.vitals
         self.session = dependencies.session
+        self.network = dependencies.network
         self.recoveredEntryCount = dependencies.flightRecorder.crashedSession?.entries.count
         self.bugReporter = BugReporter(
             environment: dependencies.logging,
@@ -76,6 +78,38 @@ final class LoggingDemoViewModel: ObservableObject {
             return "\(status) · \(data.count) B"
         } catch {
             return "error: \(error.localizedDescription)"
+        }
+    }
+
+    /// `NetworkLogger.data(for:on:)` on the session whose own delegate is the
+    /// same logger. The Hub should show the request once, with its response body.
+    func fetchCapturingResponseBody(_ url: URL) async -> String {
+        await summarize { try await network.data(for: URLRequest(url: url), on: session) }
+    }
+
+    /// The per-request delegate on a session that has none. Logs the request
+    /// and response; only the request body is captured.
+    func fetchWithPerRequestDelegate(_ url: URL) async -> String {
+        await summarize { try await URLSession.shared.data(for: URLRequest(url: url), delegate: network) }
+    }
+
+    private func summarize(_ load: () async throws -> (Data, URLResponse)) async -> String {
+        do {
+            let (data, response) = try await load()
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            return "\(status) · \(data.count) B"
+        } catch {
+            return "error: \(error.localizedDescription)"
+        }
+    }
+
+    /// Shows private values in every engine while you debug. Reads `false` in
+    /// release builds whatever is set.
+    var revealsPrivateValues: Bool {
+        get { logging.registry.revealsPrivateValues }
+        set {
+            objectWillChange.send()
+            logging.registry.revealsPrivateValues = newValue
         }
     }
 

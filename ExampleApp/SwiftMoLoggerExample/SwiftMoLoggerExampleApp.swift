@@ -105,7 +105,10 @@ struct AppDependencies {
     let logging: LogEnvironment
     /// In-memory ring for the Demo tab's counters and the bug-report bundle.
     let memory: MemoryLogEngine
-    /// A session whose every task is logged by a `NetworkLogger` delegate
+    /// The session's delegate. Also used per request, by `data(for:on:)` to
+    /// capture response bodies and by `URLSession.data(for:delegate:)`.
+    let network: NetworkLogger
+    /// A session whose every task is logged by `network`
     /// (request/response entries, breadcrumbs, and Hub waterfall events).
     let session: URLSession
     let vitals: AppVitalsMonitor
@@ -116,12 +119,10 @@ struct AppDependencies {
     init(logging: LogEnvironment = LogEnvironment()) {
         self.logging = logging
         self.memory = MemoryLogEngine(capacity: 2_000)
-        self.session = URLSession(
-            configuration: .default,
-            // Request bodies show in the Hub's detail view in debug builds only.
-            delegate: NetworkLogger(environment: logging, bodies: .debugOnly(maxBytes: 16 * 1_024)),
-            delegateQueue: nil
-        )
+        // Bodies show in the Hub's detail view in debug builds only.
+        let network = NetworkLogger(environment: logging, bodies: .debugOnly(maxBytes: 16 * 1_024))
+        self.network = network
+        self.session = URLSession(configuration: .default, delegate: network, delegateQueue: nil)
         self.vitals = AppVitalsMonitor(logger: logging.logger, history: logging.vitals)
         // Redact before anything touches the disk: the crash file can outlive the session.
         self.flightRecorder = FlightRecorder(environment: logging, redactor: Redactor())

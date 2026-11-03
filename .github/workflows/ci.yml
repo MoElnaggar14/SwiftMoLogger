@@ -151,7 +151,8 @@ jobs:
       - name: Private-by-default audit (report only)
         # Lists log interpolations without `privacy:`, which render <private> (#48).
         # Report only: LiveSink's `\(error)` status message stays unmarked on purpose,
-        # so it becomes private in 5.0. Every other call site in Sources and ExampleApp is marked.
+        # so it becomes private in 5.0, and the ExampleApp's "Private by default" demo leaves values
+        # unmarked to show <private>. Every other call site in Sources and ExampleApp is marked.
         run: |
           AUDIT=plugin/skills/swiftmologger/scripts/audit_logging.py
           for dir in Sources ExampleApp; do
